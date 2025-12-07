@@ -5,8 +5,16 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (QDialog, QHBoxLayout, QLabel, QMessageBox, QGroupBox, QComboBox, QLayout,
                             QPushButton, QVBoxLayout, QFrame, QCheckBox,QLineEdit)
 from cnapy.utils import QComplReceivLineEdit, QHSeperationLine
-from straindesign import plot_flux_space
-from straindesign.names import *
+try:
+    from straindesign import plot_flux_space
+    from straindesign.names import *
+except ImportError:
+    plot_flux_space = None
+    # Define necessary constants if straindesign is missing
+    CPLEX = 'cplex'
+    GUROBI = 'gurobi'
+    GLPK = 'glpk'
+    SCIP = 'scip'
 
 class PlotSpaceDialog(QDialog):
     """A dialog to create Flux space plots"""

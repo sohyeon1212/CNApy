@@ -9,10 +9,37 @@ import pickle
 import traceback
 import numpy as np
 from qtpy.QtGui import QPalette
-from straindesign import SDModule, lineqlist2str, linexprdict2str, compute_strain_designs, \
-                                    linexpr2dict, select_solver
-from straindesign.names import *
-from straindesign.strainDesignSolutions import SDSolutions
+try:
+    from straindesign import SDModule, lineqlist2str, linexprdict2str, compute_strain_designs, \
+                                        linexpr2dict, select_solver
+    from straindesign.names import *
+    from straindesign.strainDesignSolutions import SDSolutions
+except ImportError:
+    SDModule = None
+    lineqlist2str = None
+    linexprdict2str = None
+    compute_strain_designs = None
+    linexpr2dict = None
+    select_solver = None
+    SDSolutions = None
+    PROTECT = 'Protect'
+    SUPPRESS = 'Suppress'
+    OPTKNOCK = 'OptKnock'
+    ROBUSTKNOCK = 'RobustKnock'
+    OPTCOUPLE = 'OptCouple'
+    NESTED_OPT = 'Nested_Optimization'
+    OUTER_OBJECTIVE = 'Outer_Objective'
+    INNER_OBJECTIVE = 'Inner_Objective'
+    PROD_ID = 'Prod_ID'
+    MIN_GCP = 'Min_GCP'
+    CONSTRAINTS = 'Constraints'
+    ANY = 'Any'
+    BEST = 'Best'
+    POPULATE = 'Populate'
+    CPLEX = 'cplex'
+    GUROBI = 'gurobi'
+    GLPK = 'glpk'
+
 from random import randint
 from qtpy.QtCore import Qt, Slot, Signal, QThread
 from qtpy.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QCompleter,
@@ -20,7 +47,10 @@ from qtpy.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QCompleter,
                             QLabel, QLineEdit, QMessageBox, QPushButton, QApplication,
                             QRadioButton, QTableWidget, QVBoxLayout, QSplitter,
                             QWidget, QFileDialog, QTextEdit, QLayout, QScrollArea)
-import optlang_enumerator.mcs_computation as mcs_computation
+try:
+    import optlang_enumerator.mcs_computation as mcs_computation
+except ImportError:
+    mcs_computation = None
 import cobra
 from cobra.util.solver import interface_to_str
 from cnapy.appdata import AppData

@@ -10,8 +10,6 @@ from cobra.util.array import create_stoichiometric_matrix
 from cobra.core.dictlist import DictList
 from optlang.symbolics import Zero, Add
 
-import efmtool_link.efmtool4cobra as efmtool4cobra
-import efmtool_link.efmtool_extern as efmtool_extern
 from cnapy.flux_vector_container import FluxVectorMemmap, FluxVectorContainer
 from cnapy.appdata import Scenario
 
@@ -20,6 +18,13 @@ organic_elements = ['C', 'O', 'H', 'N', 'P', 'S']
 
 def efm_computation(model: cobra.Model, scen_values: Dict[str, Tuple[float, float]], constraints: bool,
                     print_progress_function=print, abort_callback=None):
+    try:
+        import efmtool_link.efmtool4cobra as efmtool4cobra
+        import efmtool_link.efmtool_extern as efmtool_extern
+    except ImportError:
+        print("efmtool_link not installed. Cannot compute EFMs.")
+        return (None, {})
+
     stdf = create_stoichiometric_matrix(
         model, array_type='DataFrame')
     reversible, irrev_backwards_idx = efmtool4cobra.get_reversibility(

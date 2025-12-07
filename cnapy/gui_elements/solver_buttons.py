@@ -1,7 +1,14 @@
 from importlib import find_loader as module_exists
 from qtpy.QtWidgets import (QButtonGroup, QRadioButton, QVBoxLayout)
-from straindesign import select_solver
-from straindesign.names import CPLEX, GUROBI, GLPK, SCIP
+try:
+    from straindesign import select_solver
+    from straindesign.names import CPLEX, GUROBI, GLPK, SCIP
+except ImportError:
+    select_solver = None
+    CPLEX = 'cplex'
+    GUROBI = 'gurobi'
+    GLPK = 'glpk'
+    SCIP = 'scip'
 from typing import Tuple
 
 

@@ -18,11 +18,25 @@ from cnapy.appdata import AppData
 from cnapy.gui_elements.central_widget import CentralWidget
 from cnapy.gui_elements.solver_buttons import get_solver_buttons
 from enum import Enum
-from cobrak.constants import LNCONC_VAR_PREFIX, DF_VAR_PREFIX, MDF_VAR_ID, ALL_OK_KEY, OBJECTIVE_VAR_NAME, TERMINATION_CONDITION_KEY
-from cobrak.dataclasses import ExtraLinearConstraint, Solver
-from cobrak.lps import perform_lp_optimization, perform_lp_thermodynamic_bottleneck_analysis
-from cobrak.io import load_annotated_cobrapy_model_as_cobrak_model
-from cobrak.cobrapy_model_functionality import get_fullsplit_cobra_model
+try:
+    from cobrak.constants import LNCONC_VAR_PREFIX, DF_VAR_PREFIX, MDF_VAR_ID, ALL_OK_KEY, OBJECTIVE_VAR_NAME, TERMINATION_CONDITION_KEY
+    from cobrak.dataclasses import ExtraLinearConstraint, Solver
+    from cobrak.lps import perform_lp_optimization, perform_lp_thermodynamic_bottleneck_analysis
+    from cobrak.io import load_annotated_cobrapy_model_as_cobrak_model
+    from cobrak.cobrapy_model_functionality import get_fullsplit_cobra_model
+except ImportError:
+    LNCONC_VAR_PREFIX = "lnconc_"
+    DF_VAR_PREFIX = "df_"
+    MDF_VAR_ID = "mdf_var"
+    ALL_OK_KEY = "all_ok"
+    OBJECTIVE_VAR_NAME = "objective_var"
+    TERMINATION_CONDITION_KEY = "termination_condition"
+    class ExtraLinearConstraint: pass
+    class Solver: pass
+    perform_lp_optimization = None
+    perform_lp_thermodynamic_bottleneck_analysis = None
+    load_annotated_cobrapy_model_as_cobrak_model = None
+    get_fullsplit_cobra_model = None
 
 
 

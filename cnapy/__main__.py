@@ -15,19 +15,22 @@
 
 import os
 import site
-from jpype._jvmfinder import getDefaultJVMPath, JVMNotFoundException, JVMNotSupportedException
-
 try:
-    getDefaultJVMPath()
-except (JVMNotFoundException, JVMNotSupportedException):
-    for path in site.getsitepackages():
-        # in one of these conda puts the JRE
-        os.environ['JAVA_HOME'] = os.path.join(path, 'Library')
-        try:
-            getDefaultJVMPath()
-            break
-        except (JVMNotFoundException, JVMNotSupportedException):
-            pass
+    from jpype._jvmfinder import getDefaultJVMPath, JVMNotFoundException, JVMNotSupportedException
+
+    try:
+        getDefaultJVMPath()
+    except (JVMNotFoundException, JVMNotSupportedException):
+        for path in site.getsitepackages():
+            # in one of these conda puts the JRE
+            os.environ['JAVA_HOME'] = os.path.join(path, 'Library')
+            try:
+                getDefaultJVMPath()
+                break
+            except (JVMNotFoundException, JVMNotSupportedException):
+                pass
+except ImportError:
+    pass
 
 from cnapy.application import Application
 

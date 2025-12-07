@@ -9,8 +9,16 @@ from qtpy.QtWidgets import (QDialog, QHBoxLayout, QLabel, QComboBox,
 from cnapy.appdata import AppData
 from cnapy.gui_elements.central_widget import CentralWidget
 from cnapy.utils import QComplReceivLineEdit, QHSeperationLine
-from straindesign import yopt, linexpr2dict, linexprdict2str, avail_solvers
-from straindesign.names import *
+try:
+    from straindesign import yopt, linexpr2dict, linexprdict2str, avail_solvers
+    from straindesign.names import *
+except ImportError:
+    yopt = None
+    linexpr2dict = None
+    linexprdict2str = None
+    avail_solvers = []
+    UNBOUNDED = 'unbounded'
+    OPTIMAL = 'optimal'
 
 class YieldOptimizationDialog(QDialog):
     """A dialog to perform yield optimization"""

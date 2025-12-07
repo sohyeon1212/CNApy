@@ -3,7 +3,12 @@ from qtpy.QtCore import QObject, Qt, Signal, Slot, QTimer, QStringListModel
 from qtpy.QtWidgets import QMessageBox, QLineEdit, QTableWidget, QTableWidgetItem, \
     QCompleter, QApplication, QFrame, QSizePolicy
 from cnapy.appdata import IDList
-from straindesign import lineq2list, linexpr2dict, linexprdict2str
+try:
+    from straindesign import lineq2list, linexpr2dict, linexprdict2str
+except ImportError:
+    def lineq2list(*args, **kwargs): return []
+    def linexpr2dict(*args, **kwargs): return {}
+    def linexprdict2str(*args, **kwargs): return ""
 import fnmatch
 import re
 

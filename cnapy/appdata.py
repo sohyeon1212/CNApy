@@ -1,7 +1,10 @@
 """The application data"""
 import os
 import json
-import gurobipy
+try:
+    import gurobipy
+except ImportError:
+    gurobipy = None
 from configparser import ConfigParser
 import pathlib
 import importlib.resources as resources
@@ -14,7 +17,23 @@ from enum import IntEnum
 
 import cobra
 from optlang.symbolics import Zero
-from optlang_enumerator.cobra_cnapy import CNApyModel
+try:
+    from optlang_enumerator.cobra_cnapy import CNApyModel
+except ImportError:
+    class CNApyModel(cobra.Model):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+        
+        @staticmethod
+        def read_sbml_model(*args, **kwargs):
+            return cobra.io.read_sbml_model(*args, **kwargs)
+
+        def set_stoichiometry_hash_object(self):
+            pass
+
+    def set_hash_value(self):
+        pass
+    cobra.Reaction.set_hash_value = set_hash_value
 from qtpy.QtCore import Qt, Signal, QObject, QStringListModel
 from qtpy.QtGui import QColor, QFont
 from qtpy.QtWidgets import QMessageBox

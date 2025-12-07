@@ -9,8 +9,16 @@ from qtpy.QtWidgets import (QDialog, QHBoxLayout, QLabel, QComboBox,
 from cnapy.appdata import AppData
 from cnapy.gui_elements.central_widget import CentralWidget
 from cnapy.utils import QComplReceivLineEdit
-from straindesign import fba, linexpr2dict, linexprdict2str, avail_solvers
-from straindesign.names import *
+try:
+    from straindesign import fba, linexpr2dict, linexprdict2str, avail_solvers
+    from straindesign.names import *
+except ImportError:
+    fba = None
+    linexpr2dict = None
+    linexprdict2str = None
+    avail_solvers = []
+    UNBOUNDED = 'unbounded'
+    OPTIMAL = 'optimal'
 
 class FluxOptimizationDialog(QDialog):
     """A dialog to perform flux optimization"""

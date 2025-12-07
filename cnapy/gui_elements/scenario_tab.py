@@ -10,7 +10,12 @@ from qtpy.QtWidgets import (QLabel, QCheckBox, QComboBox, QVBoxLayout, QWidget, 
 import cobra
 from cnapy.appdata import AppData, Scenario
 from cnapy.utils import QComplReceivLineEdit, format_scenario_constraint, turn_red, turn_white, BACKGROUND_COLOR
-from straindesign.parse_constr import linexpr2dict, linexprdict2str, lineq2list
+try:
+    from straindesign.parse_constr import linexpr2dict, linexprdict2str, lineq2list
+except ImportError:
+    def linexpr2dict(*args, **kwargs): return {}
+    def linexprdict2str(*args, **kwargs): return ""
+    def lineq2list(*args, **kwargs): return []
 
 class OptimizationDirection(IntEnum):
     min = 0

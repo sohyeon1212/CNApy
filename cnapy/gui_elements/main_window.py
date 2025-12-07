@@ -7,10 +7,24 @@ from zipfile import BadZipFile, ZipFile
 import pickle
 import xml.etree.ElementTree as ET
 from cnapy.flux_vector_container import FluxVectorContainer
+from cnapy.moma import linear_moma
 from cnapy.core_gui import model_optimization_with_exceptions, except_likely_community_model_error, get_last_exception_string, has_community_error_substring
 import cobra
-from optlang_enumerator.cobra_cnapy import CNApyModel
-from optlang_enumerator.mcs_computation import flux_variability_analysis
+try:
+    from optlang_enumerator.cobra_cnapy import CNApyModel
+    from optlang_enumerator.mcs_computation import flux_variability_analysis
+except ImportError:
+    class CNApyModel(cobra.Model):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+        
+        @staticmethod
+        def read_sbml_model(*args, **kwargs):
+            return cobra.io.read_sbml_model(*args, **kwargs)
+
+        def set_stoichiometry_hash_object(self):
+            pass
+    flux_variability_analysis = None
 from optlang.symbolics import Zero
 import numpy as np
 import cnapy.resources  # Do not delete this import - it seems to be unused but in fact it provides the menu icons
@@ -342,6 +356,10 @@ class MainWindow(QMainWindow):
         fba_action = QAction("Flux Balance Analysis (FBA)", self)
         fba_action.triggered.connect(self.fba)
         self.analysis_menu.addAction(fba_action)
+
+        moma_action = QAction("Linear MOMA", self)
+        moma_action.triggered.connect(self.perform_linear_moma)
+        self.analysis_menu.addAction(moma_action)
 
         self.auto_fba_action = QAction("Auto FBA", self)
         self.auto_fba_action.triggered.connect(self.auto_fba)
@@ -1657,6 +1675,20 @@ class MainWindow(QMainWindow):
         with self.appdata.project.cobra_py_model as model:
             self.appdata.project.load_scenario_into_model(model)
             self.appdata.project.solution = model_optimization_with_exceptions(model)
+        self.process_fba_solution()
+
+    def perform_linear_moma(self):
+        if self.appdata.project.solution is None:
+            QMessageBox.warning(self, "No reference solution",
+                                "No reference solution found. Please run FBA on the reference state first.")
+            return
+
+        with self.appdata.project.cobra_py_model as model:
+            self.appdata.project.load_scenario_into_model(model)
+            # Use previous solution as reference
+            reference_fluxes = self.appdata.project.solution.fluxes
+            self.appdata.project.solution = linear_moma(model, reference_fluxes)
+            
         self.process_fba_solution()
 
     def process_fba_solution(self, update=True):

@@ -8,7 +8,10 @@ from qtpy.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QCompleter,
                             QDialog, QGroupBox, QHBoxLayout, QHeaderView,
                             QLabel, QLineEdit, QMessageBox, QPushButton,
                             QRadioButton, QTableWidget, QVBoxLayout)
-import optlang_enumerator.mcs_computation as mcs_computation
+try:
+    import optlang_enumerator.mcs_computation as mcs_computation
+except ImportError:
+    mcs_computation = None
 import cobra
 from cobra.util.solver import interface_to_str
 from cnapy.appdata import AppData

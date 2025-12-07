@@ -3,7 +3,10 @@
 from qtpy.QtCore import Signal, Slot, QSignalBlocker
 from qtpy.QtWidgets import (QLabel, QTextEdit, QVBoxLayout, QWidget, QComboBox, QGroupBox)
 
-from straindesign.parse_constr import linexpr2dict
+try:
+    from straindesign.parse_constr import linexpr2dict
+except ImportError:
+    def linexpr2dict(*args, **kwargs): return {}
 from cnapy.appdata import AppData
 from cnapy.gui_elements.scenario_tab import OptimizationDirection
 from cnapy.utils import QComplReceivLineEdit
