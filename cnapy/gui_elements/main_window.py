@@ -57,6 +57,8 @@ from cnapy.gui_elements.reactions_list import ReactionListColumn
 from cnapy.gui_elements.rename_map_dialog import RenameMapDialog
 from cnapy.gui_elements.yield_optimization_dialog import YieldOptimizationDialog
 from cnapy.gui_elements.flux_optimization_dialog import FluxOptimizationDialog
+from cnapy.gui_elements.flux_sampling_dialog import FluxSamplingDialog
+from cnapy.flux_sampling import perform_sampling
 from cnapy.gui_elements.configuration_cplex import CplexConfigurationDialog
 from cnapy.gui_elements.configuration_gurobi import GurobiConfigurationDialog
 from cnapy.gui_elements.thermodynamics_dialog import ThermodynamicAnalysisTypes, ThermodynamicDialog
@@ -374,6 +376,10 @@ class MainWindow(QMainWindow):
         fva_action = QAction("Flux Variability Analysis (FVA)", self)
         fva_action.triggered.connect(self.fva)
         self.analysis_menu.addAction(fva_action)
+
+        sampling_action = QAction("Flux Sampling...", self)
+        sampling_action.triggered.connect(self.perform_flux_sampling)
+        self.analysis_menu.addAction(sampling_action)
 
         make_scenario_feasible_action = QAction("Make scenario feasible...", self)
         make_scenario_feasible_action.triggered.connect(self.make_scenario_feasible)
@@ -1690,6 +1696,49 @@ class MainWindow(QMainWindow):
             self.appdata.project.solution = linear_moma(model, reference_fluxes)
             
         self.process_fba_solution()
+
+    @Slot()
+    def perform_flux_sampling(self):
+        if len(self.appdata.project.cobra_py_model.reactions) == 0:
+            QMessageBox.warning(self, "No model", "No model loaded. Please load a model first.")
+            return
+
+        dialog = FluxSamplingDialog(self.appdata)
+        if dialog.exec_():
+            n = dialog.n_samples.value()
+            thinning = dialog.thinning.value()
+            processes = dialog.processes.value()
+            
+            self.setCursor(Qt.BusyCursor)
+            try:
+                # We need to use a context manager to ensure the model is not permanently modified
+                # However, sampling might take a while, so ideally this should be in a thread.
+                # For now, we'll do it in the main thread but with a busy cursor.
+                # Applying the scenario is crucial.
+                with self.appdata.project.cobra_py_model as model:
+                    self.appdata.project.load_scenario_into_model(model)
+                    s = perform_sampling(model, n, thinning, processes)
+                
+                # Ask user where to save
+                filename, _ = QFileDialog.getSaveFileName(
+                    self, "Save Sampling Results", self.appdata.work_directory, "CSV Files (*.csv);;Excel Files (*.xlsx)"
+                )
+                
+                if filename:
+                    if not filename.endswith(".csv") and not filename.endswith(".xlsx"):
+                        filename += ".csv"
+                        
+                    if filename.endswith(".xlsx"):
+                        s.to_excel(filename)
+                    else:
+                        s.to_csv(filename)
+                    QMessageBox.information(self, "Sampling Complete", f"Sampling results saved to {filename}")
+                
+            except Exception as e:
+                QMessageBox.critical(self, "Sampling Error", str(e))
+                traceback.print_exc()
+            finally:
+                self.setCursor(Qt.ArrowCursor)
 
     def process_fba_solution(self, update=True):
         general_solution_error = True
