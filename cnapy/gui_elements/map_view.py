@@ -461,6 +461,9 @@ class ReactionBox(QGraphicsItem):
 
         # create context menu
         self.pop_menu = QMenu(parent)
+        toggle_knockout_action = QAction('Toggle Knockout', parent)
+        self.pop_menu.addAction(toggle_knockout_action)
+        toggle_knockout_action.triggered.connect(self.toggle_knockout)
         maximize_action = QAction('maximize flux for this reaction', parent)
         self.pop_menu.addAction(maximize_action)
         maximize_action.triggered.connect(self.emit_maximize_action)
@@ -483,6 +486,11 @@ class ReactionBox(QGraphicsItem):
         self.pop_menu.addSeparator()
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
+        if (event.button() == Qt.MouseButton.LeftButton) and (event.modifiers() == Qt.AltModifier):
+            self.toggle_knockout()
+            event.accept()
+            return
+
         super().mousePressEvent(event)
         event.accept()
         if (event.button() == Qt.MouseButton.LeftButton):
@@ -706,6 +714,14 @@ class ReactionBox(QGraphicsItem):
 
     def switch_to_reaction_mask(self):
         self.map.switchToReactionMask.emit(self.id)
+        self.map.drag = False
+
+    def toggle_knockout(self):
+        if self.id in self.map.appdata.project.scen_values.keys() and self.map.appdata.project.scen_values[self.id] == (0, 0):
+            self.item.setText("")
+        else:
+            self.item.setText("0")
+        self.value_changed()
         self.map.drag = False
 
     def emit_maximize_action(self):
