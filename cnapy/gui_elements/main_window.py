@@ -7,9 +7,10 @@ from zipfile import BadZipFile, ZipFile
 import pickle
 import xml.etree.ElementTree as ET
 from cnapy.flux_vector_container import FluxVectorContainer
-from cnapy.moma import linear_moma
+from cnapy.moma import linear_moma, room, has_milp_solver
 from cnapy.core_gui import model_optimization_with_exceptions, except_likely_community_model_error, get_last_exception_string, has_community_error_substring
 import cobra
+from cobra.util.solver import interface_to_str
 try:
     from optlang_enumerator.cobra_cnapy import CNApyModel
     from optlang_enumerator.mcs_computation import flux_variability_analysis
@@ -62,6 +63,8 @@ from cnapy.flux_sampling import perform_sampling
 from cnapy.gui_elements.configuration_cplex import CplexConfigurationDialog
 from cnapy.gui_elements.configuration_gurobi import GurobiConfigurationDialog
 from cnapy.gui_elements.thermodynamics_dialog import ThermodynamicAnalysisTypes, ThermodynamicDialog
+from cnapy.gui_elements.flux_response_dialog import FluxResponseDialog
+from cnapy.gui_elements.omics_integration_dialog import OmicsIntegrationDialog
 import cnapy.utils as utils
 
 SBML_suffixes = "*.xml *.sbml *.xml.gz *.sbml.gz *.xml.zip *.sbml.zip"
@@ -257,8 +260,13 @@ class MainWindow(QMainWindow):
         self.escher_map_actions.addAction(separator)
 
         add_map_action = QAction("Add new map", self)
-        self.map_menu.addAction(add_map_action)
         add_map_action.triggered.connect(self.central_widget.add_map)
+        self.map_menu.addAction(add_map_action)
+
+        add_cnapy_from_escher_action = QAction("Add CNApy map from Escher JSON...", self)
+        add_cnapy_from_escher_action.triggered.connect(self.central_widget.load_cnapy_map_from_escher_json)
+        self.map_menu.addAction(add_cnapy_from_escher_action)
+        self.cnapy_map_actions.addAction(add_cnapy_from_escher_action)
 
         add_escher_map_action = QAction("Add new map from Escher SVG...", self)
         self.map_menu.addAction(add_escher_map_action)
@@ -313,6 +321,12 @@ class MainWindow(QMainWindow):
         self.dec_box_size_action.setEnabled(False)
         self.cnapy_map_actions.addAction(self.dec_box_size_action)
 
+        self.reset_map_size_action = QAction("Reset map size to default", self)
+        self.reset_map_size_action.setShortcut("Ctrl+0")
+        self.reset_map_size_action.triggered.connect(self.reset_map_size)
+        self.reset_map_size_action.setEnabled(False)
+        self.cnapy_map_actions.addAction(self.reset_map_size_action)
+
         self.cnapy_screenshot_action = QAction("Take map view screenshot...", self)
         self.cnapy_screenshot_action.triggered.connect(self.take_screenshot_cnapy)
         self.cnapy_map_actions.addAction(self.cnapy_screenshot_action)
@@ -331,6 +345,10 @@ class MainWindow(QMainWindow):
         escher_zoom_canvas_action.triggered.connect(
             lambda: self.centralWidget().map_tabs.currentWidget().page().runJavaScript("builder.map.zoom_extent_canvas()"))
         self.escher_map_actions.addAction(escher_zoom_canvas_action)
+
+        escher_convert_action = QAction("Convert current Escher map to CNApy map")
+        escher_convert_action.triggered.connect(self.centralWidget().convert_current_escher_to_cnapy)
+        self.escher_map_actions.addAction(escher_convert_action)
 
         # does not work as expected (TODO: why?), for now save JSON via Escher menu in edit mode
         # escher_save_map_action = QAction("Save map JSON...")
@@ -362,6 +380,10 @@ class MainWindow(QMainWindow):
         moma_action = QAction("Linear MOMA", self)
         moma_action.triggered.connect(self.perform_linear_moma)
         self.analysis_menu.addAction(moma_action)
+
+        room_action = QAction("ROOM (Regulatory On/Off Minimization)", self)
+        room_action.triggered.connect(self.perform_room)
+        self.analysis_menu.addAction(room_action)
 
         self.auto_fba_action = QAction("Auto FBA", self)
         self.auto_fba_action.triggered.connect(self.auto_fba)
@@ -432,6 +454,19 @@ class MainWindow(QMainWindow):
         plot_space_action = QAction("Plot phase plane/yield space...", self)
         plot_space_action.triggered.connect(self.plot_space)
         self.analysis_menu.addAction(plot_space_action)
+
+        flux_response_action = QAction("Flux Response Analysis...", self)
+        flux_response_action.triggered.connect(self.perform_flux_response_analysis)
+        self.analysis_menu.addAction(flux_response_action)
+
+        self.analysis_menu.addSeparator()
+
+        # Omics integration menu
+        self.omics_menu = self.analysis_menu.addMenu("Omics Integration")
+        
+        lad_action = QAction("LAD Flux Prediction (transcriptome-based)...", self)
+        lad_action.triggered.connect(self.perform_omics_integration)
+        self.omics_menu.addAction(lad_action)
 
         self.thermodynamic_menu = self.analysis_menu.addMenu("Thermodynamic analyses")
 
@@ -606,6 +641,8 @@ class MainWindow(QMainWindow):
         self.focus_search_action.activated.connect(self.focus_search_box)
 
         status_bar: QStatusBar = self.statusBar()
+        self.current_solver_label = QLabel()
+        status_bar.addPermanentWidget(self.current_solver_label)
         self.solver_status_display = QLabel()
         status_bar.addPermanentWidget(self.solver_status_display)
         self.solver_status_symbol = QLabel()
@@ -618,6 +655,8 @@ class MainWindow(QMainWindow):
             self.open_project(project_path)
         if scenario_path is not None:
             self.load_scenario_file(scenario_path)
+
+        self.update_current_solver_name()
 
     def closeEvent(self, event):
         if self.checked_unsaved():
@@ -704,6 +743,18 @@ class MainWindow(QMainWindow):
         self.plot_space = PlotSpaceDialog(self.appdata)
         self.plot_space.show()
 
+    @Slot()
+    def perform_flux_response_analysis(self):
+        """Open the Flux Response Analysis dialog."""
+        dialog = FluxResponseDialog(self.appdata, self)
+        dialog.exec()
+
+    @Slot()
+    def perform_omics_integration(self):
+        """Open the Omics Integration dialog for LAD flux prediction."""
+        dialog = OmicsIntegrationDialog(self.appdata, self)
+        dialog.exec()
+
     # Strain design computation and viewing functions
     def strain_design(self):
         self.sd_dialog = SDDialog(self.appdata)
@@ -789,8 +840,14 @@ class MainWindow(QMainWindow):
         if not filename or len(filename) == 0 or not os.path.exists(filename):
             return
         with open(filename,'rb') as f:
-            solutions = f.read()
-        self.show_strain_designs(solutions)
+            self.show_strain_designs(pickle.load(f))
+
+    def update_current_solver_name(self):
+        if hasattr(self.appdata.project.cobra_py_model, 'solver'):
+            solver_name = interface_to_str(self.appdata.project.cobra_py_model.solver.interface)
+            self.current_solver_label.setText(f"Current Solver: {solver_name}")
+        else:
+            self.current_solver_label.setText("Current Solver: Unknown")
 
     @Slot()
     def optimize_yield(self):
@@ -811,6 +868,7 @@ class MainWindow(QMainWindow):
     @Slot()
     def show_config_cobrapy_dialog(self):
         dialog = ConfigCobrapyDialog(self.appdata)
+        dialog.optlang_solver_set.connect(self.update_current_solver_name)
         if self.mcs_dialog is not None:
             dialog.optlang_solver_set.connect(self.mcs_dialog.set_optlang_solver_text)
             dialog.optlang_solver_set.connect(self.mcs_dialog.configure_solver_options)
@@ -1132,6 +1190,16 @@ class MainWindow(QMainWindow):
         self.centralWidget().update()
 
     @Slot()
+    def reset_map_size(self):
+        """Reset map size (box-size and bg-size) to default (1.0)."""
+        idx = self.centralWidget().map_tabs.currentIndex()
+        name = self.centralWidget().map_tabs.tabText(idx)
+        self.appdata.project.maps[name]["box-size"] = 1.0
+        self.appdata.project.maps[name]["bg-size"] = 1.0
+        self.unsaved_changes()
+        self.centralWidget().update()
+
+    @Slot()
     def zoom_in(self):
         mv = self.centralWidget().map_tabs.currentWidget()
         if mv is not None:
@@ -1251,6 +1319,7 @@ class MainWindow(QMainWindow):
         if self.checked_unsaved():
             self.new_project_unchecked()
             self.recreate_maps()
+            self.update_current_solver_name()
 
     def new_project_unchecked(self):
         self.delete_maps()
@@ -1293,6 +1362,7 @@ class MainWindow(QMainWindow):
             self.appdata.project.maps = {"Map": default_map}
             self.recreate_maps()
             self.centralWidget().update(rebuild_all_tabs=True)
+            self.update_current_solver_name()
             self.update_scenario_file_name()
             self.update_recently_used_models(filename)
 
@@ -1369,6 +1439,7 @@ class MainWindow(QMainWindow):
 
                 self.centralWidget().update(rebuild_all_tabs=True)
                 self.update_recently_used_models(filename)
+                self.update_current_solver_name()
 
         except FileNotFoundError:
             exstr = get_last_exception_string()
@@ -1590,6 +1661,7 @@ class MainWindow(QMainWindow):
             self.dec_box_size_action.setEnabled(True)
             self.inc_bg_size_action.setEnabled(True)
             self.dec_bg_size_action.setEnabled(True)
+            self.reset_map_size_action.setEnabled(True)
             self.save_box_positions_action.setEnabled(True)
             self.centralWidget().update_map(idx)
             if isinstance(self.centralWidget().map_tabs.widget(idx), MapView):
@@ -1609,6 +1681,7 @@ class MainWindow(QMainWindow):
             self.dec_box_size_action.setEnabled(False)
             self.inc_bg_size_action.setEnabled(False)
             self.dec_bg_size_action.setEnabled(False)
+            self.reset_map_size_action.setEnabled(False)
             self.save_box_positions_action.setEnabled(False)
 
     def copy_to_clipboard(self):
@@ -1707,6 +1780,34 @@ class MainWindow(QMainWindow):
             self.appdata.project.solution = linear_moma(model, reference_fluxes)
             
         self.process_fba_solution()
+
+    def perform_room(self, silent=False):
+        """Perform ROOM (Regulatory On/Off Minimization) analysis."""
+        # Check for MILP solver
+        has_milp, solver_msg = has_milp_solver()
+        if not has_milp:
+            QMessageBox.warning(self, "MILP solver required",
+                f"ROOM requires a MILP-capable solver (CPLEX, Gurobi, or GLPK).\n\n{solver_msg}")
+            return
+        
+        if self.appdata.project.solution is None:
+            if not silent:
+                QMessageBox.warning(self, "No reference solution",
+                                    "No reference solution found. Please run FBA on the reference state first.")
+            return
+
+        try:
+            with self.appdata.project.cobra_py_model as model:
+                self.appdata.project.load_scenario_into_model(model)
+                # Use previous solution as reference
+                reference_fluxes = self.appdata.project.solution.fluxes
+                self.appdata.project.solution = room(model, reference_fluxes)
+                
+            self.process_fba_solution()
+        except RuntimeError as e:
+            QMessageBox.warning(self, "ROOM failed", str(e))
+        except Exception as e:
+            QMessageBox.critical(self, "ROOM error", f"An error occurred: {str(e)}")
 
     @Slot()
     def perform_flux_sampling(self):

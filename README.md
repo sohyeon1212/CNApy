@@ -26,6 +26,9 @@ CNApy를 사용하면 다음과 같은 작업들을 할 수 있어요:
 - **Phase plane analyses** (플럭스 및/또는 수율 최적화 포함 가능)
 - **Flux Sampling**: 모델의 가능한 플럭스 분포를 샘플링하여 분석할 수 있습니다.
 - **Linear MOMA**: 기준 플럭스 분포와의 차이를 최소화하는 선형 MOMA 분석을 수행할 수 있습니다.
+- **ROOM (Regulatory On/Off Minimization)**: MILP solver를 사용하여 유전자 녹아웃 후 유의미한 플럭스 변화를 최소화하는 분석을 수행할 수 있습니다 (MILP solver 필요).
+- **Flux Response Analysis**: 타겟 반응의 플럭스를 스캔하면서 제품 반응의 최대 생산률을 플롯하는 분석을 수행할 수 있습니다.
+- **Omics Integration (LAD)**: Transcriptome 데이터를 기반으로 LAD (Least Absolute Deviation) 방법을 사용하여 플럭스 분포를 예측할 수 있습니다.
 - **실제 측정된 *in vivo* 플럭스 시나리오 적용**: 화학양론적으로 타당하게 만들며, 선택적으로 바이오매스 반응을 수정할 수도 있습니다 [[논문]](https://academic.oup.com/bioinformatics/article/39/10/btad600/7284109).
 - **Elementary Flux Modes (EFM)** [[리뷰]](https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/full/10.1002/biot.201200269)
 - **OptMDFpathway 기반 열역학적 방법** [[논문]](https://doi.org/10.1371/journal.pcbi.1006492)
@@ -122,3 +125,21 @@ uv가 자동으로 올바른 파이썬 버전과 의존성을 설치해줍니다
 
 Thiele et al. (2022). CNApy: a CellNetAnalyzer GUI in Python for analyzing and designing metabolic networks.
 *Bioinformatics* 38, 1467-1469, [doi.org/10.1093/bioinformatics/btab828](https://doi.org/10.1093/bioinformatics/btab828).
+
+## 최근 변경 사항
+
+자세한 변경 사항은 [CHANGELOG.md](CHANGELOG.md)를 참고하세요.
+
+이 버전에는 다음과 같은 기능이 추가/개선되었습니다:
+
+- **ROOM (Regulatory On/Off Minimization) 기능 추가**: Analysis 메뉴에서 MILP solver를 사용하여 ROOM 분석을 수행할 수 있습니다. 유전자 녹아웃 후 유의미한 플럭스 변화를 최소화하는 방법입니다.
+
+- **Flux Response Analysis 메뉴 연결**: 타겟 반응의 플럭스를 스캔하면서 제품 반응의 최대 생산률을 분석하는 기능이 Analysis 메뉴에 추가되었습니다.
+
+- **Omics Integration (LAD) 기능 추가**: Transcriptome 데이터를 기반으로 플럭스 분포를 예측하는 LAD (Least Absolute Deviation) 방법이 Analysis > Omics Integration 메뉴에 추가되었습니다.
+
+- **OptKnock 설명 개선**: Strain Design 다이얼로그에서 OptKnock의 Inner/Outer Objective 설정에 대한 명확한 설명과 예시가 추가되었습니다.
+
+- **맵 기능 개선**: PNG/SVG 이미지 파일만으로도 CNApy 맵을 생성할 수 있으며, 모델에 없는 반응 ID도 맵에 박스로 추가하여 플럭스 값을 표시할 수 있습니다.
+
+*참고: 이 변경 사항들은 Apache License 2.0 하에 배포되며, 원본 CNApy 프로젝트의 일부입니다.*

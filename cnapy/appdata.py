@@ -88,7 +88,7 @@ class AppData(QObject):
         self.scenario_future = []
         self.recent_cna_files = []
         self.auto_fba = False
-        self.auto_analysis_method = "moma" # "fba" or "moma"
+        self.auto_analysis_method = "fba" # "fba" or "moma"
         self.is_in_dark_mode = False
 
     def scen_values_set(self, reaction: str, values: Tuple[float, float]):

@@ -80,7 +80,7 @@
       'padding': '7px',
       'background-color': '#fff',
       'text-align': 'left',
-      'font-size': '16px',
+      'font-size': '12px',
       'font-family': 'sans-serif',
       'color': '#111',
       'box-shadow': '4px 6px 20px 0px rgba(0, 0, 0, 0.4)'
@@ -123,13 +123,39 @@
           if (this.props.type === 'reaction') {
           tip.children.push(h('button', {style: buttonStyle, 'aria-label': 'Close',
             'title': 'Delete reaction from map', onClick: (event) => {deleteReaction(this.props.biggId)}}, '🗑️'))
-          tip.children.push(h('input', {type: 'text',
-            id: 'reaction-box-input',
-            style: 'color: black',
-            onFocus: (event) => event.target.select(),
-            onKeyUp: (event) => this.handleKeyUp(event),
-            onFocusOut: (event) => this.handleOnFocusOut(event)
-          }))
+          const inputRow = h('div', {style: {display: 'flex', 'align-items': 'center', gap: '4px', marginTop: '4px'}},
+            h('input', {type: 'text',
+              id: 'reaction-box-input',
+              style: 'color: black; width: 90px;',
+              onFocus: (event) => event.target.select(),
+              onKeyUp: (event) => this.handleKeyUp(event),
+              onFocusOut: (event) => this.handleOnFocusOut(event)
+            }),
+            h('button', {style: 'font-size:10px; padding:2px 4px;', title:'Set 0 (KO)',
+              onClick: () => { cnapy_bridge.value_changed(this.props.biggId, "0", true); }}, 'KO'),
+            h('button', {style: 'font-size:10px; padding:2px 4px;', title:'Clear',
+              onClick: () => { cnapy_bridge.value_changed(this.props.biggId, "", true); }}, 'Clear')
+          );
+          const sliderRow = h('div', {style: {display: 'flex', 'align-items': 'center', gap: '6px', marginTop: '4px'}},
+            h('input', {
+              type: 'range',
+              min: '-100',
+              max: '100',
+              value: '0',
+              style: 'width:120px;',
+              onInput: (event) => {
+                // keep text box in sync with slider
+                let v = event.target.value;
+                document.getElementById('reaction-box-input').value = v;
+              },
+              onChange: (event) => {
+                cnapy_bridge.value_changed(this.props.biggId, event.target.value, true);
+              }
+            }),
+            h('span', {style: 'font-size:10px; color:#333;'}, 'range -100..100')
+          );
+          tip.children.push(inputRow)
+          tip.children.push(sliderRow)
           if (cnapy_bridge) // to keep page operational outside CNApy
             cnapy_bridge.set_reaction_box_scenario_value(this.props.biggId)
         }

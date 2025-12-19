@@ -194,21 +194,44 @@ class SDDialog(QDialog):
         self.module_edit[NESTED_OPT].clicked.connect(self.nested_opt_checked)
         module_spec_layout.addWidget(self.module_edit[NESTED_OPT])
 
-        # Outer objective
-        self.module_edit[OUTER_OBJECTIVE+"_label"] = QLabel("Outer objective (maximized)")
+        # Outer objective (what the engineer wants to optimize - typically target product)
+        self.module_edit[OUTER_OBJECTIVE+"_label"] = QLabel("Outer objective (maximized) - Target product")
         self.module_edit[OUTER_OBJECTIVE+"_label"].setHidden(True)
         self.module_edit[OUTER_OBJECTIVE] = QComplReceivLineEdit(self, self.appdata.project.reaction_ids, self.appdata.is_in_dark_mode)
-        self.module_edit[OUTER_OBJECTIVE].setPlaceholderText(placeholder_expr)
+        self.module_edit[OUTER_OBJECTIVE].setPlaceholderText("e.g., EX_succ_e or EX_lac__D_e (exchange reaction of target product)")
+        self.module_edit[OUTER_OBJECTIVE].setToolTip(
+            "Outer Objective (Engineer's Goal):\n"
+            "This is what you want to maximize through strain design.\n"
+            "Typically, this is the exchange reaction of your target product.\n\n"
+            "Examples:\n"
+            "• EX_succ_e - Succinate production\n"
+            "• EX_lac__D_e - D-Lactate production\n"
+            "• EX_etoh_e - Ethanol production\n"
+            "• EX_ac_e - Acetate production\n\n"
+            "The algorithm finds gene knockouts that force the cell to\n"
+            "produce more of this product while still growing."
+        )
         self.module_edit[OUTER_OBJECTIVE].setHidden(True)
         self.module_edit[OUTER_OBJECTIVE].textCorrect.connect(self.update_global_objective)
         module_spec_layout.addWidget(self.module_edit[OUTER_OBJECTIVE+"_label"] )
         module_spec_layout.addWidget(self.module_edit[OUTER_OBJECTIVE])
 
-        # Inner objective
-        self.module_edit[INNER_OBJECTIVE+"_label"] = QLabel("Inner objective (maximized)")
+        # Inner objective (what the cell optimizes - typically biomass/growth)
+        self.module_edit[INNER_OBJECTIVE+"_label"] = QLabel("Inner objective (maximized) - Cell's objective (typically biomass)")
         self.module_edit[INNER_OBJECTIVE+"_label"].setHidden(True)
         self.module_edit[INNER_OBJECTIVE] = QComplReceivLineEdit(self, self.appdata.project.reaction_ids, self.appdata.is_in_dark_mode)
-        self.module_edit[INNER_OBJECTIVE].setPlaceholderText(placeholder_expr)
+        self.module_edit[INNER_OBJECTIVE].setPlaceholderText("e.g., BIOMASS_Ec_iJO1366_core_53p95M or Biomass_Ecoli_core")
+        self.module_edit[INNER_OBJECTIVE].setToolTip(
+            "Inner Objective (Cell's Goal):\n"
+            "This represents what the cell naturally tries to maximize.\n"
+            "Typically, this is the biomass/growth reaction.\n\n"
+            "Examples:\n"
+            "• BIOMASS_Ec_iJO1366_core_53p95M - E. coli iJO1366 biomass\n"
+            "• Biomass_Ecoli_core - E. coli core model biomass\n"
+            "• BIOMASS_SC5_notrace - S. cerevisiae biomass\n\n"
+            "OptKnock assumes the cell will maximize this objective,\n"
+            "and finds knockouts that couple growth to product formation."
+        )
         self.module_edit[INNER_OBJECTIVE].setHidden(True)
         self.module_edit[INNER_OBJECTIVE].textCorrect.connect(self.update_global_objective)
         module_spec_layout.addWidget(self.module_edit[INNER_OBJECTIVE+"_label"])
@@ -1670,6 +1693,12 @@ class SDComputationThread(QThread):
             except Exception as e:
                 tb_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
                 self.write(tb_str)
+                if has_community_error_substring(tb_str):
+                    except_likely_community_model_error()
+                    self.write("\nGurobi License Error detected. Please check your Gurobi license (Full version required for large models).")
+                elif "10012" in tb_str or "10013" in tb_str or "license 12" in tb_str or "license 13" in tb_str:
+                     self.write("\nGurobi License Error detected (Code 12/13). Please ensure you have a valid Gurobi Full License configured.")
+
                 sd_solutions = SDSolutions(model,[],ERROR,self.sd_setup)
                 self.finished_computation.emit(pickle.dumps(([],[],ERROR)))
 

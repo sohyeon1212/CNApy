@@ -15,7 +15,13 @@ class AboutDialog(QDialog):
         self.text1 = QLabel(
             "Version: {version}\
             \n\nCNApy is an integrated environment for metabolic modeling.\
-            \nFor more information visit us at:".format(version=appdata.version))
+            \n\nRecent additions:\
+            \n• ROOM (Regulatory On/Off Minimization) analysis\
+            \n• Flux Response Analysis\
+            \n• Omics Integration (LAD flux prediction)\
+            \n• Enhanced map features (PNG-only maps, custom reaction boxes)\
+            \n• Improved OptKnock documentation\
+            \n\nFor more information visit us at:".format(version=appdata.version))
         self.text1.setAlignment(Qt.AlignCenter)
 
         self.url1 = QLabel(

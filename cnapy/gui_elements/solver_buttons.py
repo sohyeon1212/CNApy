@@ -83,7 +83,8 @@ def get_solver_buttons(appdata) -> Tuple[QVBoxLayout, QButtonGroup]:
     # check best available solver
     if avail_solvers:
         # Set cobrapy default solver if available
-        solver = select_solver(None, appdata.project.cobra_py_model)
-        solver_buttons[solver].setChecked(True)
+        if select_solver:
+            solver = select_solver(None, appdata.project.cobra_py_model)
+            solver_buttons[solver].setChecked(True)
 
     return solver_buttons_layout, solver_buttons

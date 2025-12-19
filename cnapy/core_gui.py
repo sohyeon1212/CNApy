@@ -1,4 +1,7 @@
-import gurobipy
+try:
+    import gurobipy
+except ImportError:
+    gurobipy = None
 import io
 import traceback
 import cobra
@@ -24,7 +27,16 @@ def get_last_exception_string() -> str:
 
 
 def has_community_error_substring(string: str) -> bool:
-    return ("Model too large for size-limited license" in string) or ("1016: Community Edition" in string)
+    is_community_error = ("Model too large for size-limited license" in string) or ("1016: Community Edition" in string)
+    
+    # Check for Gurobi license errors (codes 10012, 10013 or user reported 12, 13)
+    if not is_community_error and ("Gurobi" in string or "gurobi" in string):
+        # 10012: Model too large (already covered by "Model too large..." often, but checking code is safer)
+        # 10013: Cloud license error?
+        # User explicitly mentioned "license 12" and "license 13" so we check for those patterns too.
+        is_community_error = any(x in string for x in ["10012", "10013", "license 12", "license 13", "status 12", "status 13"])
+        
+    return is_community_error
 
 
 def model_optimization_with_exceptions(model: cobra.Model) -> None:

@@ -3,12 +3,15 @@
 import numpy
 from enum import IntEnum
 import cobra
+import json
+import os
 from qtconsole.inprocess import QtInProcessKernelManager
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 from qtpy.QtCore import Qt, Signal, Slot, QSignalBlocker
-from qtpy.QtGui import QColor, QBrush
+from qtpy.QtGui import QColor, QBrush, QIcon
 from qtpy.QtWidgets import (QCheckBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSplitter,
-                            QTabWidget, QVBoxLayout, QWidget, QAction, QApplication, QComboBox, QFrame)
+                            QTabWidget, QVBoxLayout, QWidget, QAction, QApplication, QComboBox, QFrame,
+                            QFileDialog, QMessageBox, QCompleter)
 
 from cnapy.appdata import AppData, CnaMap, ModelItemType, parse_scenario
 from cnapy.gui_elements.map_view import MapView
@@ -84,6 +87,36 @@ class CentralWidget(QWidget):
         self.map_tabs.setTabsClosable(True)
         self.map_tabs.setMovable(True)
 
+        # Map toolbar (add reaction, save map, load map)
+        map_toolbar = QHBoxLayout()
+        map_toolbar.setContentsMargins(0, 0, 0, 0)
+        map_toolbar.setSpacing(6)
+
+        self.add_reaction_btn = QPushButton("Add reaction")
+        self.add_reaction_btn.setToolTip("Add a model reaction to the current map")
+        self.add_reaction_btn.clicked.connect(self.add_reaction_to_current_map)
+        map_toolbar.addWidget(self.add_reaction_btn)
+
+        self.save_map_btn = QPushButton("Save map")
+        self.save_map_btn.setToolTip("Save current map to file (*.cmap.json)")
+        self.save_map_btn.clicked.connect(self.save_current_map_to_file)
+        map_toolbar.addWidget(self.save_map_btn)
+
+        self.load_map_btn = QPushButton("Load map")
+        self.load_map_btn.setToolTip("Load a map file (*.cmap.json)")
+        self.load_map_btn.clicked.connect(self.load_map_from_file)
+        map_toolbar.addWidget(self.load_map_btn)
+
+        map_toolbar.addStretch()
+
+        map_container = QWidget()
+        map_container_layout = QVBoxLayout()
+        map_container_layout.setContentsMargins(0, 0, 0, 0)
+        map_container_layout.setSpacing(2)
+        map_container_layout.addLayout(map_toolbar)
+        map_container_layout.addWidget(self.map_tabs)
+        map_container.setLayout(map_container_layout)
+
         # Create an in-process kernel
         kernel_manager = QtInProcessKernelManager()
         kernel_manager.start_kernel(show_banner=False)
@@ -116,7 +149,7 @@ class CentralWidget(QWidget):
 
         self.splitter = QSplitter()
         self.splitter2 = QSplitter()
-        self.splitter2.addWidget(self.map_tabs)
+        self.splitter2.addWidget(map_container)
         self.mode_navigator = ModeNavigator(self.appdata, self)
         self.splitter2.addWidget(self.mode_navigator)
         self.splitter2.addWidget(self.console)
@@ -332,6 +365,8 @@ class CentralWidget(QWidget):
             # mmap.cnapy_bridge.reactionValueChanged.connect(self.update_reaction_value) # connection is not made?!
             # self.appdata.qapp.processEvents() # does not help
             idx = self.map_tabs.addTab(mmap, m["name"])
+            # Try to also create a CNApy map from existing Escher JSON so CNApy view is available by default
+            self.maybe_create_cnapy_from_escher(name)
         else:
             mmap = MapView(self.appdata, self, name)
             self.connect_map_view_signals(mmap)
@@ -604,6 +639,396 @@ class CentralWidget(QWidget):
         for idx in range(0, self.map_tabs.count()):
             self.map_tabs.widget(idx).select_single_reaction(reac_id)
 
+    @Slot()
+    def add_reaction_to_current_map(self):
+        idx = self.map_tabs.currentIndex()
+        if idx < 0:
+            return
+        map_widget = self.map_tabs.widget(idx)
+        if not isinstance(map_widget, MapView):
+            if isinstance(map_widget, EscherMapView):
+                dialog = MapReactionAddDialog(self, self.appdata)
+                if dialog.exec() != QDialog.Accepted:
+                    return
+                reac_id = dialog.reaction_id()
+                if not reac_id:
+                    return
+                if reac_id not in self.appdata.project.cobra_py_model.reactions:
+                    QMessageBox.warning(self, "Add reaction", f"Reaction not in model: {reac_id}")
+                    return
+                # ensure editing mode then display Escher search bar for the reaction
+                map_widget.enable_editing(True)
+                map_widget.cnapy_bridge.displaySearchBarFor.emit(reac_id)
+                map_widget.setFocus()
+            else:
+                QMessageBox.information(self, "Map", "You can add reactions only on CNApy or Escher maps.")
+            return
+
+        dialog = MapReactionAddDialog(self, self.appdata)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        reac_id = dialog.reaction_id()
+        if reac_id is None or len(reac_id.strip()) == 0:
+            return
+        if reac_id not in self.appdata.project.cobra_py_model.reactions:
+            QMessageBox.warning(self, "Add reaction", f"Reaction not in model: {reac_id}")
+            return
+
+        name = self.map_tabs.tabText(idx)
+        boxes = self.appdata.project.maps[name]["boxes"]
+        if reac_id in boxes:
+            map_widget.select_single_reaction(reac_id)
+            map_widget.focus_reaction(reac_id)
+            return
+
+        scene_pos = map_widget.mapToScene(map_widget.viewport().rect().center())
+        boxes[reac_id] = (scene_pos.x(), scene_pos.y())
+        map_widget.rebuild_scene()
+        map_widget.update()
+        map_widget.select_single_reaction(reac_id)
+        map_widget.focus_reaction(reac_id)
+        self.reaction_list.reaction_mask.update_state()
+        self.parent.unsaved_changes()
+
+    @Slot()
+    def save_current_map_to_file(self):
+        idx = self.map_tabs.currentIndex()
+        if idx < 0:
+            return
+        name = self.map_tabs.tabText(idx)
+        data = self.appdata.project.maps.get(name, None)
+        if data is None:
+            return
+        filename = QFileDialog.getSaveFileName(
+            self, "Save map", self.appdata.work_directory, "CNApy Map (*.cmap.json)")[0]
+        if not filename:
+            return
+        if not filename.endswith(".cmap.json"):
+            filename += ".cmap.json"
+        try:
+            with open(filename, "w") as fp:
+                json.dump(data, fp, skipkeys=True)
+        except OSError as exc:
+            QMessageBox.critical(self, "Save map failed", str(exc))
+            return
+        QMessageBox.information(self, "Save map", f"Saved: {filename}")
+
+    @Slot()
+    def load_map_from_file(self):
+        filename = QFileDialog.getOpenFileName(
+            self, "Load map", self.appdata.work_directory, "CNApy Map (*.cmap.json)")[0]
+        if not filename or not os.path.exists(filename):
+            return
+        try:
+            with open(filename, "r") as fp:
+                data = json.load(fp)
+        except (OSError, json.JSONDecodeError) as exc:
+            QMessageBox.critical(self, "Load map failed", str(exc))
+            return
+
+        if not isinstance(data, dict) or "boxes" not in data:
+            QMessageBox.critical(self, "Load map failed", "Invalid map data.")
+            return
+
+        base_name = data.get("name", os.path.basename(filename).replace(".cmap.json", ""))
+        name = base_name
+        counter = 1
+        while name in self.appdata.project.maps:
+            name = f"{base_name}_{counter}"
+            counter += 1
+        data["name"] = name
+        data.setdefault("view", "cnapy")
+        data.setdefault("bg-size", 1)
+        data.setdefault("box-size", 1)
+        data.setdefault("zoom", 0)
+        data.setdefault("pos", (0, 0))
+        data.setdefault("escher_map_data", "")
+
+        self.appdata.project.maps[name] = data
+        mmap = MapView(self.appdata, self, name)
+        self.connect_map_view_signals(mmap)
+        idx = self.map_tabs.addTab(mmap, name)
+        self.map_tabs.setCurrentIndex(idx)
+        mmap.update()
+        self.reaction_list.reaction_mask.update_state()
+        self.parent.unsaved_changes()
+
+    @Slot()
+    def load_cnapy_map_from_escher_json(self):
+        """Create a CNApy map from Escher JSON and/or image files.
+        
+        Supports two modes:
+        1. JSON + image: Full map with reaction positions from JSON
+        2. Image only: Empty map with image background, reactions can be added manually
+        """
+        # Create dialog for file selection
+        dialog = EscherMapFileDialog(self, self.appdata.work_directory)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        
+        json_filename = dialog.json_file
+        image_filename = dialog.image_file
+        
+        if not image_filename or not os.path.exists(image_filename):
+            QMessageBox.warning(self, "Image file required", "Image file (PNG or SVG) is required to display the map background.")
+            return
+
+        # Handle PNG/SVG-only mode (no JSON)
+        if not json_filename or not os.path.exists(json_filename):
+            return self._create_map_from_image_only(image_filename)
+
+        # Full mode: JSON + Image
+        # Read JSON file
+        try:
+            with open(json_filename, "r") as fp:
+                escher_json = fp.read()
+        except OSError as exc:
+            QMessageBox.critical(self, "Load failed", str(exc))
+            return
+
+        data = self._parse_escher_json(escher_json)
+        if data is None:
+            QMessageBox.warning(self, "Invalid file", "Could not parse Escher JSON.")
+            return
+
+        # Get map name from JSON if available
+        map_name = None
+        try:
+            parsed_json = json.loads(escher_json)
+            if isinstance(parsed_json, list) and len(parsed_json) > 0:
+                if isinstance(parsed_json[0], dict) and "map_name" in parsed_json[0]:
+                    map_name = parsed_json[0]["map_name"]
+        except:
+            pass
+        
+        if isinstance(data, dict):
+            if "map_name" in data:
+                map_name = data["map_name"]
+            elif isinstance(data.get("map"), dict) and "map_name" in data["map"]:
+                map_name = data["map"]["map_name"]
+
+        base_name = map_name if map_name else "CNApy from Escher"
+        name = base_name
+        suffix = 1
+        while name in self.appdata.project.maps:
+            name = f"{base_name} {suffix}"
+            suffix += 1
+
+        # Parse reactions from JSON
+        reactions = data.get("reactions", {})
+        if not isinstance(reactions, dict) or len(reactions) == 0:
+            # try alternative structure if available
+            records = data.get("reaction_data", [])
+            if isinstance(records, dict):
+                records = records.values()
+            if isinstance(records, list):
+                for r in records:
+                    if isinstance(r, dict) and "bigg_id" in r and "label_x" in r and "label_y" in r:
+                        reactions[r["bigg_id"]] = r
+            if len(reactions) == 0:
+                QMessageBox.warning(self, "No reactions", "No reaction entries found in JSON.")
+                return
+
+        # Get canvas offset from JSON (for PNG files, we use JSON canvas info)
+        offset_x, offset_y = 0, 0
+        canvas_info = data.get("canvas", {})
+        if isinstance(canvas_info, dict):
+            offset_x = canvas_info.get("x", 0)
+            offset_y = canvas_info.get("y", 0)
+
+        # Create boxes from JSON reactions
+        boxes = {}
+        missing_in_model = []
+        reactions_with_labels = 0
+        for _, r in reactions.items():
+            rid = r.get("bigg_id")
+            lx = r.get("label_x")
+            ly = r.get("label_y")
+            if rid and lx is not None and ly is not None:
+                reactions_with_labels += 1
+                # Adjust coordinates by canvas offset
+                adjusted_x = lx - offset_x
+                adjusted_y = ly - offset_y
+                # Add all reactions with label positions to boxes, even if not in model
+                boxes[rid] = (adjusted_x, adjusted_y)
+                if rid not in self.appdata.project.cobra_py_model.reactions:
+                    missing_in_model.append(rid)
+
+        if len(boxes) == 0:
+            QMessageBox.warning(self, "No positions", 
+                "No reaction label positions found in the JSON file.")
+            return
+        
+        if missing_in_model:
+            msg = (f"Successfully loaded {len(boxes)} reaction positions.\n\n"
+                   f"Note: {len(missing_in_model)} reactions from the JSON file are not in the current model "
+                   f"but were added to the map anyway.")
+            if len(missing_in_model) <= 10:
+                msg += f"\nMissing reactions: {', '.join(missing_in_model)}"
+            else:
+                msg += f"\nFirst few missing reactions: {', '.join(missing_in_model[:10])}..."
+            QMessageBox.information(self, "Map loaded", msg)
+
+        # Create CNApy map view (not EscherMapView)
+        cmap = CnaMap(name)
+        cmap["boxes"] = boxes
+        cmap["background"] = image_filename
+        cmap["escher_map_data"] = escher_json  # Store JSON for reference
+        self.appdata.project.maps[name] = cmap
+
+        mmap = MapView(self.appdata, self, name)
+        self.connect_map_view_signals(mmap)
+        idx = self.map_tabs.addTab(mmap, name)
+        self.map_tabs.setCurrentIndex(idx)
+        mmap.update()
+        self.reaction_list.reaction_mask.update_state()
+        self.parent.unsaved_changes()
+
+    def _create_map_from_image_only(self, image_filename: str):
+        """Create a CNApy map with only an image background (no JSON positions).
+        
+        User can then manually add reaction boxes to this map.
+        
+        Parameters:
+        -----------
+        image_filename : str
+            Path to the PNG or SVG image file
+        """
+        # Generate map name from filename
+        base_name = os.path.splitext(os.path.basename(image_filename))[0]
+        name = base_name
+        suffix = 1
+        while name in self.appdata.project.maps:
+            name = f"{base_name} {suffix}"
+            suffix += 1
+        
+        # Create empty CNApy map with image background
+        cmap = CnaMap(name)
+        cmap["boxes"] = {}  # No boxes initially
+        cmap["background"] = image_filename
+        cmap["escher_map_data"] = ""  # No JSON data
+        self.appdata.project.maps[name] = cmap
+
+        mmap = MapView(self.appdata, self, name)
+        self.connect_map_view_signals(mmap)
+        idx = self.map_tabs.addTab(mmap, name)
+        self.map_tabs.setCurrentIndex(idx)
+        mmap.update()
+        self.reaction_list.reaction_mask.update_state()
+        self.parent.unsaved_changes()
+        
+        QMessageBox.information(self, "Map created", 
+            f"Map '{name}' created with image background.\n\n"
+            "You can now add reaction boxes manually:\n"
+            "• Drag reactions from the Reactions list onto the map\n"
+            "• Or use the 'Add reaction' button in the map toolbar\n\n"
+            "Click on a reaction box to edit its flux value.")
+
+    def maybe_create_cnapy_from_escher(self, escher_name: str):
+        """If the Escher map has JSON data, create a CNApy map mirroring reaction positions."""
+        escher_entry = self.appdata.project.maps.get(escher_name, {})
+        escher_json = escher_entry.get("escher_map_data", "")
+        data = self._parse_escher_json(escher_json)
+        if data is None:
+            return
+
+        reactions = data.get("reactions", {})
+        if not isinstance(reactions, dict) or len(reactions) == 0:
+            return
+
+        boxes = {}
+        for _, r in reactions.items():
+            rid = r.get("bigg_id")
+            lx = r.get("label_x")
+            ly = r.get("label_y")
+            if rid and lx is not None and ly is not None:
+                boxes[rid] = (lx, ly)
+
+        if len(boxes) == 0:
+            return
+
+        base_name = escher_name + " (CNApy)"
+        name = base_name
+        suffix = 1
+        while name in self.appdata.project.maps:
+            name = f"{base_name} {suffix}"
+            suffix += 1
+
+        cmap = CnaMap(name)
+        cmap["boxes"] = boxes
+        self.appdata.project.maps[name] = cmap
+        mmap = MapView(self.appdata, self, name)
+        self.connect_map_view_signals(mmap)
+        idx = self.map_tabs.addTab(mmap, name)
+        # show CNApy map by default
+        self.map_tabs.setCurrentIndex(idx)
+        mmap.update()
+        self.reaction_list.reaction_mask.update_state()
+        self.parent.unsaved_changes()
+
+    @Slot()
+    def convert_current_escher_to_cnapy(self):
+        """Convert the currently selected Escher map to a CNApy map by reading its JSON."""
+        idx = self.map_tabs.currentIndex()
+        if idx < 0:
+            return
+        map_widget = self.map_tabs.widget(idx)
+        if not isinstance(map_widget, EscherMapView):
+            QMessageBox.information(self, "Convert", "Select an Escher map tab first.")
+            return
+
+        # pull latest JSON from Escher
+        sem = [0]
+        map_widget.retrieve_map_data(sem)
+        # wait for callback
+        while sem[0] < 1:
+            QApplication.processEvents()
+
+        self.maybe_create_cnapy_from_escher(map_widget.name)
+
+    def _parse_escher_json(self, escher_json):
+        """Return dict escher data or None."""
+        if not escher_json:
+            return None
+        data = escher_json
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                return None
+        # some Escher exports return a list with one or more map dicts
+        if isinstance(data, list):
+            # merge reactions from all entries that have reactions
+            merged_data = {}
+            reactions_merged = {}
+            for entry in data:
+                if isinstance(entry, dict):
+                    if "reactions" in entry and isinstance(entry["reactions"], dict):
+                        # merge reactions dictionaries
+                        reactions_merged.update(entry["reactions"])
+                        # also merge other keys (like nodes, canvas, etc.)
+                        for key, value in entry.items():
+                            if key != "reactions":
+                                merged_data[key] = value
+            if reactions_merged:
+                merged_data["reactions"] = reactions_merged
+                data = merged_data
+            else:
+                # fallback: pick the first entry that looks like a map (has reactions)
+                for entry in data:
+                    if isinstance(entry, dict) and "reactions" in entry:
+                        data = entry
+                        break
+                if isinstance(data, list):
+                    return None
+        # Escher can also store the map under the "map" key
+        if isinstance(data, dict) and "map" in data and isinstance(data["map"], dict):
+            if "reactions" in data["map"]:
+                data = data["map"]
+        if not isinstance(data, dict):
+            return None
+        return data
+
     def set_onoff(self):
         idx = self.tabs.currentIndex()
         if idx == ModelTabIndex.Reactions and self.appdata.project.comp_values_type == 0:
@@ -759,6 +1184,115 @@ class CentralWidget(QWidget):
 
     broadcastReactionID = Signal(str)
 
+class EscherMapFileDialog(QDialog):
+    """Dialog to select JSON and/or image (PNG/SVG) files for Escher map.
+    
+    Supports two modes:
+    1. JSON + PNG: Full map with reaction positions from JSON and PNG background
+    2. PNG only: Map with PNG background, reactions can be added manually
+    """
+    
+    def __init__(self, parent, work_directory: str):
+        super().__init__(parent)
+        self.setWindowTitle("Add CNApy Map from Files")
+        self.json_file = None
+        self.image_file = None
+        
+        layout = QVBoxLayout()
+        
+        # Explanation
+        explanation = QLabel(
+            "Create a CNApy map from files:\n"
+            "• JSON file (optional): Contains reaction positions from Escher\n"
+            "• PNG/SVG file (required): Background image for the map\n\n"
+            "If JSON is provided, reaction boxes will be placed at the positions from JSON.\n"
+            "If only image is provided, you can add reaction boxes manually."
+        )
+        explanation.setWordWrap(True)
+        layout.addWidget(explanation)
+        
+        layout.addSpacing(10)
+        
+        # JSON file selection (optional)
+        json_layout = QHBoxLayout()
+        json_layout.addWidget(QLabel("JSON file (optional):"))
+        self.json_edit = QLineEdit()
+        self.json_edit.setReadOnly(True)
+        self.json_edit.setPlaceholderText("Optional - for reaction positions")
+        json_layout.addWidget(self.json_edit)
+        json_btn = QPushButton("Browse...")
+        json_btn.clicked.connect(self.select_json_file)
+        json_layout.addWidget(json_btn)
+        clear_json_btn = QPushButton("Clear")
+        clear_json_btn.clicked.connect(self.clear_json_file)
+        json_layout.addWidget(clear_json_btn)
+        layout.addLayout(json_layout)
+        
+        # Image file selection (PNG/SVG)
+        image_layout = QHBoxLayout()
+        image_layout.addWidget(QLabel("Image file (required):"))
+        self.image_edit = QLineEdit()
+        self.image_edit.setReadOnly(True)
+        self.image_edit.setPlaceholderText("PNG or SVG file")
+        image_layout.addWidget(self.image_edit)
+        image_btn = QPushButton("Browse...")
+        image_btn.clicked.connect(self.select_image_file)
+        image_layout.addWidget(image_btn)
+        layout.addLayout(image_layout)
+        
+        layout.addSpacing(10)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        ok_btn = QPushButton("OK")
+        ok_btn.clicked.connect(self.accept_dialog)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+        
+        self.setLayout(layout)
+        self.work_directory = work_directory
+    
+    def select_json_file(self):
+        filename = QFileDialog.getOpenFileName(
+            self, "Select Escher JSON file", self.work_directory, "JSON files (*.json)")[0]
+        if filename and os.path.exists(filename):
+            self.json_file = filename
+            self.json_edit.setText(os.path.basename(filename))
+            # Update work directory
+            self.work_directory = os.path.dirname(filename)
+    
+    def clear_json_file(self):
+        self.json_file = None
+        self.json_edit.clear()
+    
+    def select_image_file(self):
+        filename = QFileDialog.getOpenFileName(
+            self, "Select image file", self.work_directory, 
+            "Image files (*.png *.svg);;PNG files (*.png);;SVG files (*.svg)")[0]
+        if filename and os.path.exists(filename):
+            if not (filename.lower().endswith('.png') or filename.lower().endswith('.svg')):
+                QMessageBox.warning(self, "Invalid file", "Please select a PNG or SVG file.")
+                return
+            self.image_file = filename
+            self.image_edit.setText(os.path.basename(filename))
+            # Update work directory
+            self.work_directory = os.path.dirname(filename)
+    
+    def accept_dialog(self):
+        # Image file is required
+        if not self.image_file or not os.path.exists(self.image_file):
+            QMessageBox.warning(self, "Missing file", "Please select an image file (PNG or SVG).")
+            return
+        # JSON is optional
+        if self.json_file and not os.path.exists(self.json_file):
+            QMessageBox.warning(self, "Invalid JSON", "The selected JSON file does not exist.")
+            return
+        self.accept()
+
+
 class ConfirmMapDeleteDialog(QDialog):
 
     def __init__(self, parent, idx: int, name: str):
@@ -787,3 +1321,95 @@ class ConfirmMapDeleteDialog(QDialog):
         self.parent.reaction_list.reaction_mask.update_state()
         self.parent.parent.unsaved_changes()
         self.accept()
+
+
+class MapReactionAddDialog(QDialog):
+    """Dialog to pick a reaction ID (from model or custom) with auto-complete."""
+
+    def __init__(self, parent, appdata: AppData):
+        super().__init__(parent)
+        self._reaction_id = None
+        self.setWindowTitle("Add reaction box to map")
+        self._reactions = appdata.project.cobra_py_model.reactions
+
+        layout = QVBoxLayout()
+        
+        # Explanation
+        explanation = QLabel(
+            "Add a reaction box to the map.\n"
+            "You can select a reaction from the model, or enter a custom ID\n"
+            "for external reactions (the box will display flux values when computed)."
+        )
+        explanation.setWordWrap(True)
+        layout.addWidget(explanation)
+        
+        layout.addSpacing(10)
+        layout.addWidget(QLabel("Reaction ID:"))
+
+        self.edit = QLineEdit()
+        self.edit.setPlaceholderText("Enter or select a reaction ID")
+        # Build suggestions as "id | name"
+        suggestions = [f"{r.id} | {r.name}" for r in self._reactions]
+        completer = QCompleter(suggestions, self)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setCompletionMode(QCompleter.PopupCompletion)
+        completer.activated[str].connect(self._apply_completion)
+        self.edit.setCompleter(completer)
+        self.edit.returnPressed.connect(self.accept_dialog)
+        layout.addWidget(self.edit)
+        
+        # Custom ID checkbox
+        self.custom_check = QCheckBox("Allow custom ID (not in model)")
+        self.custom_check.setToolTip(
+            "Check this to add a box for a reaction ID that is not in the model.\n"
+            "This is useful for linking to external reactions or placeholders."
+        )
+        layout.addWidget(self.custom_check)
+
+        btns = QHBoxLayout()
+        ok_btn = QPushButton("Add")
+        ok_btn.clicked.connect(self.accept_dialog)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btns.addWidget(ok_btn)
+        btns.addWidget(cancel_btn)
+        layout.addLayout(btns)
+
+        self.setLayout(layout)
+
+    def accept_dialog(self):
+        text = self.edit.text().strip()
+        # Accept either pure ID or "id | name"
+        if "|" in text:
+            text = text.split("|", 1)[0].strip()
+        
+        if not text:
+            QMessageBox.warning(self, "Empty ID", "Please enter a reaction ID.")
+            return
+        
+        # Check if reaction is in model
+        in_model = text in self._reactions
+        
+        if not in_model and not self.custom_check.isChecked():
+            QMessageBox.warning(self, "Reaction not in model", 
+                f"Reaction '{text}' is not in the current model.\n\n"
+                "If you want to add a custom reaction box (e.g., for external reactions),\n"
+                "check the 'Allow custom ID' checkbox.")
+            return
+        
+        self._reaction_id = text
+        self.accept()
+
+    def _apply_completion(self, text: str):
+        if "|" in text:
+            text = text.split("|", 1)[0].strip()
+        self.edit.setText(text)
+        # keep focus so user can still cancel or press Add; do not auto-accept
+        self.edit.setFocus()
+
+    def reaction_id(self):
+        return self._reaction_id
+    
+    def is_custom(self):
+        """Return True if this is a custom ID not in the model."""
+        return self.custom_check.isChecked()
