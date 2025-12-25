@@ -17,12 +17,13 @@
 from setuptools import setup
 
 setup(
-    name='cnapy',
-    description='An integrated environment for metabolic network analysis.',
-    long_description=open('README.md', encoding="utf8").read(),
-    long_description_content_type="text/asciidoc",
-    packages=['cnapy', 'cnapy.gui_elements'],
-    package_dir={'cnapy': 'cnapy'},
-    package_data={'cnapy': [
-        'data/*.svg', 'data/escher_cnapy.html', 'data/escher.min.js']}
+    name="cnapy",
+    description="An integrated environment for metabolic network analysis.",
+    long_description=open("README.md", encoding="utf8").read(),
+    long_description_content_type="text/markdown",
+    packages=["cnapy", "cnapy.gui_elements"],
+    package_dir={"cnapy": "cnapy"},
+    package_data={
+        "cnapy": ["data/*.svg", "data/escher_cnapy.html", "data/escher.min.js"]
+    },
 )

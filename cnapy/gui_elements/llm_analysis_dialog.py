@@ -39,9 +39,9 @@ class LLMConfig:
         )
         self.openai_api_key = ""
         self.gemini_api_key = ""
-        self.default_provider = "openai"  # "openai" or "gemini"
-        self.default_model_openai = "gpt-4o"
-        self.default_model_gemini = "gemini-2.0-flash-exp"
+        self.default_provider = "gemini"  # "openai" or "gemini"
+        self.default_model_openai = "gpt-5.2"
+        self.default_model_gemini = "gemini-3-flash"
         self.load_config()
 
     def load_config(self):
@@ -53,8 +53,8 @@ class LLMConfig:
                     self.openai_api_key = data.get('openai_api_key', '')
                     self.gemini_api_key = data.get('gemini_api_key', '')
                     self.default_provider = data.get('default_provider', 'openai')
-                    self.default_model_openai = data.get('default_model_openai', 'gpt-4o')
-                    self.default_model_gemini = data.get('default_model_gemini', 'gemini-2.0-flash-exp')
+                    self.default_model_openai = data.get('default_model_openai', 'gpt-5.2')
+                    self.default_model_gemini = data.get('default_model_gemini', 'gemini-3-flash')
             except Exception:
                 pass
 
@@ -195,8 +195,8 @@ Respond in JSON format:
             "temperature": 0.3,
         }
 
-        # For models that support web search
-        if self.use_web_search and "gpt-4" in self.model:
+        # For models that support web search (GPT-4 and GPT-5 series)
+        if self.use_web_search and ("gpt-4" in self.model or "gpt-5" in self.model):
             try:
                 # Try with web_search_options for newer API versions
                 kwargs["web_search_options"] = {"search_context_size": "medium"}
@@ -364,6 +364,9 @@ class LLMAnalysisDialog(QDialog):
         openai_layout.addWidget(QLabel("Model:"), 1, 0)
         self.openai_model_combo = QComboBox()
         self.openai_model_combo.addItems([
+            "gpt-5.2",           # 최신 (2025.12)
+            "gpt-5.1",
+            "gpt-5",
             "gpt-4o",
             "gpt-4o-mini",
             "gpt-4-turbo",
@@ -404,9 +407,14 @@ class LLMAnalysisDialog(QDialog):
         gemini_layout.addWidget(QLabel("Model:"), 1, 0)
         self.gemini_model_combo = QComboBox()
         self.gemini_model_combo.addItems([
+            "gemini-3-flash",        # 최신 (2025.12)
+            "gemini-3-flash-preview",
+            "gemini-3-pro",
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash",
             "gemini-2.0-flash-exp",
             "gemini-1.5-flash",
-            "gemini-1.5-flash-8b",
             "gemini-1.5-pro"
         ])
         idx = self.gemini_model_combo.findText(self.config.default_model_gemini)

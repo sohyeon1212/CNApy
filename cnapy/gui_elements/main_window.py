@@ -68,6 +68,7 @@ from cnapy.gui_elements.omics_integration_dialog import OmicsIntegrationDialog
 from cnapy.gui_elements.model_management_dialog import ModelManagementDialog
 from cnapy.gui_elements.flux_data_dialog import FluxDataDialog
 from cnapy.gui_elements.llm_analysis_dialog import LLMAnalysisDialog
+from cnapy.gui_elements.scenario_templates_dialog import ScenarioTemplatesDialog
 import cnapy.utils as utils
 
 SBML_suffixes = "*.xml *.sbml *.xml.gz *.sbml.gz *.xml.zip *.sbml.zip"
@@ -138,6 +139,14 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.exit_app)
 
         self.scenario_menu = self.menu.addMenu("Scenario")
+
+        # Scenario Templates & Bookmarks (NEW)
+        scenario_templates_action = QAction("📋 Templates && Bookmarks...", self)
+        scenario_templates_action.setShortcut("Ctrl+T")
+        self.scenario_menu.addAction(scenario_templates_action)
+        scenario_templates_action.triggered.connect(self.show_scenario_templates)
+
+        self.scenario_menu.addSeparator()
 
         load_default_scenario_action = QAction("Apply default scenario flux values", self)
         self.scenario_menu.addAction(load_default_scenario_action)
@@ -1751,6 +1760,22 @@ class MainWindow(QMainWindow):
     @Slot()
     def pin_scenario_reactions(self):
         self.centralWidget().reaction_list.pin_multiple(self.appdata.project.scen_values.keys())
+
+    @Slot()
+    def show_scenario_templates(self):
+        """Show scenario templates and bookmarks dialog."""
+        dialog = ScenarioTemplatesDialog(self.appdata)
+        dialog.scenarioApplied.connect(self._on_scenario_template_applied)
+        dialog.exec()
+
+    def _on_scenario_template_applied(self):
+        """Handle scenario template application."""
+        self.central_widget.tabs.widget(ModelTabIndex.Scenario).recreate_scenario_items_needed = True
+        if self.appdata.auto_fba:
+            self.fba()
+        else:
+            self.centralWidget().update()
+        self.update_scenario_file_name()
 
     def set_scenario_to_default_scenario(self):
         ''' write current scenario into sbml annotation '''
