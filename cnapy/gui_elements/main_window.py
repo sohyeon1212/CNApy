@@ -69,6 +69,8 @@ from cnapy.gui_elements.model_management_dialog import ModelManagementDialog
 from cnapy.gui_elements.flux_data_dialog import FluxDataDialog
 from cnapy.gui_elements.llm_analysis_dialog import LLMAnalysisDialog
 from cnapy.gui_elements.scenario_templates_dialog import ScenarioTemplatesDialog
+from cnapy.gui_elements.media_management_dialog import MediaManagementDialog
+from cnapy.gui_elements.dynamic_fba_dialog import DynamicFBADialog
 import cnapy.utils as utils
 
 SBML_suffixes = "*.xml *.sbml *.xml.gz *.sbml.gz *.xml.zip *.sbml.zip"
@@ -145,6 +147,12 @@ class MainWindow(QMainWindow):
         scenario_templates_action.setShortcut("Ctrl+T")
         self.scenario_menu.addAction(scenario_templates_action)
         scenario_templates_action.triggered.connect(self.show_scenario_templates)
+
+        # Media Management (배지 관리)
+        media_management_action = QAction("🧪 Media Management (배지 관리)...", self)
+        media_management_action.setShortcut("Ctrl+M")
+        self.scenario_menu.addAction(media_management_action)
+        media_management_action.triggered.connect(self.show_media_management)
 
         self.scenario_menu.addSeparator()
 
@@ -389,6 +397,10 @@ class MainWindow(QMainWindow):
         fba_action.triggered.connect(self.fba)
         self.analysis_menu.addAction(fba_action)
 
+        dfba_action = QAction("Dynamic FBA (dFBA)...", self)
+        dfba_action.triggered.connect(self.show_dynamic_fba)
+        self.analysis_menu.addAction(dfba_action)
+
         moma_action = QAction("Linear MOMA", self)
         moma_action.triggered.connect(self.perform_linear_moma)
         self.analysis_menu.addAction(moma_action)
@@ -476,9 +488,9 @@ class MainWindow(QMainWindow):
         # Omics integration menu
         self.omics_menu = self.analysis_menu.addMenu("Omics Integration")
         
-        lad_action = QAction("LAD Flux Prediction (transcriptome-based)...", self)
-        lad_action.triggered.connect(self.perform_omics_integration)
-        self.omics_menu.addAction(lad_action)
+        omics_dialog_action = QAction("Transcriptome-based Flux Prediction (LAD/E-Flux2)...", self)
+        omics_dialog_action.triggered.connect(self.perform_omics_integration)
+        self.omics_menu.addAction(omics_dialog_action)
 
         self.thermodynamic_menu = self.analysis_menu.addMenu("Thermodynamic analyses")
 
@@ -1768,6 +1780,20 @@ class MainWindow(QMainWindow):
         dialog.scenarioApplied.connect(self._on_scenario_template_applied)
         dialog.exec()
 
+    @Slot()
+    def show_media_management(self):
+        """Show media management dialog for bacteria/plant/animal cell media."""
+        dialog = MediaManagementDialog(self.appdata, self)
+        dialog.mediaApplied.connect(self._on_media_applied)
+        dialog.exec()
+
+    def _on_media_applied(self):
+        """Handle media application."""
+        self.central_widget.tabs.widget(ModelTabIndex.Scenario).recreate_scenario_items_needed = True
+        self.central_widget.update()
+        if self.appdata.auto_fba:
+            self.fba()
+
     def _on_scenario_template_applied(self):
         """Handle scenario template application."""
         self.central_widget.tabs.widget(ModelTabIndex.Scenario).recreate_scenario_items_needed = True
@@ -1856,7 +1882,19 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "ROOM error", f"An error occurred: {str(e)}")
 
     @Slot()
+    def show_dynamic_fba(self):
+        """Show Dynamic FBA (dFBA) dialog for time-course simulation."""
+        if len(self.appdata.project.cobra_py_model.reactions) == 0:
+            QMessageBox.warning(self, "No model", "No model loaded. Please load a model first.")
+            return
+        
+        dialog = DynamicFBADialog(self.appdata, self)
+        dialog.exec()
+
+    @Slot()
     def perform_flux_sampling(self):
+        from cnapy.flux_sampling import perform_predicted_flux_sampling, add_gaussian_noise_to_samples
+        
         if len(self.appdata.project.cobra_py_model.reactions) == 0:
             QMessageBox.warning(self, "No model", "No model loaded. Please load a model first.")
             return
@@ -1866,6 +1904,7 @@ class MainWindow(QMainWindow):
             n = dialog.n_samples.value()
             thinning = dialog.thinning.value()
             processes = dialog.processes.value()
+            sampling_mode = dialog.get_sampling_mode()
             
             self.setCursor(Qt.BusyCursor)
             try:
@@ -1875,7 +1914,32 @@ class MainWindow(QMainWindow):
                 # Applying the scenario is crucial.
                 with self.appdata.project.cobra_py_model as model:
                     self.appdata.project.load_scenario_into_model(model)
-                    s = perform_sampling(model, n, thinning, processes)
+                    
+                    if sampling_mode == "predicted":
+                        # Predicted flux-based sampling
+                        reference_fluxes = dialog.get_reference_fluxes()
+                        constraint_mode = dialog.get_constraint_mode()
+                        min_fraction = dialog.min_fraction_spin.value()
+                        max_fraction = dialog.max_fraction_spin.value()
+                        
+                        s, applied_bounds = perform_predicted_flux_sampling(
+                            model,
+                            reference_fluxes,
+                            n,
+                            constraint_mode=constraint_mode,
+                            min_fraction=min_fraction,
+                            max_fraction=max_fraction,
+                            thinning=thinning,
+                            processes=processes
+                        )
+                        
+                        # Add Gaussian noise if requested
+                        if dialog.add_noise_check.isChecked():
+                            std_fraction = dialog.noise_std_spin.value()
+                            s = add_gaussian_noise_to_samples(s, reference_fluxes, std_fraction)
+                    else:
+                        # Standard random sampling
+                        s = perform_sampling(model, n, thinning, processes)
                 
                 # Ask user where to save
                 filename, _ = QFileDialog.getSaveFileName(
@@ -1890,7 +1954,11 @@ class MainWindow(QMainWindow):
                         s.to_excel(filename)
                     else:
                         s.to_csv(filename)
-                    QMessageBox.information(self, "Sampling Complete", f"Sampling results saved to {filename}")
+                    
+                    mode_str = "predicted flux-based" if sampling_mode == "predicted" else "random"
+                    QMessageBox.information(self, "Sampling Complete", 
+                        f"Sampling ({mode_str}) results saved to {filename}\n"
+                        f"Total samples: {len(s)}")
                 
             except Exception as e:
                 QMessageBox.critical(self, "Sampling Error", str(e))

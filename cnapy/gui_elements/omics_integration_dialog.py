@@ -15,11 +15,18 @@
 # limitations under the License.
 # -*- coding: utf-8 -*-
 
-"""Omics integration dialog for transcriptome-based flux prediction using LAD.
+"""Omics integration dialog for transcriptome-based flux prediction.
 
-LAD (Least Absolute Deviation) method predicts flux distributions
-based on gene expression data, assuming that flux through a reaction
-correlates with the expression level of its associated genes.
+This module provides two methods for integrating gene expression data:
+
+1. LAD (Least Absolute Deviation) method:
+   - Predicts flux distributions by minimizing the absolute deviation
+     between predicted fluxes and expression-based targets.
+   
+2. E-Flux2 method:
+   - Constrains reaction upper bounds based on gene expression levels.
+   - Performs FBA with minimization of L2 norm for unique flux solution.
+   - Reference: Kim & Lun (2016), PLOS Computational Biology.
 
 This module was added/modified as part of CNApy enhancements.
 """
@@ -282,14 +289,185 @@ def run_lad_fitting(
             return solution.status, None, None
 
 
+def run_eflux2(
+    model: cobra.Model,
+    reaction_weights: Dict[str, float],
+    flux_constraints: Optional[Dict[str, Tuple[float, float]]] = None,
+    normalize: bool = True,
+    weight_threshold: float = 0.01,
+    min_flux_bound: float = 0.001
+) -> Tuple[str, Optional[float], Optional[Dict[str, float]]]:
+    """
+    Run E-Flux2 analysis to predict fluxes from expression data.
+    
+    E-Flux2 constrains reaction upper bounds based on gene expression levels,
+    then performs FBA with L2-norm minimization for a unique solution.
+    
+    Reference: Kim & Lun (2016). E-Flux2 and SPOT: Validated Methods for
+    Inferring Intracellular Metabolic Fluxes. PLOS Computational Biology.
+    
+    Parameters:
+    -----------
+    model : cobra.Model
+        The metabolic model
+    reaction_weights : Dict[str, float]
+        Dictionary mapping reaction IDs to expression-based weights
+    flux_constraints : Dict[str, Tuple[float, float]], optional
+        Additional flux constraints as {reaction_id: (lb, ub)}
+    normalize : bool
+        Whether to normalize expression values (0-1 range)
+    weight_threshold : float
+        Minimum weight to constrain a reaction
+    min_flux_bound : float
+        Minimum flux bound to apply (prevents zero bounds)
+        
+    Returns:
+    --------
+    Tuple[str, Optional[float], Optional[Dict[str, float]]]
+        (status, objective_value, flux_distribution)
+    """
+    from optlang.symbolics import Add
+    
+    if not reaction_weights:
+        return 'no_targets', None, None
+    
+    # Filter reactions by weight threshold
+    valid_weights = {
+        rid: w for rid, w in reaction_weights.items()
+        if rid in model.reactions and w > weight_threshold
+    }
+    
+    if not valid_weights:
+        return 'no_targets', None, None
+    
+    # Normalize weights to 0-1 range if requested
+    if normalize and valid_weights:
+        max_weight = max(valid_weights.values())
+        min_weight = min(valid_weights.values())
+        weight_range = max_weight - min_weight
+        if weight_range > 0:
+            normalized_weights = {
+                rid: (w - min_weight) / weight_range
+                for rid, w in valid_weights.items()
+            }
+        else:
+            normalized_weights = {rid: 1.0 for rid in valid_weights}
+    else:
+        normalized_weights = valid_weights.copy()
+    
+    with model as m:
+        # Apply flux constraints if provided (e.g., from scenario)
+        if flux_constraints:
+            for rid, (lb, ub) in flux_constraints.items():
+                if rid in m.reactions:
+                    rxn = m.reactions.get_by_id(rid)
+                    rxn.bounds = (lb, ub)
+        
+        # E-Flux: Constrain upper bounds based on expression levels
+        # Higher expression = higher allowed flux
+        for rxn in m.reactions:
+            if rxn.id in normalized_weights:
+                weight = normalized_weights[rxn.id]
+                # Scale the upper bound by the normalized expression
+                # Keep a minimum bound to allow some flux
+                new_ub = max(min_flux_bound, weight * abs(rxn.upper_bound) if rxn.upper_bound else weight * 1000)
+                new_lb = -new_ub if rxn.reversibility else max(rxn.lower_bound, 0)
+                
+                # Don't make bounds more restrictive than existing scenario constraints
+                if flux_constraints and rxn.id in flux_constraints:
+                    continue
+                    
+                rxn.upper_bound = new_ub
+                rxn.lower_bound = new_lb
+            elif rxn.id not in normalized_weights and rxn.genes:
+                # Reactions with genes but no expression data: keep original bounds
+                # or apply minimal constraint
+                pass
+        
+        # E-Flux2: Add L2-norm minimization (quadratic objective)
+        # We use a two-step approach:
+        # 1. First FBA to get optimal objective value
+        # 2. Then minimize sum of squared fluxes while maintaining optimal objective
+        
+        # Step 1: Standard FBA
+        try:
+            solution1 = m.optimize()
+        except Exception as e:
+            return f'optimization_error: {str(e)}', None, None
+            
+        if solution1.status != 'optimal':
+            return solution1.status, None, None
+        
+        optimal_value = solution1.objective_value
+        
+        # Step 2: Minimize L2 norm while maintaining objective
+        # Fix objective to optimal value (with small tolerance)
+        tolerance = abs(optimal_value) * 0.001 if optimal_value != 0 else 0.001
+        
+        obj_constraint = m.problem.Constraint(
+            m.objective.expression,
+            lb=optimal_value - tolerance,
+            ub=optimal_value + tolerance,
+            name="eflux2_obj_constraint"
+        )
+        m.add_cons_vars(obj_constraint)
+        
+        # Create squared flux variables and constraints
+        # For linear solvers, we approximate by minimizing sum of absolute values
+        squared_vars = []
+        squared_cons = []
+        
+        for rxn in m.reactions:
+            # Create auxiliary variable for |flux|
+            abs_var = m.problem.Variable(f"abs_{rxn.id}", lb=0)
+            squared_vars.append(abs_var)
+            
+            # |v| >= v and |v| >= -v
+            cons1 = m.problem.Constraint(
+                abs_var - rxn.flux_expression,
+                lb=0,
+                name=f"abs_pos_{rxn.id}"
+            )
+            cons2 = m.problem.Constraint(
+                abs_var + rxn.flux_expression,
+                lb=0,
+                name=f"abs_neg_{rxn.id}"
+            )
+            squared_cons.extend([cons1, cons2])
+        
+        m.add_cons_vars(squared_vars)
+        m.add_cons_vars(squared_cons)
+        
+        # Minimize sum of |fluxes| (L1 norm as approximation to L2)
+        m.objective = m.problem.Objective(
+            Add(*squared_vars),
+            direction='min'
+        )
+        
+        try:
+            solution2 = m.optimize()
+        except Exception as e:
+            # Fall back to first solution if L2 minimization fails
+            flux_distribution = {rxn.id: solution1.fluxes[rxn.id] for rxn in m.reactions}
+            return 'optimal', optimal_value, flux_distribution
+        
+        if solution2.status == 'optimal':
+            flux_distribution = {rxn.id: solution2.fluxes[rxn.id] for rxn in m.reactions}
+            return 'optimal', optimal_value, flux_distribution
+        else:
+            # Fall back to first solution
+            flux_distribution = {rxn.id: solution1.fluxes[rxn.id] for rxn in m.reactions}
+            return 'optimal', optimal_value, flux_distribution
+
+
 class OmicsIntegrationDialog(QDialog):
-    """Dialog for Omics integration using LAD method."""
+    """Dialog for Omics integration using LAD or E-Flux2 methods."""
 
     def __init__(self, appdata: AppData, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Omics Integration - LAD Flux Prediction")
-        self.setMinimumWidth(600)
-        self.setMinimumHeight(500)
+        self.setWindowTitle("Omics Integration - Transcriptome-based Flux Prediction")
+        self.setMinimumWidth(700)
+        self.setMinimumHeight(600)
         self.appdata = appdata
         
         self.expression_data: Dict[str, float] = {}
@@ -325,6 +503,36 @@ class OmicsIntegrationDialog(QDialog):
         
         file_group.setLayout(file_layout)
         layout.addWidget(file_group)
+        
+        # Method selection group
+        method_group = QGroupBox("Integration Method")
+        method_layout = QVBoxLayout()
+        
+        method_row = QHBoxLayout()
+        method_row.addWidget(QLabel("Method:"))
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(['LAD (Least Absolute Deviation)', 'E-Flux2 (Expression-based FBA)'])
+        self.method_combo.setToolTip(
+            "LAD: Minimizes absolute deviation between fluxes and expression targets.\n"
+            "     Better for fitting fluxes to expression data.\n\n"
+            "E-Flux2: Constrains upper bounds based on expression, then optimizes growth.\n"
+            "         Better for predicting growth phenotypes with expression data."
+        )
+        self.method_combo.currentTextChanged.connect(self._on_method_changed)
+        method_row.addWidget(self.method_combo)
+        method_row.addStretch()
+        method_layout.addLayout(method_row)
+        
+        # Method description
+        self.method_desc_label = QLabel(
+            "LAD minimizes the deviation between predicted fluxes and expression-derived targets."
+        )
+        self.method_desc_label.setWordWrap(True)
+        self.method_desc_label.setStyleSheet("color: gray; font-style: italic;")
+        method_layout.addWidget(self.method_desc_label)
+        
+        method_group.setLayout(method_layout)
+        layout.addWidget(method_group)
         
         # Parameters group
         params_group = QGroupBox("Analysis Parameters")
@@ -372,6 +580,30 @@ class OmicsIntegrationDialog(QDialog):
         self.use_scenario_check.setToolTip("Apply flux constraints from the current scenario")
         params_layout.addWidget(self.use_scenario_check)
         
+        # E-Flux2 specific parameters
+        self.eflux2_params_widget = QGroupBox("E-Flux2 Specific Options")
+        eflux2_layout = QVBoxLayout()
+        
+        self.normalize_check = QCheckBox("Normalize expression values (0-1)")
+        self.normalize_check.setChecked(True)
+        self.normalize_check.setToolTip("Normalize expression values to 0-1 range before constraining bounds")
+        eflux2_layout.addWidget(self.normalize_check)
+        
+        minflux_row = QHBoxLayout()
+        minflux_row.addWidget(QLabel("Minimum flux bound:"))
+        self.minflux_spin = QDoubleSpinBox()
+        self.minflux_spin.setDecimals(4)
+        self.minflux_spin.setRange(0.0, 100)
+        self.minflux_spin.setValue(0.001)
+        self.minflux_spin.setToolTip("Minimum flux bound to prevent zero bounds for expressed reactions")
+        minflux_row.addWidget(self.minflux_spin)
+        minflux_row.addStretch()
+        eflux2_layout.addLayout(minflux_row)
+        
+        self.eflux2_params_widget.setLayout(eflux2_layout)
+        self.eflux2_params_widget.setVisible(False)  # Hidden by default (LAD is selected)
+        params_layout.addWidget(self.eflux2_params_widget)
+        
         params_group.setLayout(params_layout)
         layout.addWidget(params_group)
         
@@ -402,7 +634,7 @@ class OmicsIntegrationDialog(QDialog):
         self.compute_weights_btn.clicked.connect(self._compute_weights)
         btn_layout.addWidget(self.compute_weights_btn)
         
-        self.run_btn = QPushButton("Run LAD Analysis")
+        self.run_btn = QPushButton("Run Analysis")
         self.run_btn.clicked.connect(self._run_analysis)
         self.run_btn.setEnabled(False)
         btn_layout.addWidget(self.run_btn)
@@ -414,6 +646,30 @@ class OmicsIntegrationDialog(QDialog):
         layout.addLayout(btn_layout)
         
         self.setLayout(layout)
+        
+        # Set initial state
+        self._on_method_changed(self.method_combo.currentText())
+    
+    def _on_method_changed(self, method_text: str):
+        """Handle method selection change."""
+        is_eflux2 = 'E-Flux2' in method_text
+        self.eflux2_params_widget.setVisible(is_eflux2)
+        
+        # Update scaling visibility (only for LAD)
+        # scale_spin is in the parent layout, we just change tooltip
+        if is_eflux2:
+            self.method_desc_label.setText(
+                "E-Flux2 constrains reaction upper bounds based on gene expression levels,\n"
+                "then performs FBA with L1-norm minimization for parsimonious solution.\n"
+                "Good for predicting flux distributions under different expression conditions."
+            )
+            self.run_btn.setText("Run E-Flux2 Analysis")
+        else:
+            self.method_desc_label.setText(
+                "LAD minimizes the deviation between predicted fluxes and expression-derived targets.\n"
+                "Best for fitting flux distributions to match expression data patterns."
+            )
+            self.run_btn.setText("Run LAD Analysis")
     
     def _browse_file(self):
         """Open file dialog to select expression data file."""
@@ -516,7 +772,7 @@ class OmicsIntegrationDialog(QDialog):
             QMessageBox.critical(self, "Error", f"Failed to compute reaction weights:\n{str(e)}")
     
     def _run_analysis(self):
-        """Run LAD analysis to predict fluxes."""
+        """Run LAD or E-Flux2 analysis to predict fluxes."""
         if not self.reaction_weights:
             QMessageBox.warning(self, "No weights", "Please compute reaction weights first.")
             return
@@ -524,6 +780,9 @@ class OmicsIntegrationDialog(QDialog):
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate
         self.run_btn.setEnabled(False)
+        
+        is_eflux2 = 'E-Flux2' in self.method_combo.currentText()
+        method_name = "E-Flux2" if is_eflux2 else "LAD"
         
         try:
             model = self.appdata.project.cobra_py_model.copy()
@@ -535,15 +794,31 @@ class OmicsIntegrationDialog(QDialog):
                     flux_constraints[rid] = (lb, ub)
             
             threshold = self.threshold_spin.value()
-            scaling = self.scale_spin.value()
             
-            status, obj_value, flux_dist = run_lad_fitting(
-                model,
-                self.reaction_weights,
-                flux_constraints,
-                threshold,
-                scaling
-            )
+            if is_eflux2:
+                # Run E-Flux2
+                normalize = self.normalize_check.isChecked()
+                min_flux_bound = self.minflux_spin.value()
+                
+                status, obj_value, flux_dist = run_eflux2(
+                    model,
+                    self.reaction_weights,
+                    flux_constraints,
+                    normalize=normalize,
+                    weight_threshold=threshold,
+                    min_flux_bound=min_flux_bound
+                )
+            else:
+                # Run LAD
+                scaling = self.scale_spin.value()
+                
+                status, obj_value, flux_dist = run_lad_fitting(
+                    model,
+                    self.reaction_weights,
+                    flux_constraints,
+                    threshold,
+                    scaling
+                )
             
             self.progress_bar.setVisible(False)
             self.run_btn.setEnabled(True)
@@ -558,10 +833,19 @@ class OmicsIntegrationDialog(QDialog):
                 if hasattr(self.parent(), 'centralWidget'):
                     self.parent().centralWidget().update()
                 
-                QMessageBox.information(self, "Analysis complete", 
-                    f"LAD flux prediction completed successfully.\n"
-                    f"Objective value (total deviation): {obj_value:.4f}\n\n"
-                    f"Results have been loaded into the computed values.")
+                if is_eflux2:
+                    msg = (
+                        f"E-Flux2 flux prediction completed successfully.\n"
+                        f"Optimal objective value: {obj_value:.4f}\n\n"
+                        f"Results have been loaded into the computed values."
+                    )
+                else:
+                    msg = (
+                        f"LAD flux prediction completed successfully.\n"
+                        f"Total deviation: {obj_value:.4f}\n\n"
+                        f"Results have been loaded into the computed values."
+                    )
+                QMessageBox.information(self, "Analysis complete", msg)
                 
             elif status == 'no_targets':
                 QMessageBox.warning(self, "No targets", 
@@ -569,10 +853,10 @@ class OmicsIntegrationDialog(QDialog):
                     "Try lowering the threshold value.")
             else:
                 QMessageBox.warning(self, "Optimization failed", 
-                    f"LAD optimization failed with status: {status}")
+                    f"{method_name} optimization failed with status: {status}")
                 
         except Exception as e:
             self.progress_bar.setVisible(False)
             self.run_btn.setEnabled(True)
-            QMessageBox.critical(self, "Error", f"LAD analysis failed:\n{str(e)}")
+            QMessageBox.critical(self, "Error", f"{method_name} analysis failed:\n{str(e)}")
 

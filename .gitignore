@@ -100,3 +100,6 @@ cnapy-config.txt
 
 # uv files
 uv.lock
+test_data/log_tpm_qc.csv
+test_data/saved_map.png
+test_data/saved_map.svg
