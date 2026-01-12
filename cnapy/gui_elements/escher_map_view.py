@@ -170,7 +170,9 @@ class EscherMapView(QWebEngineView):
         event.ignore()
 
     def closeEvent(self, event):
-        self.channel.deregisterObject(self.cnapy_bridge)
+        if self.channel:
+            self.channel.deregisterObject(self.cnapy_bridge)
+            self.channel.deleteLater()
         event.accept()
 
 

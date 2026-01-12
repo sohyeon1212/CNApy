@@ -721,7 +721,7 @@ class MainWindow(QMainWindow):
             msgBox.setStandardButtons(
                 QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)
             msgBox.setDefaultButton(QMessageBox.Save)
-            ret = msgBox.exec_()
+            ret = msgBox.exec()
             if ret == QMessageBox.Save:
                 # Save was clicked
                 self.save_project_as()
@@ -778,7 +778,7 @@ class MainWindow(QMainWindow):
     @Slot()
     def show_about(self):
         dialog = AboutDialog(self.appdata)
-        dialog.exec_()
+        dialog.exec()
 
     @Slot()
     def plot_space(self):
@@ -816,6 +816,7 @@ class MainWindow(QMainWindow):
         self.sd_computation = SDComputationThread(self.appdata, sd_setup)
         self.sd_computation.output_connector.connect(self.sd_viewer.receive_progress_text, Qt.QueuedConnection)
         self.sd_computation.finished_computation.connect(self.sd_viewer.conclude_computation, Qt.QueuedConnection)
+        self.sd_computation.finished.connect(self.sd_computation.deleteLater)  # Clean up thread when finished
         self.sd_viewer.cancel_computation.connect(self.terminate_strain_design_computation)
         # show dialog and launch process
         # self.sd_viewer.exec()
@@ -894,18 +895,18 @@ class MainWindow(QMainWindow):
     @Slot()
     def optimize_yield(self):
         dialog = YieldOptimizationDialog(self.appdata, self.centralWidget())
-        dialog.exec_()
+        dialog.exec()
 
     @Slot()
     def optimize_flux(self):
         dialog = FluxOptimizationDialog(self.appdata, self.centralWidget())
-        dialog.exec_()
+        dialog.exec()
 
     @Slot()
     def show_config_dialog(self, first_start=False):
         dialog = ConfigDialog(self, first_start)
         if not first_start:
-            dialog.exec_()
+            dialog.exec()
 
     @Slot()
     def show_config_cobrapy_dialog(self):
@@ -917,17 +918,17 @@ class MainWindow(QMainWindow):
         if self.sd_dialog is not None:
             dialog.optlang_solver_set.connect(self.sd_dialog.set_optlang_solver_text)
             dialog.optlang_solver_set.connect(self.sd_dialog.configure_solver_options)
-        dialog.exec_()
+        dialog.exec()
 
     @Slot()
     def show_cplex_configuration_dialog(self):
         dialog = CplexConfigurationDialog(self.appdata)
-        dialog.exec_()
+        dialog.exec()
 
     @Slot()
     def show_gurobi_configuration_dialog(self):
         dialog = GurobiConfigurationDialog(self.appdata)
-        dialog.exec_()
+        dialog.exec()
 
     @Slot()
     def export_sbml(self):
@@ -949,7 +950,7 @@ class MainWindow(QMainWindow):
     @Slot()
     def download_examples(self):
         dialog = DownloadDialog(self.appdata)
-        dialog.exec_()
+        dialog.exec()
 
     @Slot()
     def load_box_positions(self):
@@ -1182,7 +1183,7 @@ class MainWindow(QMainWindow):
                                 if bigg_id in reaction_bigg_ids:
                                     (label_x, label_y) =  get_translate_coordinates(child.attrib['transform'])
                                     self.appdata.project.maps[map_name]["boxes"][reaction_bigg_ids[bigg_id]] = [label_x - offset_x, label_y - offset_y]
-        except:
+        except (ET.ParseError, KeyError, ValueError, AttributeError):
             QMessageBox.critical(self, "Failed to parse "+file_name+" as Escher SVG file",
                                  file_name+" does not appear to have been exported from Escher. "
                                  "Automatic mapping of reaction boxes not possible.")
@@ -1197,7 +1198,7 @@ class MainWindow(QMainWindow):
         '''Execute RenameMapDialog'''
         dialog = RenameMapDialog(
             self.appdata, self.centralWidget())
-        dialog.exec_()
+        dialog.exec()
 
     @Slot()
     def inc_box_size(self):
@@ -1750,7 +1751,7 @@ class MainWindow(QMainWindow):
     @Slot()
     def clipboard_arithmetics(self):
         dialog = ClipboardCalculator(self.appdata)
-        dialog.exec_()
+        dialog.exec()
         self.centralWidget().update()
 
     def add_values_to_scenario(self):
@@ -1900,7 +1901,7 @@ class MainWindow(QMainWindow):
             return
 
         dialog = FluxSamplingDialog(self.appdata)
-        if dialog.exec_():
+        if dialog.exec():
             n = dialog.n_samples.value()
             thinning = dialog.thinning.value()
             processes = dialog.processes.value()
@@ -2225,12 +2226,12 @@ class MainWindow(QMainWindow):
     # def efm(self):
     #     self.efm_dialog = EFMDialog(
     #         self.appdata, self.centralWidget())
-    #     self.efm_dialog.exec_()
+    #     self.efm_dialog.exec()
 
     def in_out_flux(self):
         in_out_flux_dialog = InOutFluxDialog(
             self.appdata)
-        in_out_flux_dialog.exec_()
+        in_out_flux_dialog.exec()
 
     def all_in_out_fluxes(self):
         filename = self._get_filename("xlsx")
@@ -2363,7 +2364,7 @@ class MainWindow(QMainWindow):
     def efmtool(self):
         self.efmtool_dialog = EFMtoolDialog(
             self.appdata, self.centralWidget())
-        self.efmtool_dialog.exec_()
+        self.efmtool_dialog.exec()
 
     def mcs(self):
         if self.mcs_dialog is None:
@@ -2467,7 +2468,7 @@ class MainWindow(QMainWindow):
             self.centralWidget(),
             analysis_type=ThermodynamicAnalysisTypes.OPTMDFPATHWAY
         )
-        self.optmdfpathway_dialog.exec_()
+        self.optmdfpathway_dialog.exec()
 
     @Slot()
     def perform_thermodynamic_fba(self):
@@ -2477,7 +2478,7 @@ class MainWindow(QMainWindow):
             self.centralWidget(),
             analysis_type=ThermodynamicAnalysisTypes.THERMODYNAMIC_FBA
         )
-        self.thermodynamic_fba_dialog.exec_()
+        self.thermodynamic_fba_dialog.exec()
 
     @Slot()
     def perform_bottleneck_analysis(self):
@@ -2487,7 +2488,7 @@ class MainWindow(QMainWindow):
             self.centralWidget(),
             analysis_type=ThermodynamicAnalysisTypes.BOTTLENECK_ANALYSIS
         )
-        self.bottleneck_dialog.exec_()
+        self.bottleneck_dialog.exec()
 
     def _load_json(self) -> Dict[Any, Any]:
         dialog = QFileDialog(self)

@@ -754,7 +754,7 @@ class OmicsIntegrationDialog(QDialog):
                     rxn = self.appdata.project.cobra_py_model.reactions.get_by_id(rid)
                     genes = ', '.join(g.id for g in rxn.genes)
                     self.preview_table.setItem(row, 2, QTableWidgetItem(genes))
-                except:
+                except (KeyError, AttributeError):
                     self.preview_table.setItem(row, 2, QTableWidgetItem(""))
             
             self.run_btn.setEnabled(len(self.reaction_weights) > 0)

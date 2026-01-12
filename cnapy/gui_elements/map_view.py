@@ -827,7 +827,7 @@ class ReactionBox(QGraphicsItem):
             mime = QMimeData()
             mime.setText(str(self.id))
             drag.setMimeData(mime)
-            drag.exec_()
+            drag.exec()
     
     def itemChange(self, change, value):
         """Called when item properties change, including position."""

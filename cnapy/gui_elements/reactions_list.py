@@ -789,7 +789,7 @@ class ReactionMask(QWidget):
             edit_but = msg_box.addButton("Edit GPR rule", QMessageBox.RejectRole)
             revert_but = msg_box.addButton("Revert GPR rule", QMessageBox.ResetRole)
             msg_box.setDefaultButton(revert_but)
-            msg_box.exec_()
+            msg_box.exec()
             self.gene_reaction_rule.blockSignals(False)
 
             if msg_box.clickedButton() == edit_but:
@@ -825,7 +825,7 @@ class ReactionMask(QWidget):
             msg_box.setDefaultButton(msg_box.addButton(QMessageBox.Ok))
             edit_but = msg_box.addButton("Edit GPR rule", QMessageBox.RejectRole)
             revert_but = msg_box.addButton("Revert GPR rule", QMessageBox.ResetRole)
-            msg_box.exec_()
+            msg_box.exec()
             self.gene_reaction_rule.blockSignals(False)
             if msg_box.clickedButton() == edit_but:
                 self.gene_reaction_rule.setFocus()
@@ -899,7 +899,7 @@ class ReactionMask(QWidget):
                     msg_box.setDefaultButton(msg_box.addButton(QMessageBox.Ok)) #"Ok", QMessageBox.AcceptRole))
                     edit_but = msg_box.addButton("Edit equation", QMessageBox.RejectRole)
                     revert_but = msg_box.addButton("Revert equation", QMessageBox.ResetRole)
-                    msg_box.exec_()
+                    msg_box.exec()
                     if msg_box.clickedButton() == edit_but:
                         self.equation.setFocus()
                         ok = False

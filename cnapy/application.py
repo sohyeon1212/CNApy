@@ -45,7 +45,6 @@ import cnapy.utils as utils
 def excepthook(cls, exception, tb):
     output = io.StringIO()
     traceback.print_exception(cls, exception, tb, file=output)
-    traceback.print_tb(tb, file=output)
     exstr = ''.join(traceback.format_exception(None, exception, exception.__traceback__))
 
     # If the exception has a user-readable text message, let's add it in bold
@@ -333,6 +332,6 @@ class Application:
                 else:
                     raise ValueError
             except Exception as e:
-                print(e, "\nCannot set tolerance from cobrapy-config.txt file because it must be a vaule between 1e-9 and 0.1, reverting to COBRApy base setting.")
+                print(e, "\nCannot set tolerance from cobrapy-config.txt file because it must be a value between 1e-9 and 0.1, reverting to COBRApy base setting.")
         except Exception as e:
             print('Could not read', self.appdata.cobrapy_conf_path, 'because:', e)

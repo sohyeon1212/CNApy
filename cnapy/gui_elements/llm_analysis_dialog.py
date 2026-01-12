@@ -2,14 +2,21 @@
 
 This module provides functionality to:
 - Analyze reactions and genes existence in specific strains using LLM APIs
-- Support OpenAI (ChatGPT) and Google Gemini Flash APIs
+- Support OpenAI (ChatGPT), Google Gemini Flash, and Anthropic Claude APIs
 - Manage API keys per project or globally
 - Utilize web search capabilities for real-time information
+- Cache analysis results to reduce API costs
+- Rate limiting and retry logic for robust API calls
 """
 
 import os
 import json
 import re
+import time
+import random
+import hashlib
+import threading
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from configparser import ConfigParser
 
@@ -33,65 +40,135 @@ class LLMConfig:
     """Manages LLM API configurations."""
 
     def __init__(self):
-        self.config_path = os.path.join(
-            appdirs.user_config_dir("cnapy", roaming=True, appauthor=False),
-            "llm-config.json"
-        )
+        self.config_dir = appdirs.user_config_dir("cnapy", roaming=True, appauthor=False)
+        self.config_path = os.path.join(self.config_dir, "llm-config.json")
+        self.cache_dir = os.path.join(self.config_dir, "llm-cache")
+
+        # API keys
         self.openai_api_key = ""
         self.gemini_api_key = ""
-        self.default_provider = "gemini"  # "openai" or "gemini"
+        self.anthropic_api_key = ""
+
+        # Provider settings
+        self.default_provider = "gemini"  # "openai", "gemini", or "anthropic"
         self.default_model_openai = "gpt-5.2"
         self.default_model_gemini = "gemini-3-flash"
+        self.default_model_anthropic = "claude-sonnet-4-20250514"
+
+        # Cache settings
+        self.use_cache = True
+        self.cache_expiry_days = 30
+
         self.load_config()
 
     def load_config(self):
         """Load configuration from file."""
         if os.path.exists(self.config_path):
             try:
-                with open(self.config_path, 'r') as f:
+                with open(self.config_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.openai_api_key = data.get('openai_api_key', '')
                     self.gemini_api_key = data.get('gemini_api_key', '')
-                    self.default_provider = data.get('default_provider', 'openai')
+                    self.anthropic_api_key = data.get('anthropic_api_key', '')
+                    self.default_provider = data.get('default_provider', 'gemini')
                     self.default_model_openai = data.get('default_model_openai', 'gpt-5.2')
                     self.default_model_gemini = data.get('default_model_gemini', 'gemini-3-flash')
-            except Exception:
+                    self.default_model_anthropic = data.get('default_model_anthropic', 'claude-sonnet-4-20250514')
+                    self.use_cache = data.get('use_cache', True)
+                    self.cache_expiry_days = data.get('cache_expiry_days', 30)
+            except json.JSONDecodeError:
+                # Config file corrupted, use defaults
+                pass
+            except OSError:
+                # File access error, use defaults
                 pass
 
     def save_config(self):
         """Save configuration to file."""
         try:
             os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-            with open(self.config_path, 'w') as f:
+            with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump({
                     'openai_api_key': self.openai_api_key,
                     'gemini_api_key': self.gemini_api_key,
+                    'anthropic_api_key': self.anthropic_api_key,
                     'default_provider': self.default_provider,
                     'default_model_openai': self.default_model_openai,
-                    'default_model_gemini': self.default_model_gemini
+                    'default_model_gemini': self.default_model_gemini,
+                    'default_model_anthropic': self.default_model_anthropic,
+                    'use_cache': self.use_cache,
+                    'cache_expiry_days': self.cache_expiry_days
                 }, f, indent=2)
-        except Exception as e:
-            print(f"Error saving LLM config: {e}")
+        except OSError:
+            # File write error - user will notice settings aren't persisted
+            pass
+
+    def clear_cache(self):
+        """Clear all cached results."""
+        cache_path = Path(self.cache_dir)
+        if cache_path.exists():
+            for cache_file in cache_path.glob("*.json"):
+                try:
+                    cache_file.unlink()
+                except OSError:
+                    pass
+
+
+class TokenBucket:
+    """Rate limiter using token bucket algorithm."""
+
+    def __init__(self, tokens_per_second: float):
+        self.capacity = tokens_per_second
+        self.tokens = tokens_per_second
+        self.last_update = time.time()
+        self.lock = threading.Lock()
+
+    def acquire(self) -> bool:
+        """Try to acquire a token. Returns True if successful."""
+        with self.lock:
+            now = time.time()
+            elapsed = now - self.last_update
+            self.tokens = min(self.capacity, self.tokens + elapsed * self.capacity)
+            self.last_update = now
+
+            if self.tokens >= 1:
+                self.tokens -= 1
+                return True
+            return False
+
+    def wait_for_token(self):
+        """Block until a token is available."""
+        while not self.acquire():
+            time.sleep(0.1)
 
 
 class LLMAnalysisThread(QThread):
-    """Background thread for LLM API calls."""
+    """Background thread for LLM API calls with caching and rate limiting."""
 
     result_ready = Signal(str, str, dict)  # item_id, item_type, result
     error_occurred = Signal(str, str)  # item_id, error message
     progress_update = Signal(int, int)  # current, total
+    cache_hit = Signal(str)  # item_id (for cache hit notification)
+
+    # Rate limits (requests per second) for each provider
+    RATE_LIMITS = {
+        "openai": 1.0,      # 60 RPM
+        "gemini": 0.5,      # 30 RPM
+        "anthropic": 0.83   # 50 RPM
+    }
 
     def __init__(self, config: LLMConfig, items: List[Tuple[str, str, str]],
                  strain_name: str, provider: str, model: str,
-                 use_web_search: bool = True):
+                 use_web_search: bool = True, use_cache: bool = True):
         """
         Args:
             config: LLM configuration
             items: List of (item_id, item_name, item_type) tuples
             strain_name: Name of the strain to analyze
-            provider: "openai" or "gemini"
+            provider: "openai", "gemini", or "anthropic"
             model: Model name to use
             use_web_search: Whether to use web search (for OpenAI)
+            use_cache: Whether to use cached results
         """
         super().__init__()
         self.config = config
@@ -100,10 +177,70 @@ class LLMAnalysisThread(QThread):
         self.provider = provider
         self.model = model
         self.use_web_search = use_web_search
+        self.use_cache = use_cache
         self._stop_requested = False
+
+        # Initialize rate limiter for the provider
+        rate = self.RATE_LIMITS.get(provider, 1.0)
+        self.rate_limiter = TokenBucket(rate)
 
     def stop(self):
         self._stop_requested = True
+
+    def _get_cache_key(self, item_id: str, item_name: str, item_type: str) -> str:
+        """Generate cache key for an item."""
+        key_str = f"{item_id}:{item_name}:{item_type}:{self.strain_name}:{self.provider}:{self.model}"
+        return hashlib.md5(key_str.encode()).hexdigest()
+
+    def _get_cached_result(self, cache_key: str) -> Optional[dict]:
+        """Get cached result if valid."""
+        if not self.use_cache:
+            return None
+
+        cache_file = Path(self.config.cache_dir) / f"{cache_key}.json"
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # Check expiration
+                    timestamp = data.get("timestamp", 0)
+                    expiry_seconds = self.config.cache_expiry_days * 86400
+                    if time.time() - timestamp < expiry_seconds:
+                        return data.get("result")
+            except (json.JSONDecodeError, OSError):
+                pass
+        return None
+
+    def _save_to_cache(self, cache_key: str, result: dict):
+        """Save result to cache."""
+        if not self.use_cache:
+            return
+
+        cache_dir = Path(self.config.cache_dir)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        cache_file = cache_dir / f"{cache_key}.json"
+        try:
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump({
+                    "timestamp": time.time(),
+                    "result": result
+                }, f, ensure_ascii=False)
+        except OSError:
+            pass
+
+    def _call_with_retry(self, func, max_retries: int = 3):
+        """Call function with exponential backoff retry."""
+        for attempt in range(max_retries):
+            try:
+                self.rate_limiter.wait_for_token()
+                return func()
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                # Exponential backoff with jitter
+                wait_time = (2 ** attempt) + random.uniform(0, 1)
+                time.sleep(wait_time)
 
     def run(self):
         """Execute LLM analysis for all items."""
@@ -116,10 +253,31 @@ class LLMAnalysisThread(QThread):
             self.progress_update.emit(i + 1, total)
 
             try:
+                # Check cache first
+                cache_key = self._get_cache_key(item_id, item_name, item_type)
+                cached_result = self._get_cached_result(cache_key)
+
+                if cached_result is not None:
+                    self.cache_hit.emit(item_id)
+                    self.result_ready.emit(item_id, item_type, cached_result)
+                    continue
+
+                # Call LLM API with retry
                 if self.provider == "openai":
-                    result = self._analyze_with_openai(item_id, item_name, item_type)
-                else:
-                    result = self._analyze_with_gemini(item_id, item_name, item_type)
+                    result = self._call_with_retry(
+                        lambda: self._analyze_with_openai(item_id, item_name, item_type)
+                    )
+                elif self.provider == "anthropic":
+                    result = self._call_with_retry(
+                        lambda: self._analyze_with_anthropic(item_id, item_name, item_type)
+                    )
+                else:  # gemini
+                    result = self._call_with_retry(
+                        lambda: self._analyze_with_gemini(item_id, item_name, item_type)
+                    )
+
+                # Save to cache
+                self._save_to_cache(cache_key, result)
 
                 self.result_ready.emit(item_id, item_type, result)
             except Exception as e:
@@ -197,11 +355,8 @@ Respond in JSON format:
 
         # For models that support web search (GPT-4 and GPT-5 series)
         if self.use_web_search and ("gpt-4" in self.model or "gpt-5" in self.model):
-            try:
-                # Try with web_search_options for newer API versions
-                kwargs["web_search_options"] = {"search_context_size": "medium"}
-            except:
-                pass
+            # Add web_search_options for newer API versions
+            kwargs["web_search_options"] = {"search_context_size": "medium"}
 
         try:
             response = client.chat.completions.create(**kwargs)
@@ -253,34 +408,90 @@ Respond in JSON format:
 
         return self._parse_json_response(content)
 
-    def _parse_json_response(self, content: str) -> dict:
-        """Parse JSON from LLM response."""
-        # Try to extract JSON from the response
+    def _analyze_with_anthropic(self, item_id: str, item_name: str, item_type: str) -> dict:
+        """Analyze using Anthropic Claude API."""
         try:
-            # Find JSON block in markdown code block
-            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group(1))
+            from anthropic import Anthropic
+        except ImportError:
+            raise ImportError("Anthropic package not installed. Install with: pip install anthropic")
 
-            # Try to find raw JSON
-            json_match = re.search(r'\{[^{}]*\}', content, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group(0))
+        client = Anthropic(api_key=self.config.anthropic_api_key)
 
-            # Return raw content if JSON parsing fails
-            return {
-                "exists": "Unknown",
-                "confidence": "Low",
-                "evidence": content,
-                "raw_response": True
-            }
-        except json.JSONDecodeError:
-            return {
-                "exists": "Unknown",
-                "confidence": "Low",
-                "evidence": content,
-                "raw_response": True
-            }
+        prompt = self._build_prompt(item_id, item_name, item_type)
+        system_prompt = "You are a bioinformatics expert specializing in metabolic network analysis and comparative genomics. Provide accurate, evidence-based analysis."
+
+        message = client.messages.create(
+            model=self.model,
+            max_tokens=2048,
+            system=system_prompt,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        content = message.content[0].text
+
+        return self._parse_json_response(content)
+
+    def _parse_json_response(self, content: str) -> dict:
+        """Parse JSON from LLM response with support for nested structures."""
+
+        def find_balanced_json(s: str) -> Optional[str]:
+            """Find balanced JSON object in string, supporting nested structures."""
+            start = s.find('{')
+            if start == -1:
+                return None
+
+            depth = 0
+            in_string = False
+            escape_next = False
+
+            for i, c in enumerate(s[start:], start):
+                if escape_next:
+                    escape_next = False
+                    continue
+
+                if c == '\\' and in_string:
+                    escape_next = True
+                    continue
+
+                if c == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+
+                if not in_string:
+                    if c == '{':
+                        depth += 1
+                    elif c == '}':
+                        depth -= 1
+                        if depth == 0:
+                            return s[start:i + 1]
+
+            return None
+
+        # Strategy 1: Extract from markdown code block
+        code_block = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', content)
+        if code_block:
+            try:
+                return json.loads(code_block.group(1))
+            except json.JSONDecodeError:
+                pass
+
+        # Strategy 2: Find balanced JSON object (supports nested structures)
+        json_str = find_balanced_json(content)
+        if json_str:
+            try:
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                pass
+
+        # Strategy 3: Fallback - return raw content
+        return {
+            "exists": "Unknown",
+            "confidence": "Low",
+            "evidence": content,
+            "raw_response": True
+        }
 
 
 class LLMAnalysisDialog(QDialog):
@@ -425,6 +636,44 @@ class LLMAnalysisDialog(QDialog):
         gemini_group.setLayout(gemini_layout)
         layout.addWidget(gemini_group)
 
+        # Anthropic Configuration
+        anthropic_group = QGroupBox("Anthropic (Claude) Configuration")
+        anthropic_layout = QGridLayout()
+
+        anthropic_layout.addWidget(QLabel("API Key:"), 0, 0)
+        self.anthropic_key_edit = QLineEdit()
+        self.anthropic_key_edit.setPlaceholderText("sk-ant-...")
+        self.anthropic_key_edit.setEchoMode(QLineEdit.Password)
+        self.anthropic_key_edit.setText(self.config.anthropic_api_key)
+        anthropic_layout.addWidget(self.anthropic_key_edit, 0, 1)
+
+        self.anthropic_show_key = QCheckBox("Show")
+        self.anthropic_show_key.toggled.connect(
+            lambda checked: self.anthropic_key_edit.setEchoMode(
+                QLineEdit.Normal if checked else QLineEdit.Password
+            )
+        )
+        anthropic_layout.addWidget(self.anthropic_show_key, 0, 2)
+
+        anthropic_layout.addWidget(QLabel("Model:"), 1, 0)
+        self.anthropic_model_combo = QComboBox()
+        self.anthropic_model_combo.addItems([
+            "claude-sonnet-4-20250514",
+            "claude-opus-4-20250514",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-haiku-20241022",
+            "claude-3-opus-20240229",
+            "claude-3-sonnet-20240229",
+            "claude-3-haiku-20240307"
+        ])
+        idx = self.anthropic_model_combo.findText(self.config.default_model_anthropic)
+        if idx >= 0:
+            self.anthropic_model_combo.setCurrentIndex(idx)
+        anthropic_layout.addWidget(self.anthropic_model_combo, 1, 1, 1, 2)
+
+        anthropic_group.setLayout(anthropic_layout)
+        layout.addWidget(anthropic_group)
+
         # Default provider
         provider_group = QGroupBox("Default Provider")
         provider_layout = QHBoxLayout()
@@ -432,19 +681,45 @@ class LLMAnalysisDialog(QDialog):
         self.provider_group = QButtonGroup(self)
         self.openai_radio = QRadioButton("OpenAI (ChatGPT)")
         self.gemini_radio = QRadioButton("Google Gemini")
+        self.anthropic_radio = QRadioButton("Anthropic (Claude)")
         self.provider_group.addButton(self.openai_radio)
         self.provider_group.addButton(self.gemini_radio)
+        self.provider_group.addButton(self.anthropic_radio)
 
         if self.config.default_provider == "gemini":
             self.gemini_radio.setChecked(True)
+        elif self.config.default_provider == "anthropic":
+            self.anthropic_radio.setChecked(True)
         else:
             self.openai_radio.setChecked(True)
 
         provider_layout.addWidget(self.openai_radio)
         provider_layout.addWidget(self.gemini_radio)
+        provider_layout.addWidget(self.anthropic_radio)
         provider_layout.addStretch()
         provider_group.setLayout(provider_layout)
         layout.addWidget(provider_group)
+
+        # Cache settings
+        cache_group = QGroupBox("Cache Settings")
+        cache_layout = QGridLayout()
+
+        self.use_cache_checkbox = QCheckBox("Enable result caching (reduces API costs)")
+        self.use_cache_checkbox.setChecked(self.config.use_cache)
+        cache_layout.addWidget(self.use_cache_checkbox, 0, 0, 1, 2)
+
+        cache_layout.addWidget(QLabel("Cache expiry (days):"), 1, 0)
+        self.cache_expiry_spin = QSpinBox()
+        self.cache_expiry_spin.setRange(1, 365)
+        self.cache_expiry_spin.setValue(self.config.cache_expiry_days)
+        cache_layout.addWidget(self.cache_expiry_spin, 1, 1)
+
+        self.clear_cache_btn = QPushButton("Clear Cache")
+        self.clear_cache_btn.clicked.connect(self._clear_cache)
+        cache_layout.addWidget(self.clear_cache_btn, 2, 0, 1, 2)
+
+        cache_group.setLayout(cache_layout)
+        layout.addWidget(cache_group)
 
         # Save button
         btn_layout = QHBoxLayout()
@@ -737,17 +1012,49 @@ class LLMAnalysisDialog(QDialog):
         """Save API configuration."""
         self.config.openai_api_key = self.openai_key_edit.text()
         self.config.gemini_api_key = self.gemini_key_edit.text()
-        self.config.default_provider = "gemini" if self.gemini_radio.isChecked() else "openai"
+        self.config.anthropic_api_key = self.anthropic_key_edit.text()
+
+        if self.gemini_radio.isChecked():
+            self.config.default_provider = "gemini"
+        elif self.anthropic_radio.isChecked():
+            self.config.default_provider = "anthropic"
+        else:
+            self.config.default_provider = "openai"
+
         self.config.default_model_openai = self.openai_model_combo.currentText()
         self.config.default_model_gemini = self.gemini_model_combo.currentText()
+        self.config.default_model_anthropic = self.anthropic_model_combo.currentText()
+
+        self.config.use_cache = self.use_cache_checkbox.isChecked()
+        self.config.cache_expiry_days = self.cache_expiry_spin.value()
+
         self.config.save_config()
 
         QMessageBox.information(self, "Saved", "API configuration saved successfully.")
 
     @Slot()
+    def _clear_cache(self):
+        """Clear all cached results."""
+        reply = QMessageBox.question(
+            self, "Clear Cache",
+            "Are you sure you want to clear all cached LLM analysis results?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            self.config.clear_cache()
+            QMessageBox.information(self, "Cache Cleared", "All cached results have been cleared.")
+
+    @Slot()
     def _test_api(self):
         """Test API connection."""
-        provider = "gemini" if self.gemini_radio.isChecked() else "openai"
+        if self.gemini_radio.isChecked():
+            provider = "gemini"
+        elif self.anthropic_radio.isChecked():
+            provider = "anthropic"
+        else:
+            provider = "openai"
 
         self.test_api_btn.setEnabled(False)
         self.test_api_btn.setText("Testing...")
@@ -763,7 +1070,16 @@ class LLMAnalysisDialog(QDialog):
                     max_tokens=20
                 )
                 QMessageBox.information(self, "Success", f"OpenAI API connection successful!\nModel: {self.openai_model_combo.currentText()}")
-            else:
+            elif provider == "anthropic":
+                from anthropic import Anthropic
+                client = Anthropic(api_key=self.anthropic_key_edit.text())
+                message = client.messages.create(
+                    model=self.anthropic_model_combo.currentText(),
+                    max_tokens=20,
+                    messages=[{"role": "user", "content": "Say 'API connection successful' in exactly those words."}]
+                )
+                QMessageBox.information(self, "Success", f"Anthropic API connection successful!\nModel: {self.anthropic_model_combo.currentText()}")
+            else:  # gemini
                 import google.generativeai as genai
                 genai.configure(api_key=self.gemini_key_edit.text())
                 model = genai.GenerativeModel(self.gemini_model_combo.currentText())
@@ -791,7 +1107,12 @@ class LLMAnalysisDialog(QDialog):
             return
 
         # Get provider and check API key
-        provider = "gemini" if self.gemini_radio.isChecked() else "openai"
+        if self.gemini_radio.isChecked():
+            provider = "gemini"
+        elif self.anthropic_radio.isChecked():
+            provider = "anthropic"
+        else:
+            provider = "openai"
 
         if provider == "openai" and not self.openai_key_edit.text():
             QMessageBox.warning(self, "Error", "Please enter OpenAI API key.")
@@ -801,9 +1122,16 @@ class LLMAnalysisDialog(QDialog):
             QMessageBox.warning(self, "Error", "Please enter Gemini API key.")
             return
 
+        if provider == "anthropic" and not self.anthropic_key_edit.text():
+            QMessageBox.warning(self, "Error", "Please enter Anthropic API key.")
+            return
+
         # Update config with current values
         self.config.openai_api_key = self.openai_key_edit.text()
         self.config.gemini_api_key = self.gemini_key_edit.text()
+        self.config.anthropic_api_key = self.anthropic_key_edit.text()
+        self.config.use_cache = self.use_cache_checkbox.isChecked()
+        self.config.cache_expiry_days = self.cache_expiry_spin.value()
 
         # Collect items
         items = []
@@ -812,22 +1140,31 @@ class LLMAnalysisDialog(QDialog):
             if data:
                 items.append(data)
 
-        # Get model
+        # Get model and settings
         if provider == "openai":
             model = self.openai_model_combo.currentText()
             use_web_search = self.openai_web_search.isChecked()
-        else:
+        elif provider == "anthropic":
+            model = self.anthropic_model_combo.currentText()
+            use_web_search = False  # Anthropic doesn't have web search
+        else:  # gemini
             model = self.gemini_model_combo.currentText()
             use_web_search = True  # Gemini always uses grounding when available
 
         # Start analysis thread
         self.analysis_thread = LLMAnalysisThread(
-            self.config, items, strain_name, provider, model, use_web_search
+            self.config, items, strain_name, provider, model,
+            use_web_search, self.config.use_cache
         )
         self.analysis_thread.result_ready.connect(self._on_result)
         self.analysis_thread.error_occurred.connect(self._on_error)
         self.analysis_thread.progress_update.connect(self._on_progress)
+        self.analysis_thread.cache_hit.connect(self._on_cache_hit)
         self.analysis_thread.finished.connect(self._on_finished)
+        self.analysis_thread.finished.connect(self.analysis_thread.deleteLater)  # Clean up thread
+
+        # Initialize cache hit counter
+        self._cache_hits = 0
 
         # Update UI
         self.start_analysis_btn.setEnabled(False)
@@ -870,7 +1207,13 @@ class LLMAnalysisDialog(QDialog):
     def _on_progress(self, current: int, total: int):
         """Handle progress update."""
         self.progress_bar.setValue(current)
-        self.status_label.setText(f"Analyzing item {current}/{total}...")
+        cache_info = f" (cached: {self._cache_hits})" if self._cache_hits > 0 else ""
+        self.status_label.setText(f"Analyzing item {current}/{total}{cache_info}...")
+
+    @Slot(str)
+    def _on_cache_hit(self, item_id: str):
+        """Handle cache hit notification."""
+        self._cache_hits += 1
 
     @Slot()
     def _on_finished(self):
@@ -878,7 +1221,12 @@ class LLMAnalysisDialog(QDialog):
         self.start_analysis_btn.setEnabled(True)
         self.stop_analysis_btn.setEnabled(False)
         self.progress_bar.setVisible(False)
-        self.status_label.setText(f"Analysis complete. {len(self.results)} items analyzed.")
+
+        cache_info = ""
+        if self._cache_hits > 0:
+            cache_info = f" ({self._cache_hits} from cache)"
+
+        self.status_label.setText(f"Analysis complete. {len(self.results)} items analyzed{cache_info}.")
         self.tabs.setCurrentWidget(self.results_tab)
 
     def _add_result_to_table(self, item_id: str, result: dict):

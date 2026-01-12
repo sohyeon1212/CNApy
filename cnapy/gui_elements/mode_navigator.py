@@ -352,11 +352,13 @@ class ModeNavigator(QWidget):
 
     def normalization(self):
         dialog = NormalizationDialog(self.appdata, self)
-        dialog.exec_()
+        dialog.exec()
 
-    def __del__(self):
+    def closeEvent(self, event):
+        """Clean up resources when dialog is closed."""
         self.central_widget.mode_normalization_reaction = ""
-        self.appdata.project.modes.clear() # for proper deallocation when it is a FluxVectorMemmap
+        self.appdata.project.modes.clear()  # for proper deallocation when it is a FluxVectorMemmap
+        super().closeEvent(event)
 
     changedCurrentMode = Signal(int)
     modeNavigatorClosed = Signal()

@@ -68,7 +68,7 @@ class AnnotationWidget(QVBoxLayout):
                 if value.startswith("["):
                     try:
                         value = ast.literal_eval(value)
-                    except: # if parsing as list does not work keep the raw text
+                    except (ValueError, SyntaxError):  # if parsing as list does not work keep the raw text
                         pass
 
             model_element.annotation[key] = value

@@ -102,6 +102,7 @@ class ModelInfo(QWidget):
         self.appdata.project.cobra_py_model.objective_direction = OptimizationDirection(index).name
         self.globalObjectiveChanged.emit()
 
+    @Slot()
     def description_changed(self):
         self.appdata.project.meta_data["description"] = self.description.toPlainText()
         self.appdata.window.unsaved_changes()

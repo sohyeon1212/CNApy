@@ -29,6 +29,13 @@ dependencies = [
     "setuptools",
 ]
 
+[project.optional-dependencies]
+llm = [
+    "anthropic>=0.25",
+    "openai>=1.0",
+    "google-generativeai>=0.3",
+]
+
 [project.scripts]
 cnapy = "cnapy.__main__:main_cnapy"
 [project.urls]

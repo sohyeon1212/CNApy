@@ -798,7 +798,7 @@ class CentralWidget(QWidget):
             if isinstance(parsed_json, list) and len(parsed_json) > 0:
                 if isinstance(parsed_json[0], dict) and "map_name" in parsed_json[0]:
                     map_name = parsed_json[0]["map_name"]
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError, IndexError):
             pass
         
         if isinstance(data, dict):

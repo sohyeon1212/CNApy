@@ -226,7 +226,7 @@ def find_unbalanced_reactions(model: cobra.Model) -> List[Tuple[cobra.Reaction, 
 
             if imbalance:
                 unbalanced.append((rxn, imbalance))
-        except:
+        except (ValueError, AttributeError, KeyError):
             pass  # Skip reactions that can't be checked
 
     return unbalanced

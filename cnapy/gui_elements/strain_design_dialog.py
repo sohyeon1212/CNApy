@@ -667,8 +667,8 @@ class SDDialog(QDialog):
         try:
             self.appdata.window.centralWidget().broadcastReactionID.connect(self.receive_input)
             self.launch_computation_signal.connect(self.appdata.window.compute_strain_design,Qt.QueuedConnection)
-        except:
-            print('Signals to main window could not be connected.')
+        except (AttributeError, RuntimeError) as e:
+            print(f'Signals to main window could not be connected: {e}')
 
         # load strain design setup if passed to constructor
         if sd_setup != {} and sd_setup != False:
@@ -1070,9 +1070,9 @@ class SDDialog(QDialog):
                             return
                         else:
                             raise Exception()
-                except:
+                except Exception:
                     self.global_objective.setStyleSheet(FONT_COLOR('#000000'))
-                    self.global_objective.setText("Editing module ... (module "+#
+                    self.global_objective.setText("Editing module ... (module "+
                                                     str(main_module[1]+1)+": "+main_module[2]+")")
                     return
             self.global_objective.setStyleSheet(FONT_COLOR('#de332a'))

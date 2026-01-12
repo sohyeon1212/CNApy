@@ -285,7 +285,6 @@ class QHSeperationLine(QFrame):
         self.setFrameShape(QFrame.HLine)
         self.setFrameShadow(QFrame.Sunken)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
-        return
 
 
 class QVSeperationLine(QFrame):
@@ -300,4 +299,3 @@ class QVSeperationLine(QFrame):
         self.setFrameShape(QFrame.VLine)
         self.setFrameShadow(QFrame.Sunken)
         self.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Preferred)
-        return
