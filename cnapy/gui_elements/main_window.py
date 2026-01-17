@@ -67,7 +67,7 @@ from cnapy.gui_elements.flux_response_dialog import FluxResponseDialog
 from cnapy.gui_elements.omics_integration_dialog import OmicsIntegrationDialog
 from cnapy.gui_elements.model_management_dialog import ModelManagementDialog
 from cnapy.gui_elements.flux_data_dialog import FluxDataDialog
-from cnapy.gui_elements.llm_analysis_dialog import LLMAnalysisDialog
+from cnapy.gui_elements.agent_dialog import AgentDialog
 from cnapy.gui_elements.scenario_templates_dialog import ScenarioTemplatesDialog
 from cnapy.gui_elements.media_management_dialog import MediaManagementDialog
 from cnapy.gui_elements.dynamic_fba_dialog import DynamicFBADialog
@@ -589,11 +589,14 @@ class MainWindow(QMainWindow):
         load_flux_data_action.triggered.connect(self.show_flux_data_dialog)
         self.model_menu.addAction(load_flux_data_action)
 
-        self.model_menu.addSeparator()
+        # AI Agent menu (top-level menu)
+        self.ai_agent_menu = self.menu.addMenu("🤖 AI Agent")
 
-        llm_analysis_action = QAction("LLM Strain Analysis (ChatGPT/Gemini)...", self)
-        llm_analysis_action.triggered.connect(self.show_llm_analysis_dialog)
-        self.model_menu.addAction(llm_analysis_action)
+        ai_chat_action = QAction("Open AI Agent Chat...", self)
+        ai_chat_action.setShortcut("Ctrl+Shift+A")
+        ai_chat_action.setToolTip("Natural language interface for metabolic model analysis")
+        ai_chat_action.triggered.connect(self.show_agent_dialog)
+        self.ai_agent_menu.addAction(ai_chat_action)
 
         self.config_menu = self.menu.addMenu("Config")
 
@@ -2775,7 +2778,8 @@ class MainWindow(QMainWindow):
         self.central_widget.update()
 
     @Slot()
-    def show_llm_analysis_dialog(self):
-        """Show the LLM-based Strain Analysis dialog."""
-        dialog = LLMAnalysisDialog(self.appdata)
+    def show_agent_dialog(self):
+        """Show the AI Agent dialog for natural language interaction."""
+        dialog = AgentDialog(self.appdata, self)
         dialog.exec()
+
