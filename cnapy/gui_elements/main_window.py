@@ -836,7 +836,8 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(
                 self,
                 "File not found",
-                "The selected recently opened .cna file could not be found. Possible reasons: The file was deleted, moved or renamed.",
+                "The selected recently opened .cna file could not be found. "
+                "Possible reasons: The file was deleted, moved or renamed.",
             )
             return
         if selected_last_project.endswith(".cna"):
@@ -1014,7 +1015,8 @@ class MainWindow(QMainWindow):
                 self,
                 "Could not open file",
                 "File could not be opened as it does not seem to be a valid scenario file. "
-                "Maybe the file got the .scen ending for other reasons than being a scenario file or the file is corrupted.",
+                "Maybe the file got the .scen ending for other reasons than being a scenario file "
+                "or the file is corrupted.",
             )
             return
 
@@ -1036,8 +1038,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Reactions with existing IDs in scenario",
-                "The scenario reactions with the following IDs already exist in the current model and will be ignored:\n"
-                + " ".join(skipped_scenario_reactions),
+                "The scenario reactions with the following IDs already exist in the current "
+                "model and will be ignored:\n" + " ".join(skipped_scenario_reactions),
             )
 
         if len(incompatible_constraints) > 0:
@@ -1134,7 +1136,8 @@ class MainWindow(QMainWindow):
     #     for r in map_json[1]["reactions"].values():
     #         bigg_id = r["bigg_id"]
     #         if bigg_id in reaction_bigg_ids:
-    #             self.appdata.project.maps[map_name]["boxes"][reaction_bigg_ids[bigg_id]] = [r["label_x"] - offset_x, r["label_y"] - offset_y]
+    #             pos = [r["label_x"] - offset_x, r["label_y"] - offset_y]
+    #             self.appdata.project.maps[map_name]["boxes"][reaction_bigg_ids[bigg_id]] = pos
     #
     #     self.recreate_maps()
     #     self.centralWidget().map_tabs.setCurrentIndex(map_idx)
@@ -1441,8 +1444,10 @@ class MainWindow(QMainWindow):
                     QMessageBox.critical(
                         self,
                         "Could not open file",
-                        "File could not be opened as it does not seem to be a valid CNApy project, even though the file is a zip file. "
-                        "Maybe the file got the .cna ending for other reasons than being a CNApy project or the file is corrupted.",
+                        "File could not be opened as it does not seem to be a valid CNApy "
+                        "project, even though the file is a zip file. Maybe the file got the "
+                        ".cna ending for other reasons than being a CNApy project or the file "
+                        "is corrupted.",
                     )
                     self.setCursor(Qt.ArrowCursor)
                     return
@@ -1505,7 +1510,8 @@ class MainWindow(QMainWindow):
                 self,
                 "Could not open file",
                 "File could not be opened as it does not seem to be a valid CNApy project. "
-                "Maybe the file got the .cna ending for other reasons than being a CNApy project or the file is corrupted.",
+                "Maybe the file got the .cna ending for other reasons than being a CNApy "
+                "project or the file is corrupted.",
             )
 
         self.setCursor(Qt.ArrowCursor)
@@ -1614,7 +1620,7 @@ class MainWindow(QMainWindow):
 
         svg_files = {}
         count = 1
-        for name, m in self.appdata.project.maps.items():
+        for _name, m in self.appdata.project.maps.items():
             if m.get("view", "cnapy") == "cnapy":
                 arc_name = "map" + str(count) + ".svg"
                 svg_files[m["background"]] = arc_name
@@ -1642,7 +1648,7 @@ class MainWindow(QMainWindow):
         with ZipFile(filename, "r") as zip_ref:
             zip_ref.extractall(self.appdata.temp_dir.name)
             count = 1
-            for name, m in self.appdata.project.maps.items():
+            for _name, m in self.appdata.project.maps.items():
                 m["background"] = self.appdata.temp_dir.name + "/map" + str(count) + ".svg"
                 count += 1
 
@@ -1755,7 +1761,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "No clipboard created yet",
-                "Paste clipboard does not work as no clipboard was created yet. Store values to a clipboard first to solve this problem.",
+                "Paste clipboard does not work as no clipboard was created yet. "
+                "Store values to a clipboard first to solve this problem.",
             )
             return
         self.centralWidget().update()
