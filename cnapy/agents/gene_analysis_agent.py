@@ -8,7 +8,6 @@ This agent handles gene-related analyses:
 - Synthetic lethal pair finding
 """
 
-from typing import Optional
 
 from cnapy.agents.base_agent import (
     BaseAgent,
@@ -83,7 +82,7 @@ class GeneAnalysisAgent(BaseAgent):
                 parameters={
                     "threshold": {
                         "type": "number",
-                        "description": "Growth rate threshold below which a gene is considered essential (default: 0.01)",
+                        "description": "Growth rate threshold below which gene is essential",
                         "default": 0.01,
                     },
                 },
@@ -156,7 +155,7 @@ class GeneAnalysisAgent(BaseAgent):
             )
         )
 
-    def _check_model(self) -> Optional[SkillResult]:
+    def _check_model(self) -> SkillResult | None:
         """Check if a model is loaded."""
         if self.context.model is None or len(self.context.model.reactions) == 0:
             return SkillResult(

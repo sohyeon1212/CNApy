@@ -8,7 +8,7 @@ experimental conditions quickly.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -379,7 +379,7 @@ PREDEFINED_WORKFLOWS: dict[str, PredefinedWorkflow] = {
 # =============================================================================
 
 
-def find_exchange_reaction(model, reaction_patterns: list[str]) -> Optional[str]:
+def find_exchange_reaction(model, reaction_patterns: list[str]) -> str | None:
     """Find an exchange reaction in the model by trying multiple patterns.
 
     Args:
@@ -398,7 +398,7 @@ def find_exchange_reaction(model, reaction_patterns: list[str]) -> Optional[str]
     return None
 
 
-def get_culture_condition(name: str) -> Optional[CultureCondition]:
+def get_culture_condition(name: str) -> CultureCondition | None:
     """Get a culture condition by name.
 
     Args:
@@ -410,7 +410,7 @@ def get_culture_condition(name: str) -> Optional[CultureCondition]:
     return CULTURE_CONDITIONS.get(name.lower())
 
 
-def get_carbon_source(name: str) -> Optional[CarbonSource]:
+def get_carbon_source(name: str) -> CarbonSource | None:
     """Get a carbon source by name.
 
     Args:
@@ -422,7 +422,7 @@ def get_carbon_source(name: str) -> Optional[CarbonSource]:
     return CARBON_SOURCES.get(name.lower())
 
 
-def get_nitrogen_source(name: str) -> Optional[NitrogenSource]:
+def get_nitrogen_source(name: str) -> NitrogenSource | None:
     """Get a nitrogen source by name.
 
     Args:
@@ -434,7 +434,7 @@ def get_nitrogen_source(name: str) -> Optional[NitrogenSource]:
     return NITROGEN_SOURCES.get(name.lower())
 
 
-def get_workflow(name: str) -> Optional[PredefinedWorkflow]:
+def get_workflow(name: str) -> PredefinedWorkflow | None:
     """Get a predefined workflow by name.
 
     Args:

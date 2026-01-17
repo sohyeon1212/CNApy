@@ -9,7 +9,6 @@ This agent handles scenario and condition management:
 """
 
 import os
-from typing import Optional
 
 from cnapy.agents.base_agent import (
     BaseAgent,
@@ -62,7 +61,7 @@ class ScenarioManagerAgent(BaseAgent):
                 parameters={
                     "condition_name": {
                         "type": "string",
-                        "description": "Name of the condition (aerobic, anaerobic, microaerobic, minimal_media, rich_media)",
+                        "description": "Name of condition (aerobic, anaerobic, etc.)",
                         "enum": list(CULTURE_CONDITIONS.keys()),
                     },
                 },
@@ -264,7 +263,7 @@ class ScenarioManagerAgent(BaseAgent):
             )
         )
 
-    def _check_model(self) -> Optional[SkillResult]:
+    def _check_model(self) -> SkillResult | None:
         """Check if a model is loaded."""
         if self.context.model is None or len(self.context.model.reactions) == 0:
             return SkillResult(
@@ -275,7 +274,7 @@ class ScenarioManagerAgent(BaseAgent):
             )
         return None
 
-    def _find_reaction_id(self, patterns: list[str]) -> Optional[str]:
+    def _find_reaction_id(self, patterns: list[str]) -> str | None:
         """Find a reaction ID from a list of patterns."""
         if self.context.model is None:
             return None

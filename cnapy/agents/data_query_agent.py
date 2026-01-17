@@ -8,7 +8,6 @@ This agent handles model information queries:
 - Analysis result retrieval
 """
 
-from typing import Optional
 
 from cnapy.agents.base_agent import (
     BaseAgent,
@@ -233,7 +232,7 @@ class DataQueryAgent(BaseAgent):
             )
         )
 
-    def _check_model(self) -> Optional[SkillResult]:
+    def _check_model(self) -> SkillResult | None:
         """Check if a model is loaded."""
         if self.context.model is None or len(self.context.model.reactions) == 0:
             return SkillResult(

@@ -48,7 +48,7 @@ class SkillResult:
     data: Any = None
     message: str = ""
     message_ko: str = ""
-    error: Optional[str] = None
+    error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -88,7 +88,7 @@ class Skill:
     description_ko: str = ""
     parameters: dict[str, dict[str, Any]] = field(default_factory=dict)
     required_params: list[str] = field(default_factory=list)
-    handler: Optional[Callable[..., SkillResult]] = None
+    handler: Callable[..., SkillResult] | None = None
 
     def to_tool_definition(self) -> "ToolDefinition":
         """Convert skill to LLM tool definition format."""
@@ -155,9 +155,9 @@ class WorkflowStep:
     agent_name: str
     skill_name: str
     params: dict[str, Any] = field(default_factory=dict)
-    condition: Optional[str] = None
-    on_success: Optional[str] = None
-    on_failure: Optional[str] = None
+    condition: str | None = None
+    on_success: str | None = None
+    on_failure: str | None = None
 
 
 @dataclass
@@ -205,7 +205,7 @@ class AgentContext:
     """
 
     appdata: "AppData"
-    main_window: Optional[Any] = None
+    main_window: Any | None = None
     analysis_results: dict[str, Any] = field(default_factory=dict)
     conversation_history: list[dict[str, str]] = field(default_factory=list)
     current_language: str = "en"
@@ -232,7 +232,7 @@ class AgentContext:
         return {}
 
     @property
-    def solution(self) -> Optional[Any]:
+    def solution(self) -> Any | None:
         """Get the current COBRA solution."""
         if self.appdata and self.appdata.project:
             return self.appdata.project.solution
@@ -276,7 +276,7 @@ class AgentContext:
         """
         self.analysis_results[key] = result
 
-    def get_cached_result(self, key: str) -> Optional[Any]:
+    def get_cached_result(self, key: str) -> Any | None:
         """Get a cached analysis result.
 
         Args:

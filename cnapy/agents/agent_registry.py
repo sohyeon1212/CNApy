@@ -8,7 +8,6 @@ It handles:
 """
 
 import re
-from typing import Optional
 
 from cnapy.agents.base_agent import AgentContext, BaseAgent
 
@@ -179,7 +178,7 @@ class AgentRegistry:
         """
         self._agents[agent_type] = agent
 
-    def get_agent(self, agent_type: str) -> Optional[BaseAgent]:
+    def get_agent(self, agent_type: str) -> BaseAgent | None:
         """Get an agent by type.
 
         Args:

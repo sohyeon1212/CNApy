@@ -15,7 +15,6 @@ import json
 import re
 import time
 from pathlib import Path
-from typing import Optional
 
 from cnapy.agents.base_agent import (
     AgentContext,
@@ -88,7 +87,7 @@ class StrainKnowledgeAgent(BaseAgent):
         "제안",
     ]
 
-    def __init__(self, context: AgentContext, llm_config: Optional[LLMConfig] = None):
+    def __init__(self, context: AgentContext, llm_config: LLMConfig | None = None):
         super().__init__(context)
         self.llm_config = llm_config or LLMConfig()
         self._register_skills()
@@ -286,7 +285,7 @@ class StrainKnowledgeAgent(BaseAgent):
         key_str += f":{self.llm_config.default_provider}:{self._get_model()}"
         return hashlib.md5(key_str.encode()).hexdigest()
 
-    def _get_cached_result(self, cache_key: str) -> Optional[dict]:
+    def _get_cached_result(self, cache_key: str) -> dict | None:
         """Get cached result if valid."""
         if not self.llm_config.use_cache:
             return None
@@ -319,7 +318,7 @@ class StrainKnowledgeAgent(BaseAgent):
         except OSError:
             pass
 
-    def _call_llm(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def _call_llm(self, prompt: str, system_prompt: str | None = None) -> str:
         """Call the LLM API with the given prompt."""
         provider = self.llm_config.default_provider
 
@@ -341,8 +340,8 @@ class StrainKnowledgeAgent(BaseAgent):
         """Call OpenAI API."""
         try:
             import openai
-        except ImportError:
-            raise ImportError("OpenAI package not installed. Install with: pip install openai")
+        except ImportError as err:
+            raise ImportError("OpenAI package not installed. Install with: pip install openai") from err
 
         api_key = self.llm_config.openai_api_key
         if not api_key:
@@ -362,8 +361,8 @@ class StrainKnowledgeAgent(BaseAgent):
         """Call Anthropic Claude API."""
         try:
             from anthropic import Anthropic
-        except ImportError:
-            raise ImportError("Anthropic package not installed. Install with: pip install anthropic")
+        except ImportError as err:
+            raise ImportError("Anthropic package not installed. Install with: pip install anthropic") from err
 
         api_key = self.llm_config.anthropic_api_key
         if not api_key:
@@ -384,10 +383,10 @@ class StrainKnowledgeAgent(BaseAgent):
         """Call Google Gemini API."""
         try:
             import google.generativeai as genai
-        except ImportError:
+        except ImportError as err:
             raise ImportError(
                 "Google Generative AI package not installed. Install with: pip install google-generativeai"
-            )
+            ) from err
 
         api_key = self.llm_config.gemini_api_key
         if not api_key:

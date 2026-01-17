@@ -9,7 +9,6 @@ This agent handles all flux-based analyses:
 - Flux Sampling
 """
 
-from typing import Optional
 
 import cobra
 
@@ -215,7 +214,7 @@ class FluxAnalysisAgent(BaseAgent):
             )
         )
 
-    def _check_model(self) -> Optional[SkillResult]:
+    def _check_model(self) -> SkillResult | None:
         """Check if a model is loaded.
 
         Returns:
@@ -430,7 +429,7 @@ class FluxAnalysisAgent(BaseAgent):
                 message_ko=f"FVA 실행 중 오류 발생: {str(e)}",
             )
 
-    def _perform_moma(self, reference_fluxes: Optional[dict[str, float]] = None) -> SkillResult:
+    def _perform_moma(self, reference_fluxes: dict[str, float] | None = None) -> SkillResult:
         """Perform Linear MOMA."""
         check = self._check_model()
         if check:
@@ -503,7 +502,7 @@ class FluxAnalysisAgent(BaseAgent):
 
     def _perform_room(
         self,
-        reference_fluxes: Optional[dict[str, float]] = None,
+        reference_fluxes: dict[str, float] | None = None,
         delta: float = 0.03,
         epsilon: float = 0.001,
     ) -> SkillResult:

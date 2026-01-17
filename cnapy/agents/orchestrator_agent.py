@@ -9,7 +9,7 @@ This is the main routing agent that:
 """
 
 import re
-from typing import Any, Optional
+from typing import Any
 
 from cnapy.agents.agent_registry import create_default_registry
 from cnapy.agents.base_agent import (
@@ -197,7 +197,7 @@ class OrchestratorAgent:
         "analyze_strain": "strain_knowledge",
     }
 
-    def __init__(self, context: AgentContext, llm_config: Optional[Any] = None):
+    def __init__(self, context: AgentContext, llm_config: Any | None = None):
         """Initialize the orchestrator.
 
         Args:
@@ -400,7 +400,7 @@ class OrchestratorAgent:
 
         return params
 
-    def _check_predefined_workflow(self, message: str) -> Optional[list[WorkflowStep]]:
+    def _check_predefined_workflow(self, message: str) -> list[WorkflowStep] | None:
         """Check if the message matches a predefined workflow.
 
         Args:
@@ -540,7 +540,7 @@ class OrchestratorAgent:
             metadata={"workflow": True, "steps": len(steps)},
         )
 
-    def _route_with_llm(self, message: str) -> Optional[AgentResponse]:
+    def _route_with_llm(self, message: str) -> AgentResponse | None:
         """Use LLM to understand intent and route (if configured).
 
         Args:
@@ -569,7 +569,7 @@ class OrchestratorAgent:
         # Get available capabilities
         agents = self.registry.get_all_agents()
         capabilities = []
-        for agent_type, agent in agents.items():
+        for _agent_type, agent in agents.items():
             skills = list(agent.skills.keys())[:3]  # Top 3 skills
             capabilities.append(f"{agent.name}: {', '.join(skills)}")
 

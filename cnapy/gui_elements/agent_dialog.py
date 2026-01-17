@@ -13,7 +13,6 @@ Features:
 """
 
 import traceback
-from typing import Optional
 
 from qtpy.QtCore import Qt, QThread, Signal, Slot
 from qtpy.QtWidgets import (
@@ -132,7 +131,7 @@ class AgentDialog(QDialog):
         self.appdata = appdata
         self.main_window = main_window
         self.llm_config = LLMConfig()
-        self.worker_thread: Optional[AgentWorkerThread] = None
+        self.worker_thread: AgentWorkerThread | None = None
 
         # Initialize agent context and orchestrator
         self.context = AgentContext(
