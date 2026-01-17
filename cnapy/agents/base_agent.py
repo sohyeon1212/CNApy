@@ -11,17 +11,20 @@ This module defines the core abstractions for the agent system:
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     import cobra
+
     from cnapy.appdata import AppData, Scenario
 
 
 class SkillStatus(Enum):
     """Status of a skill execution."""
+
     SUCCESS = "success"
     FAILURE = "failure"
     PARTIAL = "partial"
@@ -40,12 +43,13 @@ class SkillResult:
         error: Error message if status is failure
         metadata: Additional metadata about the execution
     """
+
     status: SkillStatus
     data: Any = None
     message: str = ""
     message_ko: str = ""
     error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def success(self) -> bool:
@@ -78,11 +82,12 @@ class Skill:
         required_params: List of required parameter names
         handler: Function that executes the skill
     """
+
     name: str
     description: str
     description_ko: str = ""
-    parameters: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    required_params: List[str] = field(default_factory=list)
+    parameters: dict[str, dict[str, Any]] = field(default_factory=dict)
+    required_params: list[str] = field(default_factory=list)
     handler: Optional[Callable[..., SkillResult]] = None
 
     def to_tool_definition(self) -> "ToolDefinition":
@@ -109,11 +114,12 @@ class ToolDefinition:
         description: Description of what the tool does
         parameters: JSON Schema for the parameters
     """
+
     name: str
     description: str
-    parameters: Dict[str, Any] = field(default_factory=dict)
+    parameters: dict[str, Any] = field(default_factory=dict)
 
-    def to_openai_format(self) -> Dict[str, Any]:
+    def to_openai_format(self) -> dict[str, Any]:
         """Convert to OpenAI function calling format."""
         return {
             "type": "function",
@@ -124,7 +130,7 @@ class ToolDefinition:
             },
         }
 
-    def to_anthropic_format(self) -> Dict[str, Any]:
+    def to_anthropic_format(self) -> dict[str, Any]:
         """Convert to Anthropic tool use format."""
         return {
             "name": self.name,
@@ -145,9 +151,10 @@ class WorkflowStep:
         on_success: Next step name on success (or None to continue)
         on_failure: Next step name on failure (or None to stop)
     """
+
     agent_name: str
     skill_name: str
-    params: Dict[str, Any] = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
     condition: Optional[str] = None
     on_success: Optional[str] = None
     on_failure: Optional[str] = None
@@ -166,13 +173,14 @@ class AgentResponse:
         agent_name: Name of the agent(s) that handled the request
         metadata: Additional response metadata
     """
+
     success: bool
     message: str
     message_ko: str = ""
-    results: List[SkillResult] = field(default_factory=list)
+    results: list[SkillResult] = field(default_factory=list)
     data: Any = None
     agent_name: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def get_message(self, language: str = "en") -> str:
         """Get message in the specified language."""
@@ -195,10 +203,11 @@ class AgentContext:
         conversation_history: List of conversation messages
         current_language: Current UI language ("en" or "ko")
     """
+
     appdata: "AppData"
     main_window: Optional[Any] = None
-    analysis_results: Dict[str, Any] = field(default_factory=dict)
-    conversation_history: List[Dict[str, str]] = field(default_factory=list)
+    analysis_results: dict[str, Any] = field(default_factory=dict)
+    conversation_history: list[dict[str, str]] = field(default_factory=list)
     current_language: str = "en"
 
     @property
@@ -216,7 +225,7 @@ class AgentContext:
         return None
 
     @property
-    def comp_values(self) -> Dict[str, Tuple[float, float]]:
+    def comp_values(self) -> dict[str, tuple[float, float]]:
         """Get the current computed values (flux values)."""
         if self.appdata and self.appdata.project:
             return self.appdata.project.comp_values
@@ -236,12 +245,14 @@ class AgentContext:
             role: Message role ("user", "assistant", "system")
             content: Message content
         """
-        self.conversation_history.append({
-            "role": role,
-            "content": content,
-        })
+        self.conversation_history.append(
+            {
+                "role": role,
+                "content": content,
+            }
+        )
 
-    def get_recent_messages(self, n: int = 10) -> List[Dict[str, str]]:
+    def get_recent_messages(self, n: int = 10) -> list[dict[str, str]]:
         """Get the most recent n messages from conversation history.
 
         Args:
@@ -302,7 +313,7 @@ class BaseAgent(ABC):
             context: Shared agent context
         """
         self.context = context
-        self._skills: Dict[str, Skill] = {}
+        self._skills: dict[str, Skill] = {}
         self._register_skills()
 
     @property
@@ -323,7 +334,7 @@ class BaseAgent(ABC):
         return self.description
 
     @property
-    def skills(self) -> Dict[str, Skill]:
+    def skills(self) -> dict[str, Skill]:
         """Dictionary of available skills."""
         return self._skills
 
@@ -340,7 +351,7 @@ class BaseAgent(ABC):
         """
         self._skills[skill.name] = skill
 
-    def get_tools(self) -> List[ToolDefinition]:
+    def get_tools(self) -> list[ToolDefinition]:
         """Get LLM function calling tool definitions.
 
         Returns:
@@ -348,7 +359,7 @@ class BaseAgent(ABC):
         """
         return [skill.to_tool_definition() for skill in self._skills.values()]
 
-    def execute_skill(self, skill_name: str, params: Dict[str, Any]) -> SkillResult:
+    def execute_skill(self, skill_name: str, params: dict[str, Any]) -> SkillResult:
         """Execute a skill by name.
 
         Args:
@@ -397,7 +408,7 @@ class BaseAgent(ABC):
                 message_ko=f"'{skill_name}' 스킬에 핸들러가 정의되지 않았습니다.",
             )
 
-    def can_handle(self, intent: str, keywords: List[str] = None) -> float:
+    def can_handle(self, intent: str, keywords: list[str] = None) -> float:
         """Calculate probability that this agent can handle the given intent.
 
         Args:

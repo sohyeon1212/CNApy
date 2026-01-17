@@ -8,7 +8,7 @@ experimental conditions quickly.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Optional
 
 
 @dataclass
@@ -23,12 +23,13 @@ class CultureCondition:
         description_ko: Korean description
         bounds: Dictionary of reaction_id -> (lower_bound, upper_bound)
     """
+
     name: str
     display_name: str
     display_name_ko: str
     description: str
     description_ko: str
-    bounds: Dict[str, Tuple[float, float]] = field(default_factory=dict)
+    bounds: dict[str, tuple[float, float]] = field(default_factory=dict)
 
 
 @dataclass
@@ -43,12 +44,13 @@ class CarbonSource:
         default_uptake: Default uptake rate (negative for consumption)
         alternatives: Alternative exchange reaction IDs for different models
     """
+
     name: str
     display_name: str
     display_name_ko: str
     exchange_reaction: str
     default_uptake: float = -10.0
-    alternatives: List[str] = field(default_factory=list)
+    alternatives: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -63,12 +65,13 @@ class NitrogenSource:
         default_uptake: Default uptake rate (negative for consumption)
         alternatives: Alternative exchange reaction IDs for different models
     """
+
     name: str
     display_name: str
     display_name_ko: str
     exchange_reaction: str
     default_uptake: float = -10.0
-    alternatives: List[str] = field(default_factory=list)
+    alternatives: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -83,19 +86,20 @@ class PredefinedWorkflow:
         description_ko: Korean description
         steps: List of workflow steps (agent, skill, params)
     """
+
     name: str
     display_name: str
     display_name_ko: str
     description: str
     description_ko: str
-    steps: List[Dict[str, Any]] = field(default_factory=list)
+    steps: list[dict[str, Any]] = field(default_factory=list)
 
 
 # =============================================================================
 # CULTURE CONDITIONS
 # =============================================================================
 
-CULTURE_CONDITIONS: Dict[str, CultureCondition] = {
+CULTURE_CONDITIONS: dict[str, CultureCondition] = {
     "aerobic": CultureCondition(
         name="aerobic",
         display_name="Aerobic",
@@ -104,7 +108,7 @@ CULTURE_CONDITIONS: Dict[str, CultureCondition] = {
         description_ko="산소 섭취가 가능한 호기성 조건",
         bounds={
             "EX_o2_e": (-20.0, 1000.0),  # Standard E. coli model
-        }
+        },
     ),
     "anaerobic": CultureCondition(
         name="anaerobic",
@@ -114,7 +118,7 @@ CULTURE_CONDITIONS: Dict[str, CultureCondition] = {
         description_ko="산소 섭취가 없는 혐기성 조건",
         bounds={
             "EX_o2_e": (0.0, 0.0),
-        }
+        },
     ),
     "microaerobic": CultureCondition(
         name="microaerobic",
@@ -124,7 +128,7 @@ CULTURE_CONDITIONS: Dict[str, CultureCondition] = {
         description_ko="제한된 산소 섭취를 가진 미호기성 조건",
         bounds={
             "EX_o2_e": (-2.0, 0.0),
-        }
+        },
     ),
     "minimal_media": CultureCondition(
         name="minimal_media",
@@ -144,7 +148,7 @@ CULTURE_CONDITIONS: Dict[str, CultureCondition] = {
             "EX_fe2_e": (-10.0, 1000.0),
             "EX_cl_e": (-10.0, 1000.0),
             "EX_na1_e": (-10.0, 1000.0),
-        }
+        },
     ),
     "rich_media": CultureCondition(
         name="rich_media",
@@ -155,7 +159,7 @@ CULTURE_CONDITIONS: Dict[str, CultureCondition] = {
         bounds={
             "EX_o2_e": (-20.0, 1000.0),
             "EX_glc__D_e": (-10.0, 0.0),
-        }
+        },
     ),
 }
 
@@ -173,7 +177,7 @@ OXYGEN_EXCHANGE_ALTERNATIVES = [
 # CARBON SOURCES
 # =============================================================================
 
-CARBON_SOURCES: Dict[str, CarbonSource] = {
+CARBON_SOURCES: dict[str, CarbonSource] = {
     "glucose": CarbonSource(
         name="glucose",
         display_name="Glucose",
@@ -245,7 +249,7 @@ CARBON_SOURCES: Dict[str, CarbonSource] = {
 # NITROGEN SOURCES
 # =============================================================================
 
-NITROGEN_SOURCES: Dict[str, NitrogenSource] = {
+NITROGEN_SOURCES: dict[str, NitrogenSource] = {
     "ammonium": NitrogenSource(
         name="ammonium",
         display_name="Ammonium (NH4+)",
@@ -285,7 +289,7 @@ NITROGEN_SOURCES: Dict[str, NitrogenSource] = {
 # COMMON OBJECTIVE FUNCTIONS
 # =============================================================================
 
-COMMON_OBJECTIVES: Dict[str, Dict[str, Any]] = {
+COMMON_OBJECTIVES: dict[str, dict[str, Any]] = {
     "biomass": {
         "display_name": "Biomass (Growth)",
         "display_name_ko": "바이오매스 (성장)",
@@ -313,7 +317,7 @@ COMMON_OBJECTIVES: Dict[str, Dict[str, Any]] = {
 # PREDEFINED WORKFLOWS
 # =============================================================================
 
-PREDEFINED_WORKFLOWS: Dict[str, PredefinedWorkflow] = {
+PREDEFINED_WORKFLOWS: dict[str, PredefinedWorkflow] = {
     "fba_aerobic": PredefinedWorkflow(
         name="fba_aerobic",
         display_name="FBA under Aerobic Conditions",
@@ -374,7 +378,8 @@ PREDEFINED_WORKFLOWS: Dict[str, PredefinedWorkflow] = {
 # HELPER FUNCTIONS
 # =============================================================================
 
-def find_exchange_reaction(model, reaction_patterns: List[str]) -> Optional[str]:
+
+def find_exchange_reaction(model, reaction_patterns: list[str]) -> Optional[str]:
     """Find an exchange reaction in the model by trying multiple patterns.
 
     Args:
@@ -441,49 +446,37 @@ def get_workflow(name: str) -> Optional[PredefinedWorkflow]:
     return PREDEFINED_WORKFLOWS.get(name.lower())
 
 
-def list_conditions() -> List[Tuple[str, str, str]]:
+def list_conditions() -> list[tuple[str, str, str]]:
     """List all available culture conditions.
 
     Returns:
         List of (name, display_name, display_name_ko) tuples
     """
-    return [
-        (c.name, c.display_name, c.display_name_ko)
-        for c in CULTURE_CONDITIONS.values()
-    ]
+    return [(c.name, c.display_name, c.display_name_ko) for c in CULTURE_CONDITIONS.values()]
 
 
-def list_carbon_sources() -> List[Tuple[str, str, str]]:
+def list_carbon_sources() -> list[tuple[str, str, str]]:
     """List all available carbon sources.
 
     Returns:
         List of (name, display_name, display_name_ko) tuples
     """
-    return [
-        (c.name, c.display_name, c.display_name_ko)
-        for c in CARBON_SOURCES.values()
-    ]
+    return [(c.name, c.display_name, c.display_name_ko) for c in CARBON_SOURCES.values()]
 
 
-def list_nitrogen_sources() -> List[Tuple[str, str, str]]:
+def list_nitrogen_sources() -> list[tuple[str, str, str]]:
     """List all available nitrogen sources.
 
     Returns:
         List of (name, display_name, display_name_ko) tuples
     """
-    return [
-        (n.name, n.display_name, n.display_name_ko)
-        for n in NITROGEN_SOURCES.values()
-    ]
+    return [(n.name, n.display_name, n.display_name_ko) for n in NITROGEN_SOURCES.values()]
 
 
-def list_workflows() -> List[Tuple[str, str, str]]:
+def list_workflows() -> list[tuple[str, str, str]]:
     """List all available predefined workflows.
 
     Returns:
         List of (name, display_name, display_name_ko) tuples
     """
-    return [
-        (w.name, w.display_name, w.display_name_ko)
-        for w in PREDEFINED_WORKFLOWS.values()
-    ]
+    return [(w.name, w.display_name, w.display_name_ko) for w in PREDEFINED_WORKFLOWS.values()]

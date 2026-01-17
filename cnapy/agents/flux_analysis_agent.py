@@ -9,12 +9,12 @@ This agent handles all flux-based analyses:
 - Flux Sampling
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Optional
+
 import cobra
 
 from cnapy.agents.base_agent import (
     BaseAgent,
-    AgentContext,
     Skill,
     SkillResult,
     SkillStatus,
@@ -44,158 +44,176 @@ class FluxAnalysisAgent(BaseAgent):
         """Register all flux analysis skills."""
 
         # FBA
-        self.register_skill(Skill(
-            name="perform_fba",
-            description="Perform Flux Balance Analysis (FBA) to find optimal flux distribution",
-            description_ko="최적 플럭스 분포를 찾기 위한 Flux Balance Analysis (FBA) 수행",
-            parameters={},
-            required_params=[],
-            handler=self._perform_fba,
-        ))
+        self.register_skill(
+            Skill(
+                name="perform_fba",
+                description="Perform Flux Balance Analysis (FBA) to find optimal flux distribution",
+                description_ko="최적 플럭스 분포를 찾기 위한 Flux Balance Analysis (FBA) 수행",
+                parameters={},
+                required_params=[],
+                handler=self._perform_fba,
+            )
+        )
 
         # pFBA
-        self.register_skill(Skill(
-            name="perform_pfba",
-            description="Perform Parsimonious FBA (pFBA) to find minimum total flux solution",
-            description_ko="최소 총 플럭스 솔루션을 찾기 위한 Parsimonious FBA (pFBA) 수행",
-            parameters={},
-            required_params=[],
-            handler=self._perform_pfba,
-        ))
+        self.register_skill(
+            Skill(
+                name="perform_pfba",
+                description="Perform Parsimonious FBA (pFBA) to find minimum total flux solution",
+                description_ko="최소 총 플럭스 솔루션을 찾기 위한 Parsimonious FBA (pFBA) 수행",
+                parameters={},
+                required_params=[],
+                handler=self._perform_pfba,
+            )
+        )
 
         # FVA
-        self.register_skill(Skill(
-            name="perform_fva",
-            description="Perform Flux Variability Analysis (FVA) to determine flux ranges",
-            description_ko="플럭스 범위를 결정하기 위한 Flux Variability Analysis (FVA) 수행",
-            parameters={
-                "fraction_of_optimum": {
-                    "type": "number",
-                    "description": "Fraction of optimal objective to maintain (0.0-1.0)",
-                    "default": 0.0,
+        self.register_skill(
+            Skill(
+                name="perform_fva",
+                description="Perform Flux Variability Analysis (FVA) to determine flux ranges",
+                description_ko="플럭스 범위를 결정하기 위한 Flux Variability Analysis (FVA) 수행",
+                parameters={
+                    "fraction_of_optimum": {
+                        "type": "number",
+                        "description": "Fraction of optimal objective to maintain (0.0-1.0)",
+                        "default": 0.0,
+                    },
                 },
-            },
-            required_params=[],
-            handler=self._perform_fva,
-        ))
+                required_params=[],
+                handler=self._perform_fva,
+            )
+        )
 
         # MOMA
-        self.register_skill(Skill(
-            name="perform_moma",
-            description="Perform Linear MOMA (Minimization of Metabolic Adjustment)",
-            description_ko="Linear MOMA (대사 조정 최소화) 수행",
-            parameters={
-                "reference_fluxes": {
-                    "type": "object",
-                    "description": "Reference flux values for MOMA comparison",
-                    "default": None,
+        self.register_skill(
+            Skill(
+                name="perform_moma",
+                description="Perform Linear MOMA (Minimization of Metabolic Adjustment)",
+                description_ko="Linear MOMA (대사 조정 최소화) 수행",
+                parameters={
+                    "reference_fluxes": {
+                        "type": "object",
+                        "description": "Reference flux values for MOMA comparison",
+                        "default": None,
+                    },
                 },
-            },
-            required_params=[],
-            handler=self._perform_moma,
-        ))
+                required_params=[],
+                handler=self._perform_moma,
+            )
+        )
 
         # ROOM
-        self.register_skill(Skill(
-            name="perform_room",
-            description="Perform ROOM (Regulatory On/Off Minimization) - requires MILP solver",
-            description_ko="ROOM (조절 On/Off 최소화) 수행 - MILP 솔버 필요",
-            parameters={
-                "reference_fluxes": {
-                    "type": "object",
-                    "description": "Reference flux values for ROOM comparison",
-                    "default": None,
+        self.register_skill(
+            Skill(
+                name="perform_room",
+                description="Perform ROOM (Regulatory On/Off Minimization) - requires MILP solver",
+                description_ko="ROOM (조절 On/Off 최소화) 수행 - MILP 솔버 필요",
+                parameters={
+                    "reference_fluxes": {
+                        "type": "object",
+                        "description": "Reference flux values for ROOM comparison",
+                        "default": None,
+                    },
+                    "delta": {
+                        "type": "number",
+                        "description": "Delta parameter for ROOM",
+                        "default": 0.03,
+                    },
+                    "epsilon": {
+                        "type": "number",
+                        "description": "Epsilon parameter for ROOM",
+                        "default": 0.001,
+                    },
                 },
-                "delta": {
-                    "type": "number",
-                    "description": "Delta parameter for ROOM",
-                    "default": 0.03,
-                },
-                "epsilon": {
-                    "type": "number",
-                    "description": "Epsilon parameter for ROOM",
-                    "default": 0.001,
-                },
-            },
-            required_params=[],
-            handler=self._perform_room,
-        ))
+                required_params=[],
+                handler=self._perform_room,
+            )
+        )
 
         # Flux Sampling
-        self.register_skill(Skill(
-            name="perform_flux_sampling",
-            description="Perform flux sampling to explore solution space",
-            description_ko="솔루션 공간을 탐색하기 위한 플럭스 샘플링 수행",
-            parameters={
-                "n_samples": {
-                    "type": "integer",
-                    "description": "Number of samples to generate",
-                    "default": 100,
+        self.register_skill(
+            Skill(
+                name="perform_flux_sampling",
+                description="Perform flux sampling to explore solution space",
+                description_ko="솔루션 공간을 탐색하기 위한 플럭스 샘플링 수행",
+                parameters={
+                    "n_samples": {
+                        "type": "integer",
+                        "description": "Number of samples to generate",
+                        "default": 100,
+                    },
+                    "thinning": {
+                        "type": "integer",
+                        "description": "Thinning factor for sampling",
+                        "default": 10,
+                    },
+                    "method": {
+                        "type": "string",
+                        "description": "Sampling method (optgp or achr)",
+                        "default": "optgp",
+                    },
                 },
-                "thinning": {
-                    "type": "integer",
-                    "description": "Thinning factor for sampling",
-                    "default": 10,
-                },
-                "method": {
-                    "type": "string",
-                    "description": "Sampling method (optgp or achr)",
-                    "default": "optgp",
-                },
-            },
-            required_params=[],
-            handler=self._perform_flux_sampling,
-        ))
+                required_params=[],
+                handler=self._perform_flux_sampling,
+            )
+        )
 
         # Analyze flux distribution
-        self.register_skill(Skill(
-            name="analyze_flux_distribution",
-            description="Analyze flux distribution for specific reactions",
-            description_ko="특정 반응들의 플럭스 분포 분석",
-            parameters={
-                "reaction_ids": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "List of reaction IDs to analyze",
+        self.register_skill(
+            Skill(
+                name="analyze_flux_distribution",
+                description="Analyze flux distribution for specific reactions",
+                description_ko="특정 반응들의 플럭스 분포 분석",
+                parameters={
+                    "reaction_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of reaction IDs to analyze",
+                    },
                 },
-            },
-            required_params=["reaction_ids"],
-            handler=self._analyze_flux_distribution,
-        ))
+                required_params=["reaction_ids"],
+                handler=self._analyze_flux_distribution,
+            )
+        )
 
         # Get objective value
-        self.register_skill(Skill(
-            name="get_objective_value",
-            description="Get the current objective value from the last optimization",
-            description_ko="마지막 최적화의 현재 목적함수 값 조회",
-            parameters={},
-            required_params=[],
-            handler=self._get_objective_value,
-        ))
+        self.register_skill(
+            Skill(
+                name="get_objective_value",
+                description="Get the current objective value from the last optimization",
+                description_ko="마지막 최적화의 현재 목적함수 값 조회",
+                parameters={},
+                required_params=[],
+                handler=self._get_objective_value,
+            )
+        )
 
         # Compare flux states
-        self.register_skill(Skill(
-            name="compare_flux_states",
-            description="Compare flux values between two states",
-            description_ko="두 상태 간의 플럭스 값 비교",
-            parameters={
-                "state1": {
-                    "type": "object",
-                    "description": "First flux state (dict of reaction_id: flux_value)",
+        self.register_skill(
+            Skill(
+                name="compare_flux_states",
+                description="Compare flux values between two states",
+                description_ko="두 상태 간의 플럭스 값 비교",
+                parameters={
+                    "state1": {
+                        "type": "object",
+                        "description": "First flux state (dict of reaction_id: flux_value)",
+                    },
+                    "state2": {
+                        "type": "object",
+                        "description": "Second flux state (dict of reaction_id: flux_value)",
+                    },
+                    "threshold": {
+                        "type": "number",
+                        "description": "Minimum flux difference to report",
+                        "default": 0.001,
+                    },
                 },
-                "state2": {
-                    "type": "object",
-                    "description": "Second flux state (dict of reaction_id: flux_value)",
-                },
-                "threshold": {
-                    "type": "number",
-                    "description": "Minimum flux difference to report",
-                    "default": 0.001,
-                },
-            },
-            required_params=["state1", "state2"],
-            handler=self._compare_flux_states,
-        ))
+                required_params=["state1", "state2"],
+                handler=self._compare_flux_states,
+            )
+        )
 
     def _check_model(self) -> Optional[SkillResult]:
         """Check if a model is loaded.
@@ -376,17 +394,12 @@ class FluxAnalysisAgent(BaseAgent):
             # Update computed values
             if self.context.appdata and self.context.appdata.project:
                 for rxn_id in minimum:
-                    self.context.appdata.project.comp_values[rxn_id] = (
-                        minimum[rxn_id], maximum[rxn_id]
-                    )
+                    self.context.appdata.project.comp_values[rxn_id] = (minimum[rxn_id], maximum[rxn_id])
                 self.context.appdata.project.fva_values = self.context.appdata.project.comp_values.copy()
                 self.context.appdata.project.comp_values_type = 1
 
             # Count variable reactions
-            n_variable = sum(
-                1 for rxn_id in minimum
-                if abs(maximum[rxn_id] - minimum[rxn_id]) > 1e-6
-            )
+            n_variable = sum(1 for rxn_id in minimum if abs(maximum[rxn_id] - minimum[rxn_id]) > 1e-6)
 
             return SkillResult(
                 status=SkillStatus.SUCCESS,
@@ -417,7 +430,7 @@ class FluxAnalysisAgent(BaseAgent):
                 message_ko=f"FVA 실행 중 오류 발생: {str(e)}",
             )
 
-    def _perform_moma(self, reference_fluxes: Optional[Dict[str, float]] = None) -> SkillResult:
+    def _perform_moma(self, reference_fluxes: Optional[dict[str, float]] = None) -> SkillResult:
         """Perform Linear MOMA."""
         check = self._check_model()
         if check:
@@ -490,7 +503,7 @@ class FluxAnalysisAgent(BaseAgent):
 
     def _perform_room(
         self,
-        reference_fluxes: Optional[Dict[str, float]] = None,
+        reference_fluxes: Optional[dict[str, float]] = None,
         delta: float = 0.03,
         epsilon: float = 0.001,
     ) -> SkillResult:
@@ -501,7 +514,8 @@ class FluxAnalysisAgent(BaseAgent):
 
         # Check for MILP solver
         try:
-            from cnapy.moma import room, has_milp_solver
+            from cnapy.moma import has_milp_solver, room
+
             has_milp, solver_msg = has_milp_solver()
             if not has_milp:
                 return SkillResult(
@@ -635,7 +649,7 @@ class FluxAnalysisAgent(BaseAgent):
                 message_ko=f"플럭스 샘플링 실행 중 오류 발생: {str(e)}",
             )
 
-    def _analyze_flux_distribution(self, reaction_ids: List[str]) -> SkillResult:
+    def _analyze_flux_distribution(self, reaction_ids: list[str]) -> SkillResult:
         """Analyze flux distribution for specific reactions."""
         check = self._check_model()
         if check:
@@ -711,8 +725,8 @@ class FluxAnalysisAgent(BaseAgent):
 
     def _compare_flux_states(
         self,
-        state1: Dict[str, float],
-        state2: Dict[str, float],
+        state1: dict[str, float],
+        state2: dict[str, float],
         threshold: float = 0.001,
     ) -> SkillResult:
         """Compare flux values between two states."""
@@ -725,13 +739,15 @@ class FluxAnalysisAgent(BaseAgent):
             diff = v2 - v1
 
             if abs(diff) > threshold:
-                differences.append({
-                    "reaction_id": rxn_id,
-                    "state1": v1,
-                    "state2": v2,
-                    "difference": diff,
-                    "fold_change": v2 / v1 if abs(v1) > 1e-10 else float("inf"),
-                })
+                differences.append(
+                    {
+                        "reaction_id": rxn_id,
+                        "state1": v1,
+                        "state2": v2,
+                        "difference": diff,
+                        "fold_change": v2 / v1 if abs(v1) > 1e-10 else float("inf"),
+                    }
+                )
 
         # Sort by absolute difference
         differences.sort(key=lambda x: abs(x["difference"]), reverse=True)

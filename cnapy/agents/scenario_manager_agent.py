@@ -8,29 +8,26 @@ This agent handles scenario and condition management:
 - Manage objectives
 """
 
-from typing import Any, Dict, List, Optional, Tuple
 import os
-import json
+from typing import Optional
 
 from cnapy.agents.base_agent import (
     BaseAgent,
-    AgentContext,
     Skill,
     SkillResult,
     SkillStatus,
 )
 from cnapy.agents.predefined_scenarios import (
-    CULTURE_CONDITIONS,
     CARBON_SOURCES,
+    CULTURE_CONDITIONS,
     NITROGEN_SOURCES,
     OXYGEN_EXCHANGE_ALTERNATIVES,
-    get_culture_condition,
     get_carbon_source,
+    get_culture_condition,
     get_nitrogen_source,
-    list_conditions,
     list_carbon_sources,
+    list_conditions,
     list_nitrogen_sources,
-    find_exchange_reaction,
 )
 
 
@@ -57,191 +54,215 @@ class ScenarioManagerAgent(BaseAgent):
         """Register all scenario management skills."""
 
         # Apply predefined condition
-        self.register_skill(Skill(
-            name="apply_condition",
-            description="Apply a predefined culture condition (aerobic, anaerobic, microaerobic, etc.)",
-            description_ko="사전정의된 배양 조건 적용 (호기성, 혐기성, 미호기성 등)",
-            parameters={
-                "condition_name": {
-                    "type": "string",
-                    "description": "Name of the condition (aerobic, anaerobic, microaerobic, minimal_media, rich_media)",
-                    "enum": list(CULTURE_CONDITIONS.keys()),
+        self.register_skill(
+            Skill(
+                name="apply_condition",
+                description="Apply a predefined culture condition (aerobic, anaerobic, microaerobic, etc.)",
+                description_ko="사전정의된 배양 조건 적용 (호기성, 혐기성, 미호기성 등)",
+                parameters={
+                    "condition_name": {
+                        "type": "string",
+                        "description": "Name of the condition (aerobic, anaerobic, microaerobic, minimal_media, rich_media)",
+                        "enum": list(CULTURE_CONDITIONS.keys()),
+                    },
                 },
-            },
-            required_params=["condition_name"],
-            handler=self._apply_condition,
-        ))
+                required_params=["condition_name"],
+                handler=self._apply_condition,
+            )
+        )
 
         # Set reaction bounds
-        self.register_skill(Skill(
-            name="set_reaction_bounds",
-            description="Set lower and upper bounds for a reaction",
-            description_ko="반응의 하한/상한 경계 설정",
-            parameters={
-                "reaction_id": {
-                    "type": "string",
-                    "description": "Reaction ID to modify",
+        self.register_skill(
+            Skill(
+                name="set_reaction_bounds",
+                description="Set lower and upper bounds for a reaction",
+                description_ko="반응의 하한/상한 경계 설정",
+                parameters={
+                    "reaction_id": {
+                        "type": "string",
+                        "description": "Reaction ID to modify",
+                    },
+                    "lower_bound": {
+                        "type": "number",
+                        "description": "Lower bound value",
+                    },
+                    "upper_bound": {
+                        "type": "number",
+                        "description": "Upper bound value",
+                    },
                 },
-                "lower_bound": {
-                    "type": "number",
-                    "description": "Lower bound value",
-                },
-                "upper_bound": {
-                    "type": "number",
-                    "description": "Upper bound value",
-                },
-            },
-            required_params=["reaction_id", "lower_bound", "upper_bound"],
-            handler=self._set_reaction_bounds,
-        ))
+                required_params=["reaction_id", "lower_bound", "upper_bound"],
+                handler=self._set_reaction_bounds,
+            )
+        )
 
         # Set carbon source
-        self.register_skill(Skill(
-            name="set_carbon_source",
-            description="Set the primary carbon source and uptake rate",
-            description_ko="주요 탄소원 및 섭취율 설정",
-            parameters={
-                "carbon_source": {
-                    "type": "string",
-                    "description": "Carbon source name (glucose, xylose, glycerol, acetate, etc.)",
-                    "enum": list(CARBON_SOURCES.keys()),
+        self.register_skill(
+            Skill(
+                name="set_carbon_source",
+                description="Set the primary carbon source and uptake rate",
+                description_ko="주요 탄소원 및 섭취율 설정",
+                parameters={
+                    "carbon_source": {
+                        "type": "string",
+                        "description": "Carbon source name (glucose, xylose, glycerol, acetate, etc.)",
+                        "enum": list(CARBON_SOURCES.keys()),
+                    },
+                    "uptake_rate": {
+                        "type": "number",
+                        "description": "Uptake rate (negative for consumption)",
+                        "default": -10.0,
+                    },
                 },
-                "uptake_rate": {
-                    "type": "number",
-                    "description": "Uptake rate (negative for consumption)",
-                    "default": -10.0,
-                },
-            },
-            required_params=["carbon_source"],
-            handler=self._set_carbon_source,
-        ))
+                required_params=["carbon_source"],
+                handler=self._set_carbon_source,
+            )
+        )
 
         # Set nitrogen source
-        self.register_skill(Skill(
-            name="set_nitrogen_source",
-            description="Set the primary nitrogen source and uptake rate",
-            description_ko="주요 질소원 및 섭취율 설정",
-            parameters={
-                "nitrogen_source": {
-                    "type": "string",
-                    "description": "Nitrogen source name (ammonium, nitrate, glutamate, glutamine)",
-                    "enum": list(NITROGEN_SOURCES.keys()),
+        self.register_skill(
+            Skill(
+                name="set_nitrogen_source",
+                description="Set the primary nitrogen source and uptake rate",
+                description_ko="주요 질소원 및 섭취율 설정",
+                parameters={
+                    "nitrogen_source": {
+                        "type": "string",
+                        "description": "Nitrogen source name (ammonium, nitrate, glutamate, glutamine)",
+                        "enum": list(NITROGEN_SOURCES.keys()),
+                    },
+                    "uptake_rate": {
+                        "type": "number",
+                        "description": "Uptake rate (negative for consumption)",
+                        "default": -10.0,
+                    },
                 },
-                "uptake_rate": {
-                    "type": "number",
-                    "description": "Uptake rate (negative for consumption)",
-                    "default": -10.0,
-                },
-            },
-            required_params=["nitrogen_source"],
-            handler=self._set_nitrogen_source,
-        ))
+                required_params=["nitrogen_source"],
+                handler=self._set_nitrogen_source,
+            )
+        )
 
         # Set objective
-        self.register_skill(Skill(
-            name="set_objective",
-            description="Set the optimization objective function",
-            description_ko="최적화 목적함수 설정",
-            parameters={
-                "reaction_id": {
-                    "type": "string",
-                    "description": "Reaction ID to use as objective",
+        self.register_skill(
+            Skill(
+                name="set_objective",
+                description="Set the optimization objective function",
+                description_ko="최적화 목적함수 설정",
+                parameters={
+                    "reaction_id": {
+                        "type": "string",
+                        "description": "Reaction ID to use as objective",
+                    },
+                    "direction": {
+                        "type": "string",
+                        "description": "Optimization direction (max or min)",
+                        "enum": ["max", "min"],
+                        "default": "max",
+                    },
                 },
-                "direction": {
-                    "type": "string",
-                    "description": "Optimization direction (max or min)",
-                    "enum": ["max", "min"],
-                    "default": "max",
-                },
-            },
-            required_params=["reaction_id"],
-            handler=self._set_objective,
-        ))
+                required_params=["reaction_id"],
+                handler=self._set_objective,
+            )
+        )
 
         # Get current scenario
-        self.register_skill(Skill(
-            name="get_current_scenario",
-            description="Get the current scenario settings",
-            description_ko="현재 시나리오 설정 조회",
-            parameters={},
-            required_params=[],
-            handler=self._get_current_scenario,
-        ))
+        self.register_skill(
+            Skill(
+                name="get_current_scenario",
+                description="Get the current scenario settings",
+                description_ko="현재 시나리오 설정 조회",
+                parameters={},
+                required_params=[],
+                handler=self._get_current_scenario,
+            )
+        )
 
         # Clear scenario
-        self.register_skill(Skill(
-            name="clear_scenario",
-            description="Clear all scenario flux values",
-            description_ko="모든 시나리오 플럭스 값 초기화",
-            parameters={},
-            required_params=[],
-            handler=self._clear_scenario,
-        ))
+        self.register_skill(
+            Skill(
+                name="clear_scenario",
+                description="Clear all scenario flux values",
+                description_ko="모든 시나리오 플럭스 값 초기화",
+                parameters={},
+                required_params=[],
+                handler=self._clear_scenario,
+            )
+        )
 
         # Save scenario
-        self.register_skill(Skill(
-            name="save_scenario",
-            description="Save the current scenario to a file",
-            description_ko="현재 시나리오를 파일로 저장",
-            parameters={
-                "filename": {
-                    "type": "string",
-                    "description": "File name for the scenario",
+        self.register_skill(
+            Skill(
+                name="save_scenario",
+                description="Save the current scenario to a file",
+                description_ko="현재 시나리오를 파일로 저장",
+                parameters={
+                    "filename": {
+                        "type": "string",
+                        "description": "File name for the scenario",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description of the scenario",
+                        "default": "",
+                    },
                 },
-                "description": {
-                    "type": "string",
-                    "description": "Description of the scenario",
-                    "default": "",
-                },
-            },
-            required_params=["filename"],
-            handler=self._save_scenario,
-        ))
+                required_params=["filename"],
+                handler=self._save_scenario,
+            )
+        )
 
         # Load scenario
-        self.register_skill(Skill(
-            name="load_scenario",
-            description="Load a scenario from a file",
-            description_ko="파일에서 시나리오 로드",
-            parameters={
-                "filename": {
-                    "type": "string",
-                    "description": "File name of the scenario to load",
+        self.register_skill(
+            Skill(
+                name="load_scenario",
+                description="Load a scenario from a file",
+                description_ko="파일에서 시나리오 로드",
+                parameters={
+                    "filename": {
+                        "type": "string",
+                        "description": "File name of the scenario to load",
+                    },
                 },
-            },
-            required_params=["filename"],
-            handler=self._load_scenario,
-        ))
+                required_params=["filename"],
+                handler=self._load_scenario,
+            )
+        )
 
         # List available conditions
-        self.register_skill(Skill(
-            name="list_conditions",
-            description="List all available predefined culture conditions",
-            description_ko="사용 가능한 모든 사전정의 배양 조건 목록",
-            parameters={},
-            required_params=[],
-            handler=self._list_conditions,
-        ))
+        self.register_skill(
+            Skill(
+                name="list_conditions",
+                description="List all available predefined culture conditions",
+                description_ko="사용 가능한 모든 사전정의 배양 조건 목록",
+                parameters={},
+                required_params=[],
+                handler=self._list_conditions,
+            )
+        )
 
         # List carbon sources
-        self.register_skill(Skill(
-            name="list_carbon_sources",
-            description="List all available carbon sources",
-            description_ko="사용 가능한 모든 탄소원 목록",
-            parameters={},
-            required_params=[],
-            handler=self._list_carbon_sources,
-        ))
+        self.register_skill(
+            Skill(
+                name="list_carbon_sources",
+                description="List all available carbon sources",
+                description_ko="사용 가능한 모든 탄소원 목록",
+                parameters={},
+                required_params=[],
+                handler=self._list_carbon_sources,
+            )
+        )
 
         # List nitrogen sources
-        self.register_skill(Skill(
-            name="list_nitrogen_sources",
-            description="List all available nitrogen sources",
-            description_ko="사용 가능한 모든 질소원 목록",
-            parameters={},
-            required_params=[],
-            handler=self._list_nitrogen_sources,
-        ))
+        self.register_skill(
+            Skill(
+                name="list_nitrogen_sources",
+                description="List all available nitrogen sources",
+                description_ko="사용 가능한 모든 질소원 목록",
+                parameters={},
+                required_params=[],
+                handler=self._list_nitrogen_sources,
+            )
+        )
 
     def _check_model(self) -> Optional[SkillResult]:
         """Check if a model is loaded."""
@@ -254,7 +275,7 @@ class ScenarioManagerAgent(BaseAgent):
             )
         return None
 
-    def _find_reaction_id(self, patterns: List[str]) -> Optional[str]:
+    def _find_reaction_id(self, patterns: list[str]) -> Optional[str]:
         """Find a reaction ID from a list of patterns."""
         if self.context.model is None:
             return None
@@ -520,15 +541,17 @@ class ScenarioManagerAgent(BaseAgent):
 
         # Get objective info
         obj_rxn = str(self.context.model.objective.expression) if self.context.model.objective else "None"
-        obj_dir = self.context.model.objective_direction if hasattr(self.context.model, 'objective_direction') else "max"
+        obj_dir = (
+            self.context.model.objective_direction if hasattr(self.context.model, "objective_direction") else "max"
+        )
 
         return SkillResult(
             status=SkillStatus.SUCCESS,
             data={
                 "flux_values": flux_values,
                 "n_flux_values": n_values,
-                "pinned_reactions": list(scenario.pinned_reactions) if hasattr(scenario, 'pinned_reactions') else [],
-                "description": scenario.description if hasattr(scenario, 'description') else "",
+                "pinned_reactions": list(scenario.pinned_reactions) if hasattr(scenario, "pinned_reactions") else [],
+                "description": scenario.description if hasattr(scenario, "description") else "",
                 "objective": obj_rxn,
                 "objective_direction": obj_dir,
             },
@@ -632,9 +655,7 @@ class ScenarioManagerAgent(BaseAgent):
                 )
 
         try:
-            unknown_ids, incompatible, skipped = self.context.scenario.load(
-                filepath, self.context.appdata
-            )
+            unknown_ids, incompatible, skipped = self.context.scenario.load(filepath, self.context.appdata)
 
             message = f"Scenario loaded from {filepath}."
             message_ko = f"{filepath}에서 시나리오를 로드했습니다."
@@ -670,11 +691,13 @@ class ScenarioManagerAgent(BaseAgent):
         conditions = list_conditions()
         formatted = []
         for name, display, display_ko in conditions:
-            formatted.append({
-                "name": name,
-                "display_name": display,
-                "display_name_ko": display_ko,
-            })
+            formatted.append(
+                {
+                    "name": name,
+                    "display_name": display,
+                    "display_name_ko": display_ko,
+                }
+            )
 
         names = [c["name"] for c in formatted]
         return SkillResult(
@@ -689,11 +712,13 @@ class ScenarioManagerAgent(BaseAgent):
         sources = list_carbon_sources()
         formatted = []
         for name, display, display_ko in sources:
-            formatted.append({
-                "name": name,
-                "display_name": display,
-                "display_name_ko": display_ko,
-            })
+            formatted.append(
+                {
+                    "name": name,
+                    "display_name": display,
+                    "display_name_ko": display_ko,
+                }
+            )
 
         names = [s["name"] for s in formatted]
         return SkillResult(
@@ -708,11 +733,13 @@ class ScenarioManagerAgent(BaseAgent):
         sources = list_nitrogen_sources()
         formatted = []
         for name, display, display_ko in sources:
-            formatted.append({
-                "name": name,
-                "display_name": display,
-                "display_name_ko": display_ko,
-            })
+            formatted.append(
+                {
+                    "name": name,
+                    "display_name": display,
+                    "display_name_ko": display_ko,
+                }
+            )
 
         names = [s["name"] for s in formatted]
         return SkillResult(

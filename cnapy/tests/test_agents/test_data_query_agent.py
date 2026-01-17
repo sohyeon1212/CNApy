@@ -1,8 +1,9 @@
 """Tests for DataQueryAgent."""
 
 import pytest
-from cnapy.agents.data_query_agent import DataQueryAgent
+
 from cnapy.agents.base_agent import SkillStatus
+from cnapy.agents.data_query_agent import DataQueryAgent
 
 
 class TestDataQueryAgent:

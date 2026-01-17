@@ -12,21 +12,30 @@ Features:
 - LLM configuration integration
 """
 
-from typing import Optional, List
 import traceback
+from typing import Optional
 
-from qtpy.QtCore import Qt, Slot, Signal, QThread
+from qtpy.QtCore import Qt, QThread, Signal, Slot
 from qtpy.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTextEdit, QLineEdit, QGroupBox, QScrollArea, QWidget,
-    QFrame, QSplitter, QTabWidget, QApplication, QMessageBox,
-    QProgressBar, QToolButton, QSizePolicy
+    QApplication,
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QSplitter,
+    QTabWidget,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
-from qtpy.QtGui import QFont, QColor, QTextCursor, QIcon
 
-from cnapy.appdata import AppData
-from cnapy.agents.base_agent import AgentContext, AgentResponse, SkillStatus
+from cnapy.agents.base_agent import AgentContext, AgentResponse
 from cnapy.agents.orchestrator_agent import OrchestratorAgent
+from cnapy.appdata import AppData
 from cnapy.gui_elements.llm_analysis_dialog import LLMConfig
 
 
@@ -68,30 +77,36 @@ class ChatMessage(QFrame):
         # Role indicator
         if self.role == "user":
             role_text = "You"
-            self.setStyleSheet("""
+            self.setStyleSheet(
+                """
                 ChatMessage {
                     background-color: #e3f2fd;
                     border-radius: 10px;
                     margin-left: 50px;
                 }
-            """)
+            """
+            )
         elif self.role == "assistant":
             role_text = "AI"
-            self.setStyleSheet("""
+            self.setStyleSheet(
+                """
                 ChatMessage {
                     background-color: #f5f5f5;
                     border-radius: 10px;
                     margin-right: 50px;
                 }
-            """)
+            """
+            )
         else:  # system
             role_text = "System"
-            self.setStyleSheet("""
+            self.setStyleSheet(
+                """
                 ChatMessage {
                     background-color: #fff3e0;
                     border-radius: 10px;
                 }
-            """)
+            """
+            )
 
         content_layout = QVBoxLayout()
 
@@ -387,6 +402,7 @@ class AgentDialog(QDialog):
     def _show_config(self):
         """Show the LLM configuration dialog."""
         from cnapy.gui_elements.llm_analysis_dialog import LLMAnalysisDialog
+
         dialog = LLMAnalysisDialog(self.appdata)
         dialog.tabs.setCurrentIndex(0)  # Show config tab
         dialog.exec()

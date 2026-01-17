@@ -8,12 +8,10 @@ This agent handles model information queries:
 - Analysis result retrieval
 """
 
-import re
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 from cnapy.agents.base_agent import (
     BaseAgent,
-    AgentContext,
     Skill,
     SkillResult,
     SkillStatus,
@@ -42,176 +40,198 @@ class DataQueryAgent(BaseAgent):
         """Register all data query skills."""
 
         # Get model info
-        self.register_skill(Skill(
-            name="get_model_info",
-            description="Get basic model statistics and information",
-            description_ko="모델 기본 통계 및 정보 조회",
-            parameters={},
-            required_params=[],
-            handler=self._get_model_info,
-        ))
+        self.register_skill(
+            Skill(
+                name="get_model_info",
+                description="Get basic model statistics and information",
+                description_ko="모델 기본 통계 및 정보 조회",
+                parameters={},
+                required_params=[],
+                handler=self._get_model_info,
+            )
+        )
 
         # Get reaction info
-        self.register_skill(Skill(
-            name="get_reaction_info",
-            description="Get detailed information about a specific reaction",
-            description_ko="특정 반응의 상세 정보 조회",
-            parameters={
-                "reaction_id": {
-                    "type": "string",
-                    "description": "Reaction ID to query",
+        self.register_skill(
+            Skill(
+                name="get_reaction_info",
+                description="Get detailed information about a specific reaction",
+                description_ko="특정 반응의 상세 정보 조회",
+                parameters={
+                    "reaction_id": {
+                        "type": "string",
+                        "description": "Reaction ID to query",
+                    },
                 },
-            },
-            required_params=["reaction_id"],
-            handler=self._get_reaction_info,
-        ))
+                required_params=["reaction_id"],
+                handler=self._get_reaction_info,
+            )
+        )
 
         # Get metabolite info
-        self.register_skill(Skill(
-            name="get_metabolite_info",
-            description="Get detailed information about a specific metabolite",
-            description_ko="특정 대사체의 상세 정보 조회",
-            parameters={
-                "metabolite_id": {
-                    "type": "string",
-                    "description": "Metabolite ID to query",
+        self.register_skill(
+            Skill(
+                name="get_metabolite_info",
+                description="Get detailed information about a specific metabolite",
+                description_ko="특정 대사체의 상세 정보 조회",
+                parameters={
+                    "metabolite_id": {
+                        "type": "string",
+                        "description": "Metabolite ID to query",
+                    },
                 },
-            },
-            required_params=["metabolite_id"],
-            handler=self._get_metabolite_info,
-        ))
+                required_params=["metabolite_id"],
+                handler=self._get_metabolite_info,
+            )
+        )
 
         # Get gene info
-        self.register_skill(Skill(
-            name="get_gene_info",
-            description="Get detailed information about a specific gene",
-            description_ko="특정 유전자의 상세 정보 조회",
-            parameters={
-                "gene_id": {
-                    "type": "string",
-                    "description": "Gene ID to query",
+        self.register_skill(
+            Skill(
+                name="get_gene_info",
+                description="Get detailed information about a specific gene",
+                description_ko="특정 유전자의 상세 정보 조회",
+                parameters={
+                    "gene_id": {
+                        "type": "string",
+                        "description": "Gene ID to query",
+                    },
                 },
-            },
-            required_params=["gene_id"],
-            handler=self._get_gene_info,
-        ))
+                required_params=["gene_id"],
+                handler=self._get_gene_info,
+            )
+        )
 
         # Search reactions
-        self.register_skill(Skill(
-            name="search_reactions",
-            description="Search for reactions by ID, name, or equation",
-            description_ko="ID, 이름 또는 반응식으로 반응 검색",
-            parameters={
-                "query": {
-                    "type": "string",
-                    "description": "Search query string",
+        self.register_skill(
+            Skill(
+                name="search_reactions",
+                description="Search for reactions by ID, name, or equation",
+                description_ko="ID, 이름 또는 반응식으로 반응 검색",
+                parameters={
+                    "query": {
+                        "type": "string",
+                        "description": "Search query string",
+                    },
+                    "search_in": {
+                        "type": "string",
+                        "description": "Where to search (id, name, equation, all)",
+                        "enum": ["id", "name", "equation", "all"],
+                        "default": "all",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results",
+                        "default": 20,
+                    },
                 },
-                "search_in": {
-                    "type": "string",
-                    "description": "Where to search (id, name, equation, all)",
-                    "enum": ["id", "name", "equation", "all"],
-                    "default": "all",
-                },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Maximum number of results",
-                    "default": 20,
-                },
-            },
-            required_params=["query"],
-            handler=self._search_reactions,
-        ))
+                required_params=["query"],
+                handler=self._search_reactions,
+            )
+        )
 
         # Search metabolites
-        self.register_skill(Skill(
-            name="search_metabolites",
-            description="Search for metabolites by ID or name",
-            description_ko="ID 또는 이름으로 대사체 검색",
-            parameters={
-                "query": {
-                    "type": "string",
-                    "description": "Search query string",
+        self.register_skill(
+            Skill(
+                name="search_metabolites",
+                description="Search for metabolites by ID or name",
+                description_ko="ID 또는 이름으로 대사체 검색",
+                parameters={
+                    "query": {
+                        "type": "string",
+                        "description": "Search query string",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results",
+                        "default": 20,
+                    },
                 },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Maximum number of results",
-                    "default": 20,
-                },
-            },
-            required_params=["query"],
-            handler=self._search_metabolites,
-        ))
+                required_params=["query"],
+                handler=self._search_metabolites,
+            )
+        )
 
         # Search genes
-        self.register_skill(Skill(
-            name="search_genes",
-            description="Search for genes by ID or name",
-            description_ko="ID 또는 이름으로 유전자 검색",
-            parameters={
-                "query": {
-                    "type": "string",
-                    "description": "Search query string",
+        self.register_skill(
+            Skill(
+                name="search_genes",
+                description="Search for genes by ID or name",
+                description_ko="ID 또는 이름으로 유전자 검색",
+                parameters={
+                    "query": {
+                        "type": "string",
+                        "description": "Search query string",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results",
+                        "default": 20,
+                    },
                 },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Maximum number of results",
-                    "default": 20,
-                },
-            },
-            required_params=["query"],
-            handler=self._search_genes,
-        ))
+                required_params=["query"],
+                handler=self._search_genes,
+            )
+        )
 
         # Get exchange reactions
-        self.register_skill(Skill(
-            name="get_exchange_reactions",
-            description="Get all exchange reactions in the model",
-            description_ko="모델의 모든 교환 반응 조회",
-            parameters={},
-            required_params=[],
-            handler=self._get_exchange_reactions,
-        ))
+        self.register_skill(
+            Skill(
+                name="get_exchange_reactions",
+                description="Get all exchange reactions in the model",
+                description_ko="모델의 모든 교환 반응 조회",
+                parameters={},
+                required_params=[],
+                handler=self._get_exchange_reactions,
+            )
+        )
 
         # Get objective
-        self.register_skill(Skill(
-            name="get_objective",
-            description="Get the current objective function",
-            description_ko="현재 목적함수 조회",
-            parameters={},
-            required_params=[],
-            handler=self._get_objective,
-        ))
+        self.register_skill(
+            Skill(
+                name="get_objective",
+                description="Get the current objective function",
+                description_ko="현재 목적함수 조회",
+                parameters={},
+                required_params=[],
+                handler=self._get_objective,
+            )
+        )
 
         # List compartments
-        self.register_skill(Skill(
-            name="list_compartments",
-            description="List all compartments in the model",
-            description_ko="모델의 모든 구획 목록",
-            parameters={},
-            required_params=[],
-            handler=self._list_compartments,
-        ))
+        self.register_skill(
+            Skill(
+                name="list_compartments",
+                description="List all compartments in the model",
+                description_ko="모델의 모든 구획 목록",
+                parameters={},
+                required_params=[],
+                handler=self._list_compartments,
+            )
+        )
 
         # Get analysis results
-        self.register_skill(Skill(
-            name="get_analysis_results",
-            description="Get results from recent analysis",
-            description_ko="최근 분석 결과 조회",
-            parameters={
-                "analysis_type": {
-                    "type": "string",
-                    "description": "Type of analysis (fba, fva, essential_genes, etc.)",
-                    "default": "latest",
+        self.register_skill(
+            Skill(
+                name="get_analysis_results",
+                description="Get results from recent analysis",
+                description_ko="최근 분석 결과 조회",
+                parameters={
+                    "analysis_type": {
+                        "type": "string",
+                        "description": "Type of analysis (fba, fva, essential_genes, etc.)",
+                        "default": "latest",
+                    },
+                    "top_n": {
+                        "type": "integer",
+                        "description": "Number of top results to return",
+                        "default": 10,
+                    },
                 },
-                "top_n": {
-                    "type": "integer",
-                    "description": "Number of top results to return",
-                    "default": 10,
-                },
-            },
-            required_params=[],
-            handler=self._get_analysis_results,
-        ))
+                required_params=[],
+                handler=self._get_analysis_results,
+            )
+        )
 
     def _check_model(self) -> Optional[SkillResult]:
         """Check if a model is loaded."""
@@ -403,10 +423,7 @@ class DataQueryAgent(BaseAgent):
 
         gene = model.genes.get_by_id(gene_id)
 
-        reactions = [
-            {"id": r.id, "name": r.name}
-            for r in gene.reactions
-        ]
+        reactions = [{"id": r.id, "name": r.name} for r in gene.reactions]
 
         info = {
             "id": gene.id,
@@ -418,14 +435,8 @@ class DataQueryAgent(BaseAgent):
         return SkillResult(
             status=SkillStatus.SUCCESS,
             data=info,
-            message=(
-                f"Gene {gene.id}: {gene.name or 'N/A'}\n"
-                f"• Associated reactions: {len(reactions)}"
-            ),
-            message_ko=(
-                f"유전자 {gene.id}: {gene.name or 'N/A'}\n"
-                f"• 연관 반응: {len(reactions)}개"
-            ),
+            message=(f"Gene {gene.id}: {gene.name or 'N/A'}\n" f"• Associated reactions: {len(reactions)}"),
+            message_ko=(f"유전자 {gene.id}: {gene.name or 'N/A'}\n" f"• 연관 반응: {len(reactions)}개"),
         )
 
     def _search_reactions(
@@ -463,12 +474,14 @@ class DataQueryAgent(BaseAgent):
                     match_field = "equation"
 
             if match:
-                results.append({
-                    "id": rxn.id,
-                    "name": rxn.name,
-                    "reaction": rxn.reaction[:100] + "..." if len(rxn.reaction) > 100 else rxn.reaction,
-                    "match_field": match_field,
-                })
+                results.append(
+                    {
+                        "id": rxn.id,
+                        "name": rxn.name,
+                        "reaction": rxn.reaction[:100] + "..." if len(rxn.reaction) > 100 else rxn.reaction,
+                        "match_field": match_field,
+                    }
+                )
 
             if len(results) >= max_results:
                 break
@@ -507,12 +520,14 @@ class DataQueryAgent(BaseAgent):
                 match = True
 
             if match:
-                results.append({
-                    "id": met.id,
-                    "name": met.name,
-                    "formula": met.formula,
-                    "compartment": met.compartment,
-                })
+                results.append(
+                    {
+                        "id": met.id,
+                        "name": met.name,
+                        "formula": met.formula,
+                        "compartment": met.compartment,
+                    }
+                )
 
             if len(results) >= max_results:
                 break
@@ -551,11 +566,13 @@ class DataQueryAgent(BaseAgent):
                 match = True
 
             if match:
-                results.append({
-                    "id": gene.id,
-                    "name": gene.name,
-                    "n_reactions": len(gene.reactions),
-                })
+                results.append(
+                    {
+                        "id": gene.id,
+                        "name": gene.name,
+                        "n_reactions": len(gene.reactions),
+                    }
+                )
 
             if len(results) >= max_results:
                 break
@@ -587,12 +604,14 @@ class DataQueryAgent(BaseAgent):
                 if self.context.comp_values and rxn.id in self.context.comp_values:
                     flux = self.context.comp_values[rxn.id]
 
-                exchange_rxns.append({
-                    "id": rxn.id,
-                    "name": rxn.name,
-                    "bounds": [rxn.lower_bound, rxn.upper_bound],
-                    "current_flux": flux,
-                })
+                exchange_rxns.append(
+                    {
+                        "id": rxn.id,
+                        "name": rxn.name,
+                        "bounds": [rxn.lower_bound, rxn.upper_bound],
+                        "current_flux": flux,
+                    }
+                )
 
         return SkillResult(
             status=SkillStatus.SUCCESS,
@@ -649,11 +668,13 @@ class DataQueryAgent(BaseAgent):
         compartments = []
         for comp_id, comp_name in model.compartments.items():
             n_mets = sum(1 for m in model.metabolites if m.compartment == comp_id)
-            compartments.append({
-                "id": comp_id,
-                "name": comp_name,
-                "n_metabolites": n_mets,
-            })
+            compartments.append(
+                {
+                    "id": comp_id,
+                    "name": comp_name,
+                    "n_metabolites": n_mets,
+                }
+            )
 
         return SkillResult(
             status=SkillStatus.SUCCESS,
@@ -684,13 +705,15 @@ class DataQueryAgent(BaseAgent):
         fluxes = []
         for rxn_id, (lb, ub) in self.context.comp_values.items():
             mean_flux = (lb + ub) / 2
-            fluxes.append({
-                "reaction_id": rxn_id,
-                "lower": lb,
-                "upper": ub,
-                "mean": mean_flux,
-                "abs_mean": abs(mean_flux),
-            })
+            fluxes.append(
+                {
+                    "reaction_id": rxn_id,
+                    "lower": lb,
+                    "upper": ub,
+                    "mean": mean_flux,
+                    "abs_mean": abs(mean_flux),
+                }
+            )
 
         # Sort by absolute mean flux
         fluxes.sort(key=lambda x: x["abs_mean"], reverse=True)

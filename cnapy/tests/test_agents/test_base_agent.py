@@ -1,9 +1,13 @@
 """Tests for base agent classes."""
 
-import pytest
 from cnapy.agents.base_agent import (
-    BaseAgent, AgentContext, SkillResult, Skill, SkillStatus,
-    ToolDefinition, AgentResponse, WorkflowStep,
+    AgentContext,
+    AgentResponse,
+    Skill,
+    SkillResult,
+    SkillStatus,
+    ToolDefinition,
+    WorkflowStep,
 )
 
 
@@ -13,10 +17,7 @@ class TestSkillResult:
     def test_success_result(self):
         """Test creating a successful result."""
         result = SkillResult(
-            status=SkillStatus.SUCCESS,
-            message="Success message",
-            message_ko="성공 메시지",
-            data={"key": "value"}
+            status=SkillStatus.SUCCESS, message="Success message", message_ko="성공 메시지", data={"key": "value"}
         )
         assert result.success is True
         assert result.get_message("en") == "Success message"
@@ -25,28 +26,18 @@ class TestSkillResult:
 
     def test_failure_result(self):
         """Test creating a failure result."""
-        result = SkillResult(
-            status=SkillStatus.FAILURE,
-            message="Failure message",
-            error="Some error occurred"
-        )
+        result = SkillResult(status=SkillStatus.FAILURE, message="Failure message", error="Some error occurred")
         assert result.success is False
         assert result.error == "Some error occurred"
 
     def test_partial_result(self):
         """Test creating a partial result."""
-        result = SkillResult(
-            status=SkillStatus.PARTIAL,
-            message="Partial message"
-        )
+        result = SkillResult(status=SkillStatus.PARTIAL, message="Partial message")
         assert result.success is False  # Only SUCCESS is considered success
 
     def test_get_message_fallback(self):
         """Test message fallback when Korean not available."""
-        result = SkillResult(
-            status=SkillStatus.SUCCESS,
-            message="English only"
-        )
+        result = SkillResult(status=SkillStatus.SUCCESS, message="English only")
         # Should return English when Korean not available
         assert result.get_message("ko") == "English only"
 
@@ -56,6 +47,7 @@ class TestSkill:
 
     def test_skill_creation(self):
         """Test creating a skill."""
+
         def handler(**params):
             return SkillResult(status=SkillStatus.SUCCESS)
 
@@ -64,7 +56,7 @@ class TestSkill:
             description="Test skill description",
             parameters={"param1": {"type": "string"}},
             required_params=["param1"],
-            handler=handler
+            handler=handler,
         )
         assert skill.name == "test_skill"
         assert skill.description == "Test skill description"
@@ -72,18 +64,11 @@ class TestSkill:
 
     def test_skill_to_tool_definition(self):
         """Test converting skill to tool definition."""
-        def handler(**params):
-            return SkillResult(
-                status=SkillStatus.SUCCESS,
-                data={"received": params.get("value")}
-            )
 
-        skill = Skill(
-            name="test_skill",
-            description="Test",
-            parameters={"value": {"type": "integer"}},
-            handler=handler
-        )
+        def handler(**params):
+            return SkillResult(status=SkillStatus.SUCCESS, data={"received": params.get("value")})
+
+        skill = Skill(name="test_skill", description="Test", parameters={"value": {"type": "integer"}}, handler=handler)
         tool_def = skill.to_tool_definition()
         assert tool_def.name == "test_skill"
         assert tool_def.description == "Test"
@@ -94,11 +79,7 @@ class TestToolDefinition:
 
     def test_tool_definition(self):
         """Test creating a tool definition."""
-        tool = ToolDefinition(
-            name="test_tool",
-            description="Test tool",
-            parameters={"param1": {"type": "string"}}
-        )
+        tool = ToolDefinition(name="test_tool", description="Test tool", parameters={"param1": {"type": "string"}})
         assert tool.name == "test_tool"
         assert tool.description == "Test tool"
 
@@ -108,12 +89,7 @@ class TestAgentResponse:
 
     def test_agent_response_success(self):
         """Test creating a successful response."""
-        response = AgentResponse(
-            success=True,
-            message="Success",
-            message_ko="성공",
-            agent_name="TestAgent"
-        )
+        response = AgentResponse(success=True, message="Success", message_ko="성공", agent_name="TestAgent")
         assert response.success
         assert response.get_message("en") == "Success"
         assert response.get_message("ko") == "성공"
@@ -123,11 +99,7 @@ class TestAgentResponse:
         result1 = SkillResult(status=SkillStatus.SUCCESS, message="Step 1")
         result2 = SkillResult(status=SkillStatus.SUCCESS, message="Step 2")
 
-        response = AgentResponse(
-            success=True,
-            message="Workflow complete",
-            results=[result1, result2]
-        )
+        response = AgentResponse(success=True, message="Workflow complete", results=[result1, result2])
         assert len(response.results) == 2
 
 
@@ -136,11 +108,7 @@ class TestWorkflowStep:
 
     def test_workflow_step(self):
         """Test creating a workflow step."""
-        step = WorkflowStep(
-            agent_name="flux_analysis",
-            skill_name="perform_fba",
-            params={"fraction": 0.9}
-        )
+        step = WorkflowStep(agent_name="flux_analysis", skill_name="perform_fba", params={"fraction": 0.9})
         assert step.agent_name == "flux_analysis"
         assert step.skill_name == "perform_fba"
         assert step.params["fraction"] == 0.9

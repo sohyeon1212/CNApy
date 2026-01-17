@@ -1,8 +1,9 @@
 """Tests for FluxAnalysisAgent."""
 
 import pytest
-from cnapy.agents.flux_analysis_agent import FluxAnalysisAgent
+
 from cnapy.agents.base_agent import SkillStatus
+from cnapy.agents.flux_analysis_agent import FluxAnalysisAgent
 
 
 class TestFluxAnalysisAgent:
@@ -94,7 +95,7 @@ class TestFluxAnalysisAgent:
         tools = agent.get_tools()
 
         assert len(tools) > 0
-        assert all(hasattr(t, 'name') and hasattr(t, 'description') for t in tools)
+        assert all(hasattr(t, "name") and hasattr(t, "description") for t in tools)
 
 
 class TestFluxAnalysisAgentWithSimpleModel:
@@ -117,9 +118,7 @@ class TestFluxAnalysisAgentWithSimpleModel:
         agent.execute_skill("perform_fba", {})
 
         # Analyze distribution
-        result = agent.execute_skill("analyze_flux_distribution", {
-            "reaction_ids": ["R1", "R2"]
-        })
+        result = agent.execute_skill("analyze_flux_distribution", {"reaction_ids": ["R1", "R2"]})
 
         # Should succeed even if some reactions not in solution
         assert result.status in [SkillStatus.SUCCESS, SkillStatus.FAILURE]

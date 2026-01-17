@@ -1,8 +1,7 @@
 """Tests for ScenarioManagerAgent."""
 
-import pytest
-from cnapy.agents.scenario_manager_agent import ScenarioManagerAgent
 from cnapy.agents.base_agent import SkillStatus
+from cnapy.agents.scenario_manager_agent import ScenarioManagerAgent
 
 
 class TestScenarioManagerAgent:
@@ -124,11 +123,9 @@ class TestScenarioManagerWithEcoliModel:
         # Get first reaction
         rxn_id = model.reactions[0].id
 
-        result = agent.execute_skill("set_reaction_bounds", {
-            "reaction_id": rxn_id,
-            "lower_bound": -5.0,
-            "upper_bound": 10.0
-        })
+        result = agent.execute_skill(
+            "set_reaction_bounds", {"reaction_id": rxn_id, "lower_bound": -5.0, "upper_bound": 10.0}
+        )
 
         assert result.success
         # Verify bounds were set

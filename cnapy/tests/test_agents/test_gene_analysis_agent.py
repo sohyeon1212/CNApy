@@ -1,8 +1,9 @@
 """Tests for GeneAnalysisAgent."""
 
 import pytest
-from cnapy.agents.gene_analysis_agent import GeneAnalysisAgent
+
 from cnapy.agents.base_agent import SkillStatus
+from cnapy.agents.gene_analysis_agent import GeneAnalysisAgent
 
 
 class TestGeneAnalysisAgent:

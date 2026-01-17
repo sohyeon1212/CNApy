@@ -1,8 +1,6 @@
 """Tests for OrchestratorAgent."""
 
-import pytest
 from cnapy.agents.orchestrator_agent import OrchestratorAgent
-from cnapy.agents.agent_registry import AgentRegistry, create_default_registry
 
 
 class TestOrchestratorAgent:
@@ -86,10 +84,7 @@ class TestParameterExtraction:
     def test_extract_fva_fraction(self, agent_context):
         """Test extracting FVA fraction parameter."""
         orchestrator = OrchestratorAgent(agent_context)
-        params = orchestrator._extract_parameters(
-            "perform FVA with 90% optimum",
-            "perform_fva"
-        )
+        params = orchestrator._extract_parameters("perform FVA with 90% optimum", "perform_fva")
 
         assert "fraction_of_optimum" in params
         assert params["fraction_of_optimum"] == 0.9
@@ -97,10 +92,7 @@ class TestParameterExtraction:
     def test_extract_condition_name(self, agent_context):
         """Test extracting condition name."""
         orchestrator = OrchestratorAgent(agent_context)
-        params = orchestrator._extract_parameters(
-            "set anaerobic condition",
-            "apply_condition"
-        )
+        params = orchestrator._extract_parameters("set anaerobic condition", "apply_condition")
 
         assert "condition_name" in params
         assert params["condition_name"] == "anaerobic"
@@ -108,10 +100,7 @@ class TestParameterExtraction:
     def test_extract_korean_condition(self, agent_context):
         """Test extracting Korean condition name."""
         orchestrator = OrchestratorAgent(agent_context)
-        params = orchestrator._extract_parameters(
-            "혐기 조건 설정해줘",
-            "apply_condition"
-        )
+        params = orchestrator._extract_parameters("혐기 조건 설정해줘", "apply_condition")
 
         assert "condition_name" in params
         assert params["condition_name"] == "anaerobic"
@@ -119,10 +108,7 @@ class TestParameterExtraction:
     def test_extract_carbon_source(self, agent_context):
         """Test extracting carbon source."""
         orchestrator = OrchestratorAgent(agent_context)
-        params = orchestrator._extract_parameters(
-            "set glucose as carbon source",
-            "set_carbon_source"
-        )
+        params = orchestrator._extract_parameters("set glucose as carbon source", "set_carbon_source")
 
         assert "carbon_source" in params
         assert params["carbon_source"] == "glucose"

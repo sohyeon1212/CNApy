@@ -1,10 +1,7 @@
 """Tests for AgentRegistry."""
 
-import pytest
-from cnapy.agents.agent_registry import (
-    AgentRegistry, ROUTING_RULES, create_default_registry
-)
-from cnapy.agents.base_agent import BaseAgent, AgentContext, SkillResult, SkillStatus
+from cnapy.agents.agent_registry import ROUTING_RULES, AgentRegistry, create_default_registry
+from cnapy.agents.base_agent import AgentContext, BaseAgent
 
 
 class MockAgent(BaseAgent):

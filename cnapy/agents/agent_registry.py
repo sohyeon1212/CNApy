@@ -7,54 +7,136 @@ It handles:
 - Agent lifecycle management
 """
 
-from typing import Dict, List, Optional, Type, Tuple
 import re
+from typing import Optional
 
-from cnapy.agents.base_agent import BaseAgent, AgentContext
-
+from cnapy.agents.base_agent import AgentContext, BaseAgent
 
 # Routing rules for intent detection
 # Maps keywords to agent types
-ROUTING_RULES: Dict[str, List[str]] = {
+ROUTING_RULES: dict[str, list[str]] = {
     "flux_analysis": [
         # English keywords
-        "fba", "pfba", "fva", "moma", "room", "sampling", "flux",
-        "optimize", "optimization", "balance", "variability",
+        "fba",
+        "pfba",
+        "fva",
+        "moma",
+        "room",
+        "sampling",
+        "flux",
+        "optimize",
+        "optimization",
+        "balance",
+        "variability",
         # Korean keywords
-        "플럭스", "최적화", "분석", "샘플링", "변동성",
+        "플럭스",
+        "최적화",
+        "분석",
+        "샘플링",
+        "변동성",
     ],
     "gene_analysis": [
         # English keywords
-        "knockout", "ko", "essential", "gene", "deletion", "lethal",
-        "synthetic", "double", "single",
+        "knockout",
+        "ko",
+        "essential",
+        "gene",
+        "deletion",
+        "lethal",
+        "synthetic",
+        "double",
+        "single",
         # Korean keywords
-        "녹아웃", "유전자", "필수", "치사", "삭제",
+        "녹아웃",
+        "유전자",
+        "필수",
+        "치사",
+        "삭제",
     ],
     "scenario": [
         # English keywords
-        "condition", "scenario", "save", "load", "setting", "bound",
-        "carbon", "nitrogen", "oxygen", "aerobic", "anaerobic",
-        "source", "objective", "constraint",
+        "condition",
+        "scenario",
+        "save",
+        "load",
+        "setting",
+        "bound",
+        "carbon",
+        "nitrogen",
+        "oxygen",
+        "aerobic",
+        "anaerobic",
+        "source",
+        "objective",
+        "constraint",
         # Korean keywords
-        "조건", "시나리오", "저장", "로드", "설정", "경계",
-        "탄소원", "질소원", "산소", "호기", "혐기", "목적함수",
+        "조건",
+        "시나리오",
+        "저장",
+        "로드",
+        "설정",
+        "경계",
+        "탄소원",
+        "질소원",
+        "산소",
+        "호기",
+        "혐기",
+        "목적함수",
     ],
     "data_query": [
         # English keywords
-        "info", "information", "search", "find", "query", "list",
-        "reaction", "metabolite", "pathway", "what", "which", "show",
-        "get", "display",
+        "info",
+        "information",
+        "search",
+        "find",
+        "query",
+        "list",
+        "reaction",
+        "metabolite",
+        "pathway",
+        "what",
+        "which",
+        "show",
+        "get",
+        "display",
         # Korean keywords
-        "정보", "검색", "찾기", "조회", "목록", "반응", "대사체",
-        "경로", "무엇", "어떤", "보여", "표시",
+        "정보",
+        "검색",
+        "찾기",
+        "조회",
+        "목록",
+        "반응",
+        "대사체",
+        "경로",
+        "무엇",
+        "어떤",
+        "보여",
+        "표시",
     ],
     "strain_knowledge": [
         # English keywords
-        "strain", "organism", "species", "exist", "presence", "have",
-        "literature", "paper", "research", "compare", "suggest",
+        "strain",
+        "organism",
+        "species",
+        "exist",
+        "presence",
+        "have",
+        "literature",
+        "paper",
+        "research",
+        "compare",
+        "suggest",
         # Korean keywords
-        "균주", "생물", "종", "존재", "있", "문헌", "논문",
-        "연구", "비교", "제안",
+        "균주",
+        "생물",
+        "종",
+        "존재",
+        "있",
+        "문헌",
+        "논문",
+        "연구",
+        "비교",
+        "제안",
     ],
 }
 
@@ -76,10 +158,10 @@ class AgentRegistry:
             context: Shared agent context
         """
         self.context = context
-        self._agents: Dict[str, BaseAgent] = {}
-        self._agent_classes: Dict[str, Type[BaseAgent]] = {}
+        self._agents: dict[str, BaseAgent] = {}
+        self._agent_classes: dict[str, type[BaseAgent]] = {}
 
-    def register_agent_class(self, agent_type: str, agent_class: Type[BaseAgent]):
+    def register_agent_class(self, agent_type: str, agent_class: type[BaseAgent]):
         """Register an agent class for later instantiation.
 
         Args:
@@ -118,7 +200,7 @@ class AgentRegistry:
 
         return None
 
-    def get_all_agents(self) -> Dict[str, BaseAgent]:
+    def get_all_agents(self) -> dict[str, BaseAgent]:
         """Get all registered agents.
 
         Returns:
@@ -130,7 +212,7 @@ class AgentRegistry:
                 self._agents[agent_type] = self._agent_classes[agent_type](self.context)
         return self._agents
 
-    def route_intent(self, user_message: str) -> List[Tuple[str, float]]:
+    def route_intent(self, user_message: str) -> list[tuple[str, float]]:
         """Route a user message to appropriate agent(s).
 
         Uses keyword matching and agent can_handle scoring.
@@ -142,7 +224,7 @@ class AgentRegistry:
             List of (agent_type, score) tuples, sorted by score descending
         """
         message_lower = user_message.lower()
-        scores: Dict[str, float] = {}
+        scores: dict[str, float] = {}
 
         # Step 1: Keyword-based routing
         for agent_type, keywords in ROUTING_RULES.items():
@@ -177,7 +259,7 @@ class AgentRegistry:
             Language code ("ko" for Korean, "en" for English)
         """
         # Count Korean characters (Hangul)
-        korean_pattern = re.compile(r'[\uAC00-\uD7A3]')
+        korean_pattern = re.compile(r"[\uAC00-\uD7A3]")
         korean_chars = len(korean_pattern.findall(text))
 
         # If more than 10% of characters are Korean, assume Korean
@@ -187,7 +269,7 @@ class AgentRegistry:
 
         return "en"
 
-    def extract_keywords(self, text: str) -> List[str]:
+    def extract_keywords(self, text: str) -> list[str]:
         """Extract relevant keywords from text.
 
         Args:
@@ -211,7 +293,7 @@ class AgentRegistry:
         return found
 
     @property
-    def agent_types(self) -> List[str]:
+    def agent_types(self) -> list[str]:
         """List of all registered agent types."""
         all_types = set(self._agents.keys()) | set(self._agent_classes.keys())
         return list(all_types)
@@ -232,30 +314,35 @@ def create_default_registry(context: AgentContext) -> AgentRegistry:
     # These imports are deferred to avoid circular imports
     try:
         from cnapy.agents.flux_analysis_agent import FluxAnalysisAgent
+
         registry.register_agent_class("flux_analysis", FluxAnalysisAgent)
     except ImportError:
         pass
 
     try:
         from cnapy.agents.gene_analysis_agent import GeneAnalysisAgent
+
         registry.register_agent_class("gene_analysis", GeneAnalysisAgent)
     except ImportError:
         pass
 
     try:
         from cnapy.agents.scenario_manager_agent import ScenarioManagerAgent
+
         registry.register_agent_class("scenario", ScenarioManagerAgent)
     except ImportError:
         pass
 
     try:
         from cnapy.agents.data_query_agent import DataQueryAgent
+
         registry.register_agent_class("data_query", DataQueryAgent)
     except ImportError:
         pass
 
     try:
         from cnapy.agents.strain_knowledge_agent import StrainKnowledgeAgent
+
         registry.register_agent_class("strain_knowledge", StrainKnowledgeAgent)
     except ImportError:
         pass

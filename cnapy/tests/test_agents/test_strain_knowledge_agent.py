@@ -1,9 +1,11 @@
 """Tests for StrainKnowledgeAgent."""
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import MagicMock, patch
-from cnapy.agents.strain_knowledge_agent import StrainKnowledgeAgent
+
 from cnapy.agents.base_agent import SkillStatus
+from cnapy.agents.strain_knowledge_agent import StrainKnowledgeAgent
 
 
 class TestStrainKnowledgeAgent:
@@ -129,11 +131,10 @@ class TestLLMIntegration:
         """Test analyze_strain_reactions with mocked LLM."""
         agent = StrainKnowledgeAgent(agent_context, mock_llm_config)
 
-        with patch.object(agent, '_call_llm', return_value=mock_llm_response):
-            result = agent.execute_skill("analyze_strain_reactions", {
-                "strain_name": "E. coli",
-                "reaction_ids": ["PGI", "PFK"]
-            })
+        with patch.object(agent, "_call_llm", return_value=mock_llm_response):
+            result = agent.execute_skill(
+                "analyze_strain_reactions", {"strain_name": "E. coli", "reaction_ids": ["PGI", "PFK"]}
+            )
 
             assert result.success
             assert result.data is not None
@@ -151,11 +152,8 @@ class TestLLMIntegration:
             "summary": "E. coli is a well-studied bacterium"
         }"""
 
-        with patch.object(agent, '_call_llm', return_value=mock_response):
-            result = agent.execute_skill("get_strain_metabolism", {
-                "strain_name": "E. coli",
-                "aspect": "general"
-            })
+        with patch.object(agent, "_call_llm", return_value=mock_response):
+            result = agent.execute_skill("get_strain_metabolism", {"strain_name": "E. coli", "aspect": "general"})
 
             assert result.success
             assert result.data is not None
@@ -174,11 +172,8 @@ class TestLLMIntegration:
             "summary": "Comparison summary"
         }"""
 
-        with patch.object(agent, '_call_llm', return_value=mock_response):
-            result = agent.execute_skill("compare_strains", {
-                "strain1": "E. coli",
-                "strain2": "C. glutamicum"
-            })
+        with patch.object(agent, "_call_llm", return_value=mock_response):
+            result = agent.execute_skill("compare_strains", {"strain1": "E. coli", "strain2": "C. glutamicum"})
 
             assert result.success
             assert result.data is not None
@@ -197,11 +192,10 @@ class TestLLMIntegration:
             "summary": "Strategy summary"
         }"""
 
-        with patch.object(agent, '_call_llm', return_value=mock_response):
-            result = agent.execute_skill("suggest_modifications", {
-                "strain_name": "E. coli",
-                "target_product": "lysine"
-            })
+        with patch.object(agent, "_call_llm", return_value=mock_response):
+            result = agent.execute_skill(
+                "suggest_modifications", {"strain_name": "E. coli", "target_product": "lysine"}
+            )
 
             assert result.success
             assert result.data is not None

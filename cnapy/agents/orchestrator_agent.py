@@ -8,10 +8,10 @@ This is the main routing agent that:
 - Provides unified response formatting
 """
 
-import json
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
+from cnapy.agents.agent_registry import create_default_registry
 from cnapy.agents.base_agent import (
     AgentContext,
     AgentResponse,
@@ -19,8 +19,7 @@ from cnapy.agents.base_agent import (
     SkillStatus,
     WorkflowStep,
 )
-from cnapy.agents.agent_registry import AgentRegistry, ROUTING_RULES, create_default_registry
-from cnapy.agents.predefined_scenarios import PREDEFINED_WORKFLOWS, get_workflow
+from cnapy.agents.predefined_scenarios import get_workflow
 
 
 class OrchestratorAgent:
@@ -43,70 +42,103 @@ class OrchestratorAgent:
     INTENT_PATTERNS = {
         # Flux Analysis patterns
         "perform_fba": [
-            r"\bfba\b", r"flux\s*balance", r"최적화", r"optimize",
-            r"성장\s*률", r"growth\s*rate", r"플럭스\s*분석",
+            r"\bfba\b",
+            r"flux\s*balance",
+            r"최적화",
+            r"optimize",
+            r"성장\s*률",
+            r"growth\s*rate",
+            r"플럭스\s*분석",
         ],
         "perform_pfba": [
-            r"\bpfba\b", r"parsimonious", r"최소\s*플럭스",
+            r"\bpfba\b",
+            r"parsimonious",
+            r"최소\s*플럭스",
         ],
         "perform_fva": [
-            r"\bfva\b", r"variability", r"변동성", r"플럭스\s*범위",
+            r"\bfva\b",
+            r"variability",
+            r"변동성",
+            r"플럭스\s*범위",
         ],
         "perform_moma": [
-            r"\bmoma\b", r"minimization.*adjustment",
+            r"\bmoma\b",
+            r"minimization.*adjustment",
         ],
         "perform_room": [
-            r"\broom\b", r"regulatory.*on.*off",
+            r"\broom\b",
+            r"regulatory.*on.*off",
         ],
         "perform_flux_sampling": [
-            r"sampling", r"샘플링", r"sample\s*flux",
+            r"sampling",
+            r"샘플링",
+            r"sample\s*flux",
         ],
-
         # Scenario Management patterns
         "apply_condition": [
-            r"aerobic|anaerobic|microaerobic", r"호기|혐기|미호기",
-            r"조건\s*설정", r"set.*condition", r"apply.*condition",
+            r"aerobic|anaerobic|microaerobic",
+            r"호기|혐기|미호기",
+            r"조건\s*설정",
+            r"set.*condition",
+            r"apply.*condition",
         ],
         "set_carbon_source": [
-            r"탄소원", r"carbon\s*source", r"glucose|xylose|glycerol",
+            r"탄소원",
+            r"carbon\s*source",
+            r"glucose|xylose|glycerol",
             r"포도당|자일로스|글리세롤",
         ],
         "set_nitrogen_source": [
-            r"질소원", r"nitrogen\s*source", r"ammonium|ammonia",
+            r"질소원",
+            r"nitrogen\s*source",
+            r"ammonium|ammonia",
             r"암모니아|암모늄",
         ],
-
         # Gene Analysis patterns
         "knockout_gene": [
-            r"knockout|ko|녹아웃|삭제", r"gene.*delete",
+            r"knockout|ko|녹아웃|삭제",
+            r"gene.*delete",
         ],
         "find_essential_genes": [
-            r"essential.*gene", r"필수.*유전자", r"lethal",
+            r"essential.*gene",
+            r"필수.*유전자",
+            r"lethal",
         ],
-
         # Data Query patterns
         "get_model_info": [
-            r"model.*info", r"모델.*정보", r"how\s*many",
+            r"model.*info",
+            r"모델.*정보",
+            r"how\s*many",
         ],
         "search_reactions": [
-            r"search.*reaction", r"반응.*검색", r"find.*reaction",
+            r"search.*reaction",
+            r"반응.*검색",
+            r"find.*reaction",
         ],
-
         # Strain Knowledge patterns
         "analyze_strain": [
-            r"strain.*exist", r"균주", r"있어\?|있나요|존재",
+            r"strain.*exist",
+            r"균주",
+            r"있어\?|있나요|존재",
         ],
         "compare_strains": [
-            r"compare.*strain", r"균주.*비교", r"strain.*vs|versus",
-            r"차이점|difference", r"strain.*differ",
+            r"compare.*strain",
+            r"균주.*비교",
+            r"strain.*vs|versus",
+            r"차이점|difference",
+            r"strain.*differ",
         ],
         "suggest_modifications": [
-            r"suggest.*modif|engineer", r"제안|개량|엔지니어링",
-            r"produce|생산|합성", r"strategy|전략",
+            r"suggest.*modif|engineer",
+            r"제안|개량|엔지니어링",
+            r"produce|생산|합성",
+            r"strategy|전략",
         ],
         "literature_search": [
-            r"literature|paper|research", r"문헌|논문|연구",
-            r"published|publication", r"what.*know",
+            r"literature|paper|research",
+            r"문헌|논문|연구",
+            r"published|publication",
+            r"what.*know",
         ],
         "check_reaction_in_strain": [
             r"(reaction|반응).*(exist|있|존재).*(strain|균주)",
@@ -130,7 +162,6 @@ class OrchestratorAgent:
         "analyze_flux_distribution": "flux_analysis",
         "get_objective_value": "flux_analysis",
         "compare_flux_states": "flux_analysis",
-
         "apply_condition": "scenario",
         "set_reaction_bounds": "scenario",
         "set_carbon_source": "scenario",
@@ -143,13 +174,11 @@ class OrchestratorAgent:
         "list_conditions": "scenario",
         "list_carbon_sources": "scenario",
         "list_nitrogen_sources": "scenario",
-
         "knockout_gene": "gene_analysis",
         "knockout_genes": "gene_analysis",
         "find_essential_genes": "gene_analysis",
         "find_essential_reactions": "gene_analysis",
         "single_gene_ko_scan": "gene_analysis",
-
         "get_model_info": "data_query",
         "get_reaction_info": "data_query",
         "get_metabolite_info": "data_query",
@@ -157,7 +186,6 @@ class OrchestratorAgent:
         "search_reactions": "data_query",
         "search_metabolites": "data_query",
         "search_genes": "data_query",
-
         "analyze_strain_reactions": "strain_knowledge",
         "analyze_strain_genes": "strain_knowledge",
         "get_strain_metabolism": "strain_knowledge",
@@ -219,7 +247,7 @@ class OrchestratorAgent:
         # Step 5: Fallback - try to provide helpful response
         return self._generate_fallback_response(user_message, language)
 
-    def _analyze_intent(self, message: str) -> Dict[str, Any]:
+    def _analyze_intent(self, message: str) -> dict[str, Any]:
         """Analyze user intent using rule-based patterns.
 
         Args:
@@ -271,7 +299,7 @@ class OrchestratorAgent:
             "confidence": 0.0,
         }
 
-    def _extract_parameters(self, message: str, skill_name: str) -> Dict[str, Any]:
+    def _extract_parameters(self, message: str, skill_name: str) -> dict[str, Any]:
         """Extract parameters from the message for a specific skill.
 
         Args:
@@ -326,9 +354,9 @@ class OrchestratorAgent:
             # Try to find gene IDs (common patterns)
             gene_patterns = [
                 r"\b([a-z]{3}[A-Z])\b",  # E. coli gene pattern (e.g., pfkA)
-                r"\b([A-Z]{3}\d+)\b",     # Yeast gene pattern (e.g., HXK1)
-                r"'([^']+)'",             # Quoted identifiers
-                r'"([^"]+)"',             # Double-quoted identifiers
+                r"\b([A-Z]{3}\d+)\b",  # Yeast gene pattern (e.g., HXK1)
+                r"'([^']+)'",  # Quoted identifiers
+                r'"([^"]+)"',  # Double-quoted identifiers
             ]
             for pattern in gene_patterns:
                 matches = re.findall(pattern, message)
@@ -343,10 +371,10 @@ class OrchestratorAgent:
         if skill_name in ["set_reaction_bounds", "set_objective", "get_reaction_info"]:
             # Common reaction patterns
             rxn_patterns = [
-                r"\b(EX_\w+)\b",           # Exchange reactions
-                r"\b(R_\w+)\b",            # Reactions with R_ prefix
-                r"'([^']+)'",              # Quoted identifiers
-                r'"([^"]+)"',              # Double-quoted identifiers
+                r"\b(EX_\w+)\b",  # Exchange reactions
+                r"\b(R_\w+)\b",  # Reactions with R_ prefix
+                r"'([^']+)'",  # Quoted identifiers
+                r'"([^"]+)"',  # Double-quoted identifiers
             ]
             for pattern in rxn_patterns:
                 matches = re.findall(pattern, message)
@@ -372,7 +400,7 @@ class OrchestratorAgent:
 
         return params
 
-    def _check_predefined_workflow(self, message: str) -> Optional[List[WorkflowStep]]:
+    def _check_predefined_workflow(self, message: str) -> Optional[list[WorkflowStep]]:
         """Check if the message matches a predefined workflow.
 
         Args:
@@ -388,7 +416,7 @@ class OrchestratorAgent:
             "fba_aerobic": ["호기.*fba", "aerobic.*fba", "fba.*aerobic", "fba.*호기"],
             "fba_anaerobic": ["혐기.*fba", "anaerobic.*fba", "fba.*anaerobic", "fba.*혐기"],
             "essential_genes": ["필수.*유전자", "essential.*gene", "find.*essential"],
-            "fva_analysis": ["fva\s*분석", "fva\s*analysis", "flux\s*variability"],
+            "fva_analysis": [r"fva\s*분석", r"fva\s*analysis", r"flux\s*variability"],
         }
 
         for workflow_name, triggers in workflow_triggers.items():
@@ -400,7 +428,7 @@ class OrchestratorAgent:
 
         return None
 
-    def _convert_workflow_to_steps(self, workflow) -> List[WorkflowStep]:
+    def _convert_workflow_to_steps(self, workflow) -> list[WorkflowStep]:
         """Convert a PredefinedWorkflow to WorkflowStep list.
 
         Args:
@@ -411,14 +439,16 @@ class OrchestratorAgent:
         """
         steps = []
         for step_data in workflow.steps:
-            steps.append(WorkflowStep(
-                agent_name=step_data["agent"],
-                skill_name=step_data["skill"],
-                params=step_data.get("params", {}),
-            ))
+            steps.append(
+                WorkflowStep(
+                    agent_name=step_data["agent"],
+                    skill_name=step_data["skill"],
+                    params=step_data.get("params", {}),
+                )
+            )
         return steps
 
-    def _execute_single_skill(self, intent: Dict[str, Any], language: str) -> AgentResponse:
+    def _execute_single_skill(self, intent: dict[str, Any], language: str) -> AgentResponse:
         """Execute a single skill based on intent analysis.
 
         Args:
@@ -459,7 +489,7 @@ class OrchestratorAgent:
             },
         )
 
-    def _execute_workflow(self, steps: List[WorkflowStep], language: str) -> AgentResponse:
+    def _execute_workflow(self, steps: list[WorkflowStep], language: str) -> AgentResponse:
         """Execute a multi-step workflow.
 
         Args:
@@ -476,12 +506,14 @@ class OrchestratorAgent:
         for step in steps:
             agent = self.registry.get_agent(step.agent_name)
             if agent is None:
-                results.append(SkillResult(
-                    status=SkillStatus.FAILURE,
-                    error=f"Agent '{step.agent_name}' not available",
-                    message=f"Agent '{step.agent_name}' is not available.",
-                    message_ko=f"'{step.agent_name}' 에이전트를 사용할 수 없습니다.",
-                ))
+                results.append(
+                    SkillResult(
+                        status=SkillStatus.FAILURE,
+                        error=f"Agent '{step.agent_name}' not available",
+                        message=f"Agent '{step.agent_name}' is not available.",
+                        message_ko=f"'{step.agent_name}' 에이전트를 사용할 수 없습니다.",
+                    )
+                )
                 success = False
                 break
 
@@ -569,7 +601,7 @@ class OrchestratorAgent:
             metadata={"fallback": True},
         )
 
-    def execute_workflow_by_name(self, workflow_name: str, params: Dict[str, Any] = None) -> AgentResponse:
+    def execute_workflow_by_name(self, workflow_name: str, params: dict[str, Any] = None) -> AgentResponse:
         """Execute a predefined workflow by name.
 
         Args:
@@ -598,7 +630,7 @@ class OrchestratorAgent:
 
         return self._execute_workflow(steps, self.context.current_language)
 
-    def get_available_agents(self) -> List[Dict[str, str]]:
+    def get_available_agents(self) -> list[dict[str, str]]:
         """Get list of available agents with descriptions.
 
         Returns:
@@ -607,16 +639,18 @@ class OrchestratorAgent:
         agents = self.registry.get_all_agents()
         result = []
         for agent_type, agent in agents.items():
-            result.append({
-                "type": agent_type,
-                "name": agent.name,
-                "description": agent.description,
-                "description_ko": agent.description_ko,
-                "n_skills": len(agent.skills),
-            })
+            result.append(
+                {
+                    "type": agent_type,
+                    "name": agent.name,
+                    "description": agent.description,
+                    "description_ko": agent.description_ko,
+                    "n_skills": len(agent.skills),
+                }
+            )
         return result
 
-    def get_agent_skills(self, agent_type: str) -> List[Dict[str, Any]]:
+    def get_agent_skills(self, agent_type: str) -> list[dict[str, Any]]:
         """Get skills for a specific agent.
 
         Args:
@@ -631,11 +665,13 @@ class OrchestratorAgent:
 
         result = []
         for skill_name, skill in agent.skills.items():
-            result.append({
-                "name": skill_name,
-                "description": skill.description,
-                "description_ko": skill.description_ko,
-                "parameters": skill.parameters,
-                "required_params": skill.required_params,
-            })
+            result.append(
+                {
+                    "name": skill_name,
+                    "description": skill.description,
+                    "description_ko": skill.description_ko,
+                    "parameters": skill.parameters,
+                    "required_params": skill.required_params,
+                }
+            )
         return result

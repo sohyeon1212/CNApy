@@ -10,16 +10,20 @@ This agent provides LLM-based strain knowledge queries, including:
 It integrates with the existing LLMConfig system for multi-provider support.
 """
 
+import hashlib
 import json
 import re
 import time
-import hashlib
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Optional
 
 from cnapy.agents.base_agent import (
-    BaseAgent, AgentContext, Skill, SkillResult, SkillStatus,
-    ToolDefinition, AgentResponse
+    AgentContext,
+    BaseAgent,
+    Skill,
+    SkillResult,
+    SkillStatus,
+    ToolDefinition,
 )
 from cnapy.gui_elements.llm_analysis_dialog import LLMConfig
 
@@ -40,19 +44,48 @@ class StrainKnowledgeAgent(BaseAgent):
     # Keywords that trigger this agent
     TRIGGER_KEYWORDS = [
         # English
-        "strain", "organism", "species", "bacteria", "yeast",
-        "exist", "presence", "ortholog", "homolog",
-        "pathway", "metabolism", "metabolic",
-        "literature", "reference", "paper",
-        "compare", "comparison", "difference",
-        "modification", "engineering", "suggest",
+        "strain",
+        "organism",
+        "species",
+        "bacteria",
+        "yeast",
+        "exist",
+        "presence",
+        "ortholog",
+        "homolog",
+        "pathway",
+        "metabolism",
+        "metabolic",
+        "literature",
+        "reference",
+        "paper",
+        "compare",
+        "comparison",
+        "difference",
+        "modification",
+        "engineering",
+        "suggest",
         # Korean
-        "균주", "생물", "종", "박테리아", "효모",
-        "존재", "유무", "오솔로그", "호몰로그",
-        "경로", "대사", "대사체",
-        "문헌", "참고", "논문",
-        "비교", "차이",
-        "개량", "엔지니어링", "제안"
+        "균주",
+        "생물",
+        "종",
+        "박테리아",
+        "효모",
+        "존재",
+        "유무",
+        "오솔로그",
+        "호몰로그",
+        "경로",
+        "대사",
+        "대사체",
+        "문헌",
+        "참고",
+        "논문",
+        "비교",
+        "차이",
+        "개량",
+        "엔지니어링",
+        "제안",
     ]
 
     def __init__(self, context: AgentContext, llm_config: Optional[LLMConfig] = None):
@@ -63,112 +96,130 @@ class StrainKnowledgeAgent(BaseAgent):
     def _register_skills(self):
         """Register all skills for this agent."""
         # Skill: Analyze strain reactions
-        self.register_skill(Skill(
-            name="analyze_strain_reactions",
-            description="균주에서 특정 반응의 존재 여부 분석 / Analyze reaction existence in a strain",
-            parameters={
-                "strain_name": {"type": "string", "description": "Strain name (e.g., 'E. coli', 'C. glutamicum')"},
-                "reaction_ids": {"type": "array", "description": "List of reaction IDs to analyze"},
-            },
-            required_params=["strain_name"],
-            handler=self._analyze_strain_reactions
-        ))
+        self.register_skill(
+            Skill(
+                name="analyze_strain_reactions",
+                description="균주에서 특정 반응의 존재 여부 분석 / Analyze reaction existence in a strain",
+                parameters={
+                    "strain_name": {"type": "string", "description": "Strain name (e.g., 'E. coli', 'C. glutamicum')"},
+                    "reaction_ids": {"type": "array", "description": "List of reaction IDs to analyze"},
+                },
+                required_params=["strain_name"],
+                handler=self._analyze_strain_reactions,
+            )
+        )
 
         # Skill: Analyze strain genes
-        self.register_skill(Skill(
-            name="analyze_strain_genes",
-            description="균주에서 특정 유전자의 존재/오솔로그 분석 / Analyze gene/ortholog existence in a strain",
-            parameters={
-                "strain_name": {"type": "string", "description": "Strain name"},
-                "gene_ids": {"type": "array", "description": "List of gene IDs to analyze"},
-            },
-            required_params=["strain_name"],
-            handler=self._analyze_strain_genes
-        ))
+        self.register_skill(
+            Skill(
+                name="analyze_strain_genes",
+                description="균주에서 특정 유전자의 존재/오솔로그 분석 / Analyze gene/ortholog existence in a strain",
+                parameters={
+                    "strain_name": {"type": "string", "description": "Strain name"},
+                    "gene_ids": {"type": "array", "description": "List of gene IDs to analyze"},
+                },
+                required_params=["strain_name"],
+                handler=self._analyze_strain_genes,
+            )
+        )
 
         # Skill: Get strain metabolism
-        self.register_skill(Skill(
-            name="get_strain_metabolism",
-            description="균주의 대사 특성 조회 / Get strain metabolic characteristics",
-            parameters={
-                "strain_name": {"type": "string", "description": "Strain name"},
-                "aspect": {"type": "string", "description": "Specific aspect (e.g., 'carbon_sources', 'respiration', 'fermentation')"},
-            },
-            required_params=["strain_name"],
-            handler=self._get_strain_metabolism
-        ))
+        self.register_skill(
+            Skill(
+                name="get_strain_metabolism",
+                description="균주의 대사 특성 조회 / Get strain metabolic characteristics",
+                parameters={
+                    "strain_name": {"type": "string", "description": "Strain name"},
+                    "aspect": {
+                        "type": "string",
+                        "description": "Specific aspect (e.g., 'carbon_sources', 'respiration', 'fermentation')",
+                    },
+                },
+                required_params=["strain_name"],
+                handler=self._get_strain_metabolism,
+            )
+        )
 
         # Skill: Compare strains
-        self.register_skill(Skill(
-            name="compare_strains",
-            description="두 균주 간 대사 비교 / Compare metabolism between two strains",
-            parameters={
-                "strain1": {"type": "string", "description": "First strain name"},
-                "strain2": {"type": "string", "description": "Second strain name"},
-                "focus": {"type": "string", "description": "Comparison focus (e.g., 'general', 'pathways', 'genes')"},
-            },
-            required_params=["strain1", "strain2"],
-            handler=self._compare_strains
-        ))
+        self.register_skill(
+            Skill(
+                name="compare_strains",
+                description="두 균주 간 대사 비교 / Compare metabolism between two strains",
+                parameters={
+                    "strain1": {"type": "string", "description": "First strain name"},
+                    "strain2": {"type": "string", "description": "Second strain name"},
+                    "focus": {
+                        "type": "string",
+                        "description": "Comparison focus (e.g., 'general', 'pathways', 'genes')",
+                    },
+                },
+                required_params=["strain1", "strain2"],
+                handler=self._compare_strains,
+            )
+        )
 
         # Skill: Suggest modifications
-        self.register_skill(Skill(
-            name="suggest_modifications",
-            description="목표 물질 생산을 위한 대사공학 전략 제안 / Suggest metabolic engineering strategies",
-            parameters={
-                "strain_name": {"type": "string", "description": "Base strain name"},
-                "target_product": {"type": "string", "description": "Target product to produce"},
-                "constraints": {"type": "array", "description": "Any constraints or preferences"},
-            },
-            required_params=["strain_name", "target_product"],
-            handler=self._suggest_modifications
-        ))
+        self.register_skill(
+            Skill(
+                name="suggest_modifications",
+                description="목표 물질 생산을 위한 대사공학 전략 제안 / Suggest metabolic engineering strategies",
+                parameters={
+                    "strain_name": {"type": "string", "description": "Base strain name"},
+                    "target_product": {"type": "string", "description": "Target product to produce"},
+                    "constraints": {"type": "array", "description": "Any constraints or preferences"},
+                },
+                required_params=["strain_name", "target_product"],
+                handler=self._suggest_modifications,
+            )
+        )
 
         # Skill: Literature search
-        self.register_skill(Skill(
-            name="literature_search",
-            description="문헌 기반 정보 검색 / Literature-based information search",
-            parameters={
-                "query": {"type": "string", "description": "Search query"},
-                "strain_context": {"type": "string", "description": "Strain context for the search"},
-            },
-            required_params=["query"],
-            handler=self._literature_search
-        ))
+        self.register_skill(
+            Skill(
+                name="literature_search",
+                description="문헌 기반 정보 검색 / Literature-based information search",
+                parameters={
+                    "query": {"type": "string", "description": "Search query"},
+                    "strain_context": {"type": "string", "description": "Strain context for the search"},
+                },
+                required_params=["query"],
+                handler=self._literature_search,
+            )
+        )
 
         # Skill: Check reaction in strain
-        self.register_skill(Skill(
-            name="check_reaction_in_strain",
-            description="균주에 특정 반응이 있는지 확인 / Check if a reaction exists in a strain",
-            parameters={
-                "strain_name": {"type": "string", "description": "Strain name"},
-                "reaction_id": {"type": "string", "description": "Reaction ID to check"},
-            },
-            required_params=["strain_name", "reaction_id"],
-            handler=self._check_reaction_in_strain
-        ))
+        self.register_skill(
+            Skill(
+                name="check_reaction_in_strain",
+                description="균주에 특정 반응이 있는지 확인 / Check if a reaction exists in a strain",
+                parameters={
+                    "strain_name": {"type": "string", "description": "Strain name"},
+                    "reaction_id": {"type": "string", "description": "Reaction ID to check"},
+                },
+                required_params=["strain_name", "reaction_id"],
+                handler=self._check_reaction_in_strain,
+            )
+        )
 
         # Skill: Check gene in strain
-        self.register_skill(Skill(
-            name="check_gene_in_strain",
-            description="균주에 특정 유전자가 있는지 확인 / Check if a gene exists in a strain",
-            parameters={
-                "strain_name": {"type": "string", "description": "Strain name"},
-                "gene_id": {"type": "string", "description": "Gene ID to check"},
-            },
-            required_params=["strain_name", "gene_id"],
-            handler=self._check_gene_in_strain
-        ))
+        self.register_skill(
+            Skill(
+                name="check_gene_in_strain",
+                description="균주에 특정 유전자가 있는지 확인 / Check if a gene exists in a strain",
+                parameters={
+                    "strain_name": {"type": "string", "description": "Strain name"},
+                    "gene_id": {"type": "string", "description": "Gene ID to check"},
+                },
+                required_params=["strain_name", "gene_id"],
+                handler=self._check_gene_in_strain,
+            )
+        )
 
-    def get_tools(self) -> List[ToolDefinition]:
+    def get_tools(self) -> list[ToolDefinition]:
         """Return tool definitions for LLM function calling."""
         tools = []
         for skill in self.skills.values():
-            tools.append(ToolDefinition(
-                name=skill.name,
-                description=skill.description,
-                parameters=skill.parameters
-            ))
+            tools.append(ToolDefinition(name=skill.name, description=skill.description, parameters=skill.parameters))
         return tools
 
     def can_handle(self, intent: str) -> float:
@@ -183,12 +234,12 @@ class StrainKnowledgeAgent(BaseAgent):
 
         # Check for strain-specific patterns
         strain_patterns = [
-            r'\b(e\.?\s*coli|escherichia)\b',
-            r'\b(c\.?\s*glutamicum|corynebacterium)\b',
-            r'\b(s\.?\s*cerevisiae|saccharomyces)\b',
-            r'\b(b\.?\s*subtilis|bacillus)\b',
-            r'\b균주\s*\S+\b',
-            r'\b\S+에\s*(있|존재)',
+            r"\b(e\.?\s*coli|escherichia)\b",
+            r"\b(c\.?\s*glutamicum|corynebacterium)\b",
+            r"\b(s\.?\s*cerevisiae|saccharomyces)\b",
+            r"\b(b\.?\s*subtilis|bacillus)\b",
+            r"\b균주\s*\S+\b",
+            r"\b\S+에\s*(있|존재)",
         ]
         for pattern in strain_patterns:
             if re.search(pattern, intent_lower, re.IGNORECASE):
@@ -197,11 +248,11 @@ class StrainKnowledgeAgent(BaseAgent):
 
         # Check for LLM-requiring patterns (knowledge queries)
         llm_patterns = [
-            r'(있나요|있어요|있습니까|존재하나요)',
-            r'(does|exist|have|presence)',
-            r'(ortholog|homolog|similar)',
-            r'(compare|difference|versus|vs)',
-            r'(suggest|recommend|strategy)',
+            r"(있나요|있어요|있습니까|존재하나요)",
+            r"(does|exist|have|presence)",
+            r"(ortholog|homolog|similar)",
+            r"(compare|difference|versus|vs)",
+            r"(suggest|recommend|strategy)",
         ]
         for pattern in llm_patterns:
             if re.search(pattern, intent_lower, re.IGNORECASE):
@@ -243,7 +294,7 @@ class StrainKnowledgeAgent(BaseAgent):
         cache_file = Path(self.llm_config.cache_dir) / f"{cache_key}.json"
         if cache_file.exists():
             try:
-                with open(cache_file, 'r', encoding='utf-8') as f:
+                with open(cache_file, encoding="utf-8") as f:
                     data = json.load(f)
                     timestamp = data.get("timestamp", 0)
                     expiry_seconds = self.llm_config.cache_expiry_days * 86400
@@ -263,11 +314,8 @@ class StrainKnowledgeAgent(BaseAgent):
 
         cache_file = cache_dir / f"{cache_key}.json"
         try:
-            with open(cache_file, 'w', encoding='utf-8') as f:
-                json.dump({
-                    "timestamp": time.time(),
-                    "result": result
-                }, f, ensure_ascii=False)
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump({"timestamp": time.time(), "result": result}, f, ensure_ascii=False)
         except OSError:
             pass
 
@@ -304,10 +352,7 @@ class StrainKnowledgeAgent(BaseAgent):
 
         response = client.chat.completions.create(
             model=self._get_model(),
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
             temperature=0.3,
         )
 
@@ -330,9 +375,7 @@ class StrainKnowledgeAgent(BaseAgent):
             model=self._get_model(),
             max_tokens=2048,
             system=system_prompt,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+            messages=[{"role": "user", "content": prompt}],
         )
 
         return message.content[0].text
@@ -342,7 +385,9 @@ class StrainKnowledgeAgent(BaseAgent):
         try:
             import google.generativeai as genai
         except ImportError:
-            raise ImportError("Google Generative AI package not installed. Install with: pip install google-generativeai")
+            raise ImportError(
+                "Google Generative AI package not installed. Install with: pip install google-generativeai"
+            )
 
         api_key = self.llm_config.gemini_api_key
         if not api_key:
@@ -355,7 +400,7 @@ class StrainKnowledgeAgent(BaseAgent):
             generation_config={
                 "temperature": 0.3,
                 "max_output_tokens": 2048,
-            }
+            },
         )
 
         full_prompt = f"{system_prompt}\n\n{prompt}"
@@ -366,7 +411,7 @@ class StrainKnowledgeAgent(BaseAgent):
     def _parse_json_response(self, content: str) -> dict:
         """Parse JSON from LLM response."""
         # Try to find JSON in markdown code block
-        code_block = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', content)
+        code_block = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", content)
         if code_block:
             try:
                 return json.loads(code_block.group(1))
@@ -374,7 +419,7 @@ class StrainKnowledgeAgent(BaseAgent):
                 pass
 
         # Try to find balanced JSON object
-        start = content.find('{')
+        start = content.find("{")
         if start != -1:
             depth = 0
             in_string = False
@@ -384,44 +429,39 @@ class StrainKnowledgeAgent(BaseAgent):
                 if escape_next:
                     escape_next = False
                     continue
-                if c == '\\' and in_string:
+                if c == "\\" and in_string:
                     escape_next = True
                     continue
                 if c == '"' and not escape_next:
                     in_string = not in_string
                     continue
                 if not in_string:
-                    if c == '{':
+                    if c == "{":
                         depth += 1
-                    elif c == '}':
+                    elif c == "}":
                         depth -= 1
                         if depth == 0:
                             try:
-                                return json.loads(content[start:i + 1])
+                                return json.loads(content[start : i + 1])
                             except json.JSONDecodeError:
                                 pass
                             break
 
         # Fallback: return content as raw response
-        return {
-            "raw_response": content,
-            "parsed": False
-        }
+        return {"raw_response": content, "parsed": False}
 
     # =========================================================================
     # Skill Handlers
     # =========================================================================
 
-    def _analyze_strain_reactions(self, strain_name: str = "", reaction_ids: List[str] = None, **kwargs) -> SkillResult:
+    def _analyze_strain_reactions(self, strain_name: str = "", reaction_ids: list[str] = None, **kwargs) -> SkillResult:
         """Analyze reaction existence in a strain."""
         if reaction_ids is None:
             reaction_ids = []
 
         if not strain_name:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message="Strain name is required",
-                message_ko="균주 이름이 필요합니다"
+                status=SkillStatus.FAILURE, message="Strain name is required", message_ko="균주 이름이 필요합니다"
             )
 
         # If no specific reactions, use model reactions
@@ -434,7 +474,7 @@ class StrainKnowledgeAgent(BaseAgent):
                 return SkillResult(
                     status=SkillStatus.FAILURE,
                     message="No model loaded and no reactions specified",
-                    message_ko="모델이 로드되지 않았고 반응이 지정되지 않았습니다"
+                    message_ko="모델이 로드되지 않았고 반응이 지정되지 않았습니다",
                 )
 
         # Check cache
@@ -445,7 +485,7 @@ class StrainKnowledgeAgent(BaseAgent):
                 status=SkillStatus.SUCCESS,
                 message=f"Analysis of reactions in {strain_name} (cached)",
                 message_ko=f"{strain_name}의 반응 분석 (캐시됨)",
-                data=cached
+                data=cached,
             )
 
         # Build prompt
@@ -482,25 +522,21 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Analyzed {len(reaction_ids)} reactions in {strain_name}",
                 message_ko=f"{strain_name}에서 {len(reaction_ids)}개 반응 분석 완료",
-                data=result
+                data=result,
             )
         except Exception as e:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message=f"LLM API error: {str(e)}",
-                message_ko=f"LLM API 오류: {str(e)}"
+                status=SkillStatus.FAILURE, message=f"LLM API error: {str(e)}", message_ko=f"LLM API 오류: {str(e)}"
             )
 
-    def _analyze_strain_genes(self, strain_name: str = "", gene_ids: List[str] = None, **kwargs) -> SkillResult:
+    def _analyze_strain_genes(self, strain_name: str = "", gene_ids: list[str] = None, **kwargs) -> SkillResult:
         """Analyze gene existence in a strain."""
         if gene_ids is None:
             gene_ids = []
 
         if not strain_name:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message="Strain name is required",
-                message_ko="균주 이름이 필요합니다"
+                status=SkillStatus.FAILURE, message="Strain name is required", message_ko="균주 이름이 필요합니다"
             )
 
         # If no specific genes, use model genes
@@ -512,7 +548,7 @@ Respond in JSON format:
                 return SkillResult(
                     status=SkillStatus.FAILURE,
                     message="No model loaded and no genes specified",
-                    message_ko="모델이 로드되지 않았고 유전자가 지정되지 않았습니다"
+                    message_ko="모델이 로드되지 않았고 유전자가 지정되지 않았습니다",
                 )
 
         # Check cache
@@ -523,7 +559,7 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Analysis of genes in {strain_name} (cached)",
                 message_ko=f"{strain_name}의 유전자 분석 (캐시됨)",
-                data=cached
+                data=cached,
             )
 
         # Build prompt
@@ -562,13 +598,11 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Analyzed {len(gene_ids)} genes in {strain_name}",
                 message_ko=f"{strain_name}에서 {len(gene_ids)}개 유전자 분석 완료",
-                data=result
+                data=result,
             )
         except Exception as e:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message=f"LLM API error: {str(e)}",
-                message_ko=f"LLM API 오류: {str(e)}"
+                status=SkillStatus.FAILURE, message=f"LLM API error: {str(e)}", message_ko=f"LLM API 오류: {str(e)}"
             )
 
     def _get_strain_metabolism(self, strain_name: str = "", aspect: str = "general", **kwargs) -> SkillResult:
@@ -576,9 +610,7 @@ Respond in JSON format:
 
         if not strain_name:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message="Strain name is required",
-                message_ko="균주 이름이 필요합니다"
+                status=SkillStatus.FAILURE, message="Strain name is required", message_ko="균주 이름이 필요합니다"
             )
 
         # Check cache
@@ -589,7 +621,7 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Metabolic characteristics of {strain_name} (cached)",
                 message_ko=f"{strain_name}의 대사 특성 (캐시됨)",
-                data=cached
+                data=cached,
             )
 
         aspect_prompts = {
@@ -636,13 +668,11 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Retrieved metabolic characteristics of {strain_name}",
                 message_ko=f"{strain_name}의 대사 특성 조회 완료",
-                data=result
+                data=result,
             )
         except Exception as e:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message=f"LLM API error: {str(e)}",
-                message_ko=f"LLM API 오류: {str(e)}"
+                status=SkillStatus.FAILURE, message=f"LLM API error: {str(e)}", message_ko=f"LLM API 오류: {str(e)}"
             )
 
     def _compare_strains(self, strain1: str = "", strain2: str = "", focus: str = "general", **kwargs) -> SkillResult:
@@ -652,7 +682,7 @@ Respond in JSON format:
             return SkillResult(
                 status=SkillStatus.FAILURE,
                 message="Two strain names are required",
-                message_ko="두 균주 이름이 필요합니다"
+                message_ko="두 균주 이름이 필요합니다",
             )
 
         # Check cache
@@ -663,7 +693,7 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Comparison of {strain1} and {strain2} (cached)",
                 message_ko=f"{strain1}과 {strain2} 비교 (캐시됨)",
-                data=cached
+                data=cached,
             )
 
         prompt = f"""Compare the metabolic characteristics of {strain1} and {strain2}.
@@ -708,16 +738,16 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Compared {strain1} and {strain2}",
                 message_ko=f"{strain1}과 {strain2} 비교 완료",
-                data=result
+                data=result,
             )
         except Exception as e:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message=f"LLM API error: {str(e)}",
-                message_ko=f"LLM API 오류: {str(e)}"
+                status=SkillStatus.FAILURE, message=f"LLM API error: {str(e)}", message_ko=f"LLM API 오류: {str(e)}"
             )
 
-    def _suggest_modifications(self, strain_name: str = "", target_product: str = "", constraints: List[str] = None, **kwargs) -> SkillResult:
+    def _suggest_modifications(
+        self, strain_name: str = "", target_product: str = "", constraints: list[str] = None, **kwargs
+    ) -> SkillResult:
         """Suggest metabolic engineering strategies."""
         if constraints is None:
             constraints = []
@@ -726,7 +756,7 @@ Respond in JSON format:
             return SkillResult(
                 status=SkillStatus.FAILURE,
                 message="Strain name and target product are required",
-                message_ko="균주 이름과 목표 물질이 필요합니다"
+                message_ko="균주 이름과 목표 물질이 필요합니다",
             )
 
         # Check cache
@@ -737,7 +767,7 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Engineering suggestions for {target_product} (cached)",
                 message_ko=f"{target_product} 생산을 위한 제안 (캐시됨)",
-                data=cached
+                data=cached,
             )
 
         constraints_text = "\n".join([f"- {c}" for c in constraints]) if constraints else "None specified"
@@ -789,13 +819,11 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Generated engineering suggestions for {target_product} production",
                 message_ko=f"{target_product} 생산을 위한 대사공학 전략 제안 완료",
-                data=result
+                data=result,
             )
         except Exception as e:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message=f"LLM API error: {str(e)}",
-                message_ko=f"LLM API 오류: {str(e)}"
+                status=SkillStatus.FAILURE, message=f"LLM API error: {str(e)}", message_ko=f"LLM API 오류: {str(e)}"
             )
 
     def _literature_search(self, query: str = "", strain_context: str = "", **kwargs) -> SkillResult:
@@ -803,9 +831,7 @@ Respond in JSON format:
 
         if not query:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message="Search query is required",
-                message_ko="검색어가 필요합니다"
+                status=SkillStatus.FAILURE, message="Search query is required", message_ko="검색어가 필요합니다"
             )
 
         # Check cache
@@ -814,9 +840,9 @@ Respond in JSON format:
         if cached:
             return SkillResult(
                 status=SkillStatus.SUCCESS,
-                message=f"Literature search results (cached)",
-                message_ko=f"문헌 검색 결과 (캐시됨)",
-                data=cached
+                message="Literature search results (cached)",
+                message_ko="문헌 검색 결과 (캐시됨)",
+                data=cached,
             )
 
         context_text = f" in the context of {strain_context}" if strain_context else ""
@@ -855,13 +881,11 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Literature search completed for: {query}",
                 message_ko=f"문헌 검색 완료: {query}",
-                data=result
+                data=result,
             )
         except Exception as e:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message=f"LLM API error: {str(e)}",
-                message_ko=f"LLM API 오류: {str(e)}"
+                status=SkillStatus.FAILURE, message=f"LLM API error: {str(e)}", message_ko=f"LLM API 오류: {str(e)}"
             )
 
     def _check_reaction_in_strain(self, strain_name: str = "", reaction_id: str = "", **kwargs) -> SkillResult:
@@ -871,7 +895,7 @@ Respond in JSON format:
             return SkillResult(
                 status=SkillStatus.FAILURE,
                 message="Strain name and reaction ID are required",
-                message_ko="균주 이름과 반응 ID가 필요합니다"
+                message_ko="균주 이름과 반응 ID가 필요합니다",
             )
 
         # Get reaction name from model if available
@@ -889,7 +913,7 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Reaction {reaction_id} in {strain_name} (cached)",
                 message_ko=f"{strain_name}의 {reaction_id} 반응 (캐시됨)",
-                data=cached
+                data=cached,
             )
 
         prompt = f"""Analyze whether the following metabolic reaction exists in {strain_name}.
@@ -926,13 +950,11 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Reaction {reaction_id} in {strain_name}: {exists} (confidence: {confidence})",
                 message_ko=f"{strain_name}의 {reaction_id}: {exists} (신뢰도: {confidence})",
-                data=result
+                data=result,
             )
         except Exception as e:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message=f"LLM API error: {str(e)}",
-                message_ko=f"LLM API 오류: {str(e)}"
+                status=SkillStatus.FAILURE, message=f"LLM API error: {str(e)}", message_ko=f"LLM API 오류: {str(e)}"
             )
 
     def _check_gene_in_strain(self, strain_name: str = "", gene_id: str = "", **kwargs) -> SkillResult:
@@ -942,7 +964,7 @@ Respond in JSON format:
             return SkillResult(
                 status=SkillStatus.FAILURE,
                 message="Strain name and gene ID are required",
-                message_ko="균주 이름과 유전자 ID가 필요합니다"
+                message_ko="균주 이름과 유전자 ID가 필요합니다",
             )
 
         # Get gene name from model if available
@@ -960,7 +982,7 @@ Respond in JSON format:
                 status=SkillStatus.SUCCESS,
                 message=f"Gene {gene_id} in {strain_name} (cached)",
                 message_ko=f"{strain_name}의 {gene_id} 유전자 (캐시됨)",
-                data=cached
+                data=cached,
             )
 
         prompt = f"""Analyze whether the following gene exists or has an ortholog in {strain_name}.
@@ -1003,15 +1025,8 @@ Respond in JSON format:
                 msg = f"Gene {gene_id} in {strain_name}: {exists} (confidence: {confidence})"
                 msg_ko = f"{strain_name}의 {gene_id}: {exists} (신뢰도: {confidence})"
 
-            return SkillResult(
-                status=SkillStatus.SUCCESS,
-                message=msg,
-                message_ko=msg_ko,
-                data=result
-            )
+            return SkillResult(status=SkillStatus.SUCCESS, message=msg, message_ko=msg_ko, data=result)
         except Exception as e:
             return SkillResult(
-                status=SkillStatus.FAILURE,
-                message=f"LLM API error: {str(e)}",
-                message_ko=f"LLM API 오류: {str(e)}"
+                status=SkillStatus.FAILURE, message=f"LLM API error: {str(e)}", message_ko=f"LLM API 오류: {str(e)}"
             )

@@ -20,12 +20,12 @@ Analysis Analysis Manager  Query   Knowledge
 """
 
 from cnapy.agents.base_agent import (
-    BaseAgent,
     AgentContext,
-    SkillResult,
-    Skill,
-    ToolDefinition,
     AgentResponse,
+    BaseAgent,
+    Skill,
+    SkillResult,
+    ToolDefinition,
     WorkflowStep,
 )
 

@@ -1,10 +1,9 @@
 """Shared pytest fixtures for agent tests."""
 
-import pytest
-from unittest.mock import MagicMock, patch
-import cobra
+from unittest.mock import MagicMock
 
-from cnapy.appdata import AppData
+import cobra
+import pytest
 
 
 class MockProject:
