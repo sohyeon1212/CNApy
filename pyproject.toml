@@ -35,6 +35,48 @@ llm = [
     "openai>=1.0",
     "google-generativeai>=0.3",
 ]
+dev = [
+    "pytest>=7.2",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["cnapy/tests"]
+python_files = ["test_*.py"]
+addopts = ["-v", "--tb=short", "-ra"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "requires_milp: requires a MILP solver",
+    "requires_efmtool: requires efmtool_link package",
+]
+
+[tool.coverage.run]
+source = ["cnapy"]
+omit = [
+    "cnapy/tests/*",
+    "cnapy/resources.py",
+    "cnapy/gui_elements/*",
+    "cnapy/__main__.py",
+    "cnapy/application.py",
+    "cnapy/core_gui.py",
+    "cnapy/utils.py",
+    "cnapy/utils_for_cnapy_api.py",
+]
+
+[tool.coverage.report]
+fail_under = 30
+# Note: Target is 30% initially due to Qt-dependent code paths in appdata.py and core.py
+# The tested modules (moma.py, flux_sampling.py, flux_vector_container.py) have 70-98% coverage
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = ["cnapy/resources.py"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP"]
 
 [project.scripts]
 cnapy = "cnapy.__main__:main_cnapy"

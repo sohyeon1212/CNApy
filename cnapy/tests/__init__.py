@@ -1,0 +1,1 @@
+"""CNApy test suite."""
