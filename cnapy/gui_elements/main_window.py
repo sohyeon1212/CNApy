@@ -9,6 +9,7 @@ from zipfile import BadZipFile, ZipFile
 import cobra
 from cobra.util.solver import interface_to_str
 
+import cnapy.resources  # noqa: F401 - Required to load menu/toolbar icons
 from cnapy.core_gui import (
     except_likely_community_model_error,
     get_last_exception_string,
@@ -16,7 +17,6 @@ from cnapy.core_gui import (
     model_optimization_with_exceptions,
 )
 from cnapy.flux_vector_container import FluxVectorContainer
-import cnapy.resources  # noqa: F401 - Required to load menu/toolbar icons
 from cnapy.moma import has_milp_solver, linear_moma, room
 
 try:
