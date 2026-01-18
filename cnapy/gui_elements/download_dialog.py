@@ -1,11 +1,16 @@
 """The CNApy download examples files dialog"""
+
 import os
 import urllib.request
 from zipfile import ZipFile
 
 from qtpy.QtWidgets import (
-    QLabel, QDialog, QHBoxLayout, QPushButton,
-    QVBoxLayout, QMessageBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
 )
 
 from cnapy.appdata import AppData
@@ -59,14 +64,14 @@ class DownloadDialog(QDialog):
         for t in targets:
             target = os.path.join(work_directory, t)
             if not os.path.exists(target):
-                url = 'https://github.com/cnapy-org/CNApy-projects/releases/latest/download/' + t
+                url = "https://github.com/cnapy-org/CNApy-projects/releases/latest/download/" + t
                 print("Downloading", url, "to", target, "...")
                 urllib.request.urlretrieve(url, target)
                 print("Done!")
 
                 zip_path = os.path.join(work_directory, t)
                 print("Extracting", zip_path, "...")
-                with ZipFile(zip_path, 'r') as zip_file:
+                with ZipFile(zip_path, "r") as zip_file:
                     zip_file.extractall(path=work_directory)
                 print("Done!")
                 os.remove(zip_path)
@@ -75,8 +80,6 @@ class DownloadDialog(QDialog):
 
         msgBox = QMessageBox()
         msgBox.setWindowTitle("Projects download complete")
-        msgBox.setText(
-            "Projects were downloaded successfully in the working directory."
-        )
+        msgBox.setText("Projects were downloaded successfully in the working directory.")
         msgBox.setIcon(QMessageBox.Information)
         msgBox.exec()

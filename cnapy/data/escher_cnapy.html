@@ -114,12 +114,12 @@
       handleClickOnID(event) {
         cnapy_bridge.clicked_on_id(this.props.type, this.props.biggId)
       }
-      
+
       render () {
         var tip = h('div', {className: 'cnapy-tooltip', style: tooltipStyle},
           h('div', {className: 'id', onClick: (event) => this.handleClickOnID(event), style: "font-weight: bold;"}, this.props.biggId),
           h('div', {className: 'name'}, this.props.name))
- 
+
           if (this.props.type === 'reaction') {
           tip.children.push(h('button', {style: buttonStyle, 'aria-label': 'Close',
             'title': 'Delete reaction from map', onClick: (event) => {deleteReaction(this.props.biggId)}}, '🗑️'))
@@ -159,7 +159,7 @@
           if (cnapy_bridge) // to keep page operational outside CNApy
             cnapy_bridge.set_reaction_box_scenario_value(this.props.biggId)
         }
-        
+
         return tip
       }
     }

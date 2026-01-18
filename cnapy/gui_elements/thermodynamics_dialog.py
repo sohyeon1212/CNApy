@@ -1,29 +1,39 @@
 """The CNApy OptMDFpathway dialog"""
+
+from enum import Enum
+
 import cobra
 import cobra.util.solver
 from numpy import exp
 from qtpy.QtCore import Qt, Slot
 from qtpy.QtWidgets import (
     QDialog,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
     QVBoxLayout,
-    QGroupBox,
 )
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.central_widget import CentralWidget
 from cnapy.gui_elements.solver_buttons import get_solver_buttons
-from enum import Enum
+
 try:
-    from cobrak.constants import LNCONC_VAR_PREFIX, DF_VAR_PREFIX, MDF_VAR_ID, ALL_OK_KEY, OBJECTIVE_VAR_NAME, TERMINATION_CONDITION_KEY
-    from cobrak.dataclasses import ExtraLinearConstraint, Solver
-    from cobrak.lps import perform_lp_optimization, perform_lp_thermodynamic_bottleneck_analysis
-    from cobrak.io import load_annotated_cobrapy_model_as_cobrak_model
     from cobrak.cobrapy_model_functionality import get_fullsplit_cobra_model
+    from cobrak.constants import (
+        ALL_OK_KEY,
+        DF_VAR_PREFIX,
+        LNCONC_VAR_PREFIX,
+        MDF_VAR_ID,
+        OBJECTIVE_VAR_NAME,
+        TERMINATION_CONDITION_KEY,
+    )
+    from cobrak.dataclasses import ExtraLinearConstraint, Solver
+    from cobrak.io import load_annotated_cobrapy_model_as_cobrak_model
+    from cobrak.lps import perform_lp_optimization, perform_lp_thermodynamic_bottleneck_analysis
 except ImportError:
     LNCONC_VAR_PREFIX = "lnconc_"
     DF_VAR_PREFIX = "df_"
@@ -31,13 +41,17 @@ except ImportError:
     ALL_OK_KEY = "all_ok"
     OBJECTIVE_VAR_NAME = "objective_var"
     TERMINATION_CONDITION_KEY = "termination_condition"
-    class ExtraLinearConstraint: pass
-    class Solver: pass
+
+    class ExtraLinearConstraint:
+        pass
+
+    class Solver:
+        pass
+
     perform_lp_optimization = None
     perform_lp_thermodynamic_bottleneck_analysis = None
     load_annotated_cobrapy_model_as_cobrak_model = None
     get_fullsplit_cobra_model = None
-
 
 
 class ThermodynamicAnalysisTypes(Enum):
@@ -69,9 +83,7 @@ class ThermodynamicDialog(QDialog):
         self.analysis_type = analysis_type
 
         self.reac_ids = self.appdata.project.cobra_py_model.reactions.list_attr("id")
-        self.metabolite_ids = self.appdata.project.cobra_py_model.metabolites.list_attr(
-            "id"
-        )
+        self.metabolite_ids = self.appdata.project.cobra_py_model.metabolites.list_attr("id")
 
         self.layout = QVBoxLayout()
         match analysis_type:
@@ -96,7 +108,9 @@ class ThermodynamicDialog(QDialog):
                 )
         self.layout.addWidget(label)
 
-        if (analysis_type == ThermodynamicAnalysisTypes.BOTTLENECK_ANALYSIS) or (analysis_type == ThermodynamicAnalysisTypes.THERMODYNAMIC_FBA):
+        if (analysis_type == ThermodynamicAnalysisTypes.BOTTLENECK_ANALYSIS) or (
+            analysis_type == ThermodynamicAnalysisTypes.THERMODYNAMIC_FBA
+        ):
             lineedit_text = QLabel("MDF to reach [in kJ/mol]:")
 
             min_mdf_layout = QHBoxLayout()
@@ -161,7 +175,9 @@ class ThermodynamicDialog(QDialog):
                         warning_text = "The problem appears to be unbounded, i.e. there is no constraint limiting the objective values."
                     case 8:
                         warning_title = "Problem infeasible"
-                        warning_text = "The problem appears to be infeasible, i.e. the constraints make a solution impossible."
+                        warning_text = (
+                            "The problem appears to be infeasible, i.e. the constraints make a solution impossible."
+                        )
                     case 10:
                         warning_title = "Solver failure"
                         warning_text = "Your solver seems to have crashed. Try another solver."
@@ -277,7 +293,10 @@ class ThermodynamicDialog(QDialog):
                 )
                 self.setCursor(Qt.ArrowCursor)
                 return
-            if self.analysis_type in (ThermodynamicAnalysisTypes.OPTMDFPATHWAY, ThermodynamicAnalysisTypes.THERMODYNAMIC_FBA):
+            if self.analysis_type in (
+                ThermodynamicAnalysisTypes.OPTMDFPATHWAY,
+                ThermodynamicAnalysisTypes.THERMODYNAMIC_FBA,
+            ):
                 solution = perform_lp_optimization(
                     cobrak_model=cobrak_model,
                     objective_target=objective,
@@ -329,9 +348,7 @@ class ThermodynamicDialog(QDialog):
                     float(combined_solution[search_key]),
                 )
             if DF_VAR_PREFIX + search_key in combined_solution.keys():
-                rounded_df = round(
-                    combined_solution[DF_VAR_PREFIX + search_key], self.appdata.rounding
-                )
+                rounded_df = round(combined_solution[DF_VAR_PREFIX + search_key], self.appdata.rounding)
                 self.appdata.project.df_values[search_key] = rounded_df
 
         # Write metabolite concentrations
@@ -339,7 +356,7 @@ class ThermodynamicDialog(QDialog):
             var_id = f"{LNCONC_VAR_PREFIX}{metabolite_id}"
             if var_id in solution.keys():
                 rounded_conc = round(exp(solution[var_id]), 9)
-                self.appdata.project.conc_values[var_id[len(LNCONC_VAR_PREFIX):]] = rounded_conc
+                self.appdata.project.conc_values[var_id[len(LNCONC_VAR_PREFIX) :]] = rounded_conc
 
         # Show selected reaction-dependent values
         self.appdata.project.comp_values_type = 0

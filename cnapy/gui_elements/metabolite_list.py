@@ -1,19 +1,32 @@
 """The metabolite list"""
 
+from enum import IntEnum
+
 import cobra
-from qtpy.QtCore import Qt, QPoint, Signal, Slot
-from qtpy.QtGui import QColor, QGuiApplication, QIcon
-from qtpy.QtWidgets import (QAction, QHBoxLayout, QHeaderView, QLabel,
-                            QLineEdit, QMenu, QMessageBox, QPushButton, QSizePolicy,
-                            QSplitter, QTableWidget, QTableWidgetItem,
-                            QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+from qtpy.QtCore import QPoint, Qt, Signal, Slot
+from qtpy.QtGui import QGuiApplication, QIcon
+from qtpy.QtWidgets import (
+    QAction,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QSplitter,
+    QTableWidgetItem,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cnapy.appdata import AppData, ModelItemType
 from cnapy.gui_elements.annotation_widget import AnnotationWidget
-from cnapy.utils import SignalThrottler, turn_red, turn_white, update_selected
-from cnapy.utils_for_cnapy_api import check_identifiers_org_entry
 from cnapy.gui_elements.reaction_table_widget import ModelElementType, ReactionTableWidget
-from enum import IntEnum
+from cnapy.utils import SignalThrottler, turn_red, turn_white, update_selected
+
 
 class MetaboliteListColumn(IntEnum):
     Id = 0
@@ -22,7 +35,7 @@ class MetaboliteListColumn(IntEnum):
 
 
 class MetaboliteListItem(QTreeWidgetItem):
-    """ For custom sorting of columns """
+    """For custom sorting of columns"""
 
     def __init__(self, parent: QTreeWidget):
         # although QTreeWidgetItem is constructed with the metabolite_list as parent this
@@ -30,7 +43,7 @@ class MetaboliteListItem(QTreeWidgetItem):
         QTreeWidgetItem.__init__(self, parent)
 
     def __lt__(self, other):
-        """ overrides QTreeWidgetItem::operator< """
+        """overrides QTreeWidgetItem::operator<"""
         column = self.treeWidget().sortColumn()
         if column == MetaboliteListColumn.Concentration:
             try:
@@ -43,7 +56,7 @@ class MetaboliteListItem(QTreeWidgetItem):
                 other_value = -float("inf")
             return current_value < other_value
         else:  # use Qt default comparison for the other columns
-#            return super().__lt__(other) # infinite recursion with PySide2, __lt__ is a virtual function of QTreeWidgetItem
+            #            return super().__lt__(other) # infinite recursion with PySide2, __lt__ is a virtual function of QTreeWidgetItem
             return self.text(column) < other.text(column)
 
 
@@ -60,20 +73,18 @@ class MetaboliteList(QWidget):
 
         self.header_labels = [MetaboliteListColumn(i).name for i in range(len(MetaboliteListColumn))]
         self.metabolite_list.setHeaderLabels(self.header_labels)
-        self.visible_column = [True]*len(self.header_labels)
+        self.visible_column = [True] * len(self.header_labels)
         self.metabolite_list.setSortingEnabled(True)
         self.metabolite_list.sortByColumn(MetaboliteListColumn.Id, Qt.AscendingOrder)
 
         for m in self.appdata.project.cobra_py_model.metabolites:
             self.add_metabolite(m)
         self.metabolite_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.metabolite_list.customContextMenuRequested.connect(
-            self.on_context_menu)
+        self.metabolite_list.customContextMenuRequested.connect(self.on_context_menu)
 
         # create context menu
         self.pop_menu = QMenu(self.metabolite_list)
-        in_out_fluxes_action = QAction(
-            'compute in/out fluxes for this metabolite', self.metabolite_list)
+        in_out_fluxes_action = QAction("compute in/out fluxes for this metabolite", self.metabolite_list)
         self.pop_menu.addAction(in_out_fluxes_action)
         in_out_fluxes_action.triggered.connect(self.emit_in_out_fluxes_action)
 
@@ -90,12 +101,9 @@ class MetaboliteList(QWidget):
         self.layout.addWidget(self.splitter)
         self.setLayout(self.layout)
 
-        self.metabolite_list.currentItemChanged.connect(
-            self.metabolite_selected)
-        self.metabolite_mask.metaboliteChanged.connect(
-            self.handle_changed_metabolite)
-        self.metabolite_mask.jumpToReaction.connect(
-            self.emit_jump_to_reaction)
+        self.metabolite_list.currentItemChanged.connect(self.metabolite_selected)
+        self.metabolite_mask.metaboliteChanged.connect(self.handle_changed_metabolite)
+        self.metabolite_mask.jumpToReaction.connect(self.emit_jump_to_reaction)
         self.metabolite_list.header().setContextMenuPolicy(Qt.CustomContextMenu)
         self.metabolite_list.header().customContextMenuRequested.connect(self.header_context_menu)
 
@@ -128,7 +136,9 @@ class MetaboliteList(QWidget):
                 item.setText(MetaboliteListColumn.Id, metabolite.id)
                 item.setText(MetaboliteListColumn.Name, metabolite.name)
                 if metabolite.id in self.appdata.project.conc_values.keys():
-                    item.setText(MetaboliteListColumn.Concentration, str(self.appdata.project.conc_values[metabolite.id]))
+                    item.setText(
+                        MetaboliteListColumn.Concentration, str(self.appdata.project.conc_values[metabolite.id])
+                    )
                 break
 
         self.last_selected = self.metabolite_mask.id.text()
@@ -171,7 +181,9 @@ class MetaboliteList(QWidget):
             turn_white(self.metabolite_mask.charge, self.appdata.is_in_dark_mode)
             turn_white(self.metabolite_mask.compartment, self.appdata.is_in_dark_mode)
             self.metabolite_mask.is_valid = True
-            self.metabolite_mask.reactions.update_state(self.metabolite_mask.id.text(), self.metabolite_mask.metabolite_list)
+            self.metabolite_mask.reactions.update_state(
+                self.metabolite_mask.id.text(), self.metabolite_mask.metabolite_list
+            )
             self.central_widget.add_model_item_to_history(metabolite.id, metabolite.name, ModelItemType.Metabolite)
 
     def update(self):
@@ -182,8 +194,7 @@ class MetaboliteList(QWidget):
         if self.last_selected is None:
             self.metabolite_list.setCurrentItem(None)
         else:
-            items = self.metabolite_list.findItems(
-                self.last_selected, Qt.MatchExactly)
+            items = self.metabolite_list.findItems(self.last_selected, Qt.MatchExactly)
 
             for i in items:
                 self.metabolite_list.setCurrentItem(i)
@@ -263,8 +274,7 @@ class MetabolitesMask(QWidget):
 
         self.delete_button = QPushButton("Delete metabolite")
         self.delete_button.setIcon(QIcon.fromTheme("edit-delete"))
-        self.delete_button.setToolTip(
-            "Delete this metabolite and remove it from associated reactions.")
+        self.delete_button.setToolTip("Delete this metabolite and remove it from associated reactions.")
         policy = QSizePolicy()
         policy.ShrinkFlag = True
         self.delete_button.setSizePolicy(policy)
@@ -308,7 +318,7 @@ class MetabolitesMask(QWidget):
         label = QLabel("Reactions using this metabolite:")
         l.addWidget(label)
         l2 = QHBoxLayout()
-        self.reactions = ReactionTableWidget (self.appdata, ModelElementType.METABOLITE)
+        self.reactions = ReactionTableWidget(self.appdata, ModelElementType.METABOLITE)
         l2.addWidget(self.reactions)
         l.addItem(l2)
         self.reactions.itemDoubleClicked.connect(self.emit_jump_to_reaction)
@@ -318,15 +328,12 @@ class MetabolitesMask(QWidget):
 
         self.delete_button.clicked.connect(self.delete_metabolite)
 
-
         self.id.textEdited.connect(self.throttler.throttle)
         self.name.textEdited.connect(self.throttler.throttle)
         self.formula.textEdited.connect(self.throttler.throttle)
         self.charge.textEdited.connect(self.throttler.throttle)
         self.compartment.editingFinished.connect(self.metabolites_data_changed)
-        self.annotation_widget.deleteAnnotation.connect(
-            self.delete_selected_annotation
-        )
+        self.annotation_widget.deleteAnnotation.connect(self.delete_selected_annotation)
         # self.validate_mask()
 
     def delete_metabolite(self):
@@ -337,15 +344,14 @@ class MetabolitesMask(QWidget):
         affected_reactions = self.metabolite.reactions  # remember these before removal
         self.metabolite.remove_from_model()
         self.metabolite_list.last_selected = None
-        self.metabolite_list.metabolite_list.takeTopLevelItem(
-            current_row_index)
+        self.metabolite_list.metabolite_list.takeTopLevelItem(current_row_index)
         self.appdata.window.unsaved_changes()
         self.appdata.window.setFocus()
         self.metaboliteDeleted.emit(self.metabolite, affected_reactions, self.metabolite.id)
 
     def delete_selected_annotation(self, identifier_key):
         try:
-            del(self.metabolite.annotation[identifier_key])
+            del self.metabolite.annotation[identifier_key]
             self.appdata.window.unsaved_changes()
         except IndexError:
             pass
@@ -357,8 +363,8 @@ class MetabolitesMask(QWidget):
         except ValueError:
             turn_red(self.id)
             QMessageBox.information(
-                self, 'Invalid id', 'Could not apply changes identifier ' +
-                self.id.text()+' already used.')
+                self, "Invalid id", "Could not apply changes identifier " + self.id.text() + " already used."
+            )
         else:
             self.metabolite.name = self.name.text()
             self.metabolite.formula = self.formula.text()
@@ -378,7 +384,7 @@ class MetabolitesMask(QWidget):
             if text == "":
                 turn_red(self.id)
                 return False
-            if ' ' in text:
+            if " " in text:
                 turn_red(self.id)
                 return False
             try:
@@ -419,10 +425,10 @@ class MetabolitesMask(QWidget):
 
     def validate_compartment(self):
         try:
-            if ' ' in self.compartment.text():
+            if " " in self.compartment.text():
                 turn_red(self.compartment)
                 return False
-            if '-' in self.compartment.text():
+            if "-" in self.compartment.text():
                 turn_red(self.compartment)
                 return False
             _m = cobra.Metabolite(id="test_id", name=self.compartment.text())
@@ -431,23 +437,22 @@ class MetabolitesMask(QWidget):
             return False
         else:
             turn_white(self.compartment, self.appdata.is_in_dark_mode)
-            if self.compartment.text() != "" and self.compartment.text() not in self.appdata.project.cobra_py_model.compartments:
+            if (
+                self.compartment.text() != ""
+                and self.compartment.text() not in self.appdata.project.cobra_py_model.compartments
+            ):
                 # block signals triggered by appearance of message_box
                 self.compartment.blockSignals(True)
                 message_box = QMessageBox()
-                message_box.setText(
-                    "The compartment "+self.compartment.text() + " does not yet exist.")
-                message_box.setInformativeText(
-                    "Do you want to create the compartment?")
-                message_box.setStandardButtons(
-                    QMessageBox.Ok | QMessageBox.Cancel)
+                message_box.setText("The compartment " + self.compartment.text() + " does not yet exist.")
+                message_box.setInformativeText("Do you want to create the compartment?")
+                message_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
                 message_box.setDefaultButton(QMessageBox.Ok)
                 ret = message_box.exec()
                 self.compartment.blockSignals(False)
 
                 if ret == QMessageBox.Cancel:
-                    metabolite = self.appdata.project.cobra_py_model.metabolites.get_by_id(
-                        self.id.text())
+                    metabolite = self.appdata.project.cobra_py_model.metabolites.get_by_id(self.id.text())
                     self.compartment.setText(metabolite.compartment)
 
             return True

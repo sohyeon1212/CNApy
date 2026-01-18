@@ -1,4 +1,5 @@
-''' Tests '''
+"""Tests"""
+
 import cobra
 
 import cnapy.core

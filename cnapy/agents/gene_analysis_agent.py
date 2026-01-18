@@ -8,7 +8,6 @@ This agent handles gene-related analyses:
 - Synthetic lethal pair finding
 """
 
-
 from cnapy.agents.base_agent import (
     BaseAgent,
     Skill,

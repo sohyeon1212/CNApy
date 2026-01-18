@@ -1,29 +1,51 @@
 from math import copysign
-from qtpy.QtCore import Qt, Slot, QSignalBlocker, QStringListModel, QSize
-from qtpy.QtWidgets import (QDialog, QGroupBox, QHBoxLayout, QTableWidget, QCheckBox, QMainWindow,
-                            QLabel, QLineEdit, QMessageBox, QPushButton, QAbstractItemView, QAction,
-                            QRadioButton, QVBoxLayout, QTableWidgetItem, QButtonGroup, QWidget,
-                            QStyledItemDelegate, QTableWidgetSelectionRange, QCompleter)
-from qtpy.QtGui import QGuiApplication, QDoubleValidator
 
-from cnapy.utils import QComplReceivLineEdit
-from cnapy.core import make_scenario_feasible, QPnotSupportedException, element_exchange_balance
-from cnapy.gui_elements.central_widget import ModelTabIndex
-from cnapy.appdata import Scenario
 import cobra
+from qtpy.QtCore import QSignalBlocker, QSize, QStringListModel, Qt, Slot
+from qtpy.QtGui import QDoubleValidator, QGuiApplication
+from qtpy.QtWidgets import (
+    QAbstractItemView,
+    QAction,
+    QButtonGroup,
+    QCheckBox,
+    QCompleter,
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QStyledItemDelegate,
+    QTableWidget,
+    QTableWidgetItem,
+    QTableWidgetSelectionRange,
+    QVBoxLayout,
+    QWidget,
+)
+
+from cnapy.appdata import Scenario
+from cnapy.core import QPnotSupportedException, element_exchange_balance, make_scenario_feasible
+from cnapy.gui_elements.central_widget import ModelTabIndex
+from cnapy.utils import QComplReceivLineEdit
 
 coefficient_format: str = "{:.4g}"
+
 
 class CoefficientDelegate(QStyledItemDelegate):
     """
     Use this class to format the coefficients in the table. The coefficients can then
     be stored as numbers and so that proper sorting is possible.
     """
+
     def __init__(self) -> None:
         super().__init__()
 
     def displayText(self, data, locale) -> str:
         return coefficient_format.format(data)
+
 
 class FluxFeasibilityDialog(QDialog):
     def __init__(self, main_window: QMainWindow):
@@ -34,7 +56,9 @@ class FluxFeasibilityDialog(QDialog):
         self.appdata = main_window.appdata
 
         non_negative_number = QDoubleValidator()
-        non_negative_number.setBottom(0.0) # setting a top value has not much effect because numbers which are too large are seen as intermediates
+        non_negative_number.setBottom(
+            0.0
+        )  # setting a top value has not much effect because numbers which are too large are seen as intermediates
 
         layout = QVBoxLayout()
 
@@ -71,7 +95,11 @@ class FluxFeasibilityDialog(QDialog):
         self.flux_weight_scale = QLineEditC(8, "1.0", parent=self)
         self.flux_weight_scale.setValidator(non_negative_number)
         h1.addWidget(self.flux_weight_scale)
-        h1.addWidget(QLabel("Reciprocal of this is used where a value from the\nannotation is unavailable or to scale the weights."))
+        h1.addWidget(
+            QLabel(
+                "Reciprocal of this is used where a value from the\nannotation is unavailable or to scale the weights."
+            )
+        )
         s2.addLayout(h1)
         self.flux_group.setLayout(s2)
         layout.addWidget(self.flux_group)
@@ -95,7 +123,9 @@ class FluxFeasibilityDialog(QDialog):
         self.adjust_bm_coeff.setCheckable(True)
         vbox_bm_coeff = QVBoxLayout()
         self.bm_constituents: QTableWidget = QTableWidget(0, 6)
-        self.bm_constituents.setHorizontalHeaderLabels(["   ", "Component", "Formula", "Coefficient", "Adjustment", "Change [%]"])
+        self.bm_constituents.setHorizontalHeaderLabels(
+            ["   ", "Component", "Formula", "Coefficient", "Adjustment", "Change [%]"]
+        )
         self.bm_constituents.setSortingEnabled(True)
         self.bm_constituents.verticalHeader().setVisible(False)
         self.bm_constituents.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -226,15 +256,22 @@ class FluxFeasibilityDialog(QDialog):
                     if checkbox is not None and checkbox.isChecked():
                         bm_constituent = self.bm_constituents.item(i, 1).data(Qt.UserRole)
                         if bm_constituent not in self.bm_reac.metabolites:
-                            QMessageBox.critical(self, "Invalid biomass constituent encountered",
-                                bm_constituent.id + " is not in the current biomass reaction, it appears to have been modified.\nReset the currently selected biomass reaction.")
+                            QMessageBox.critical(
+                                self,
+                                "Invalid biomass constituent encountered",
+                                bm_constituent.id
+                                + " is not in the current biomass reaction, it appears to have been modified.\nReset the currently selected biomass reaction.",
+                            )
                             self.adjust_bm_coeff.setChecked(False)
                             return
                         variable_constituents.append(bm_constituent)
                 max_coeff_change = float(self.max_coeff_change.text())
                 if max_coeff_change < 0 or max_coeff_change > 100:
-                    QMessageBox.critical(self, "Invalid maximal relative coefficient change",
-                        "The maximal relative coefficient change must be a number between 0 and 100.")
+                    QMessageBox.critical(
+                        self,
+                        "Invalid maximal relative coefficient change",
+                        "The maximal relative coefficient change must be a number between 0 and 100.",
+                    )
                     return
 
             if self.adjust_gam.isChecked():
@@ -265,27 +302,48 @@ class FluxFeasibilityDialog(QDialog):
 
         self.main_window.setCursor(Qt.BusyCursor)
         try:
-            self.appdata.project.solution, reactions_in_objective, bm_mod, gam_mets_sign, gam_adjust = make_scenario_feasible(
-                self.appdata.project.cobra_py_model, self.appdata.project.scen_values, use_QP=self.method_qp.isChecked(),
-                flux_weight_scale=flux_weight_scale, abs_flux_weights=abs_flux_weights, weights_key=weights_key,
-                bm_reac_id=bm_reac_id, variable_constituents=variable_constituents, max_coeff_change=max_coeff_change/100,
-                bm_change_in_gram=self.bm_gram.isChecked(), gam_mets_param=gam_mets_param)
+            self.appdata.project.solution, reactions_in_objective, bm_mod, gam_mets_sign, gam_adjust = (
+                make_scenario_feasible(
+                    self.appdata.project.cobra_py_model,
+                    self.appdata.project.scen_values,
+                    use_QP=self.method_qp.isChecked(),
+                    flux_weight_scale=flux_weight_scale,
+                    abs_flux_weights=abs_flux_weights,
+                    weights_key=weights_key,
+                    bm_reac_id=bm_reac_id,
+                    variable_constituents=variable_constituents,
+                    max_coeff_change=max_coeff_change / 100,
+                    bm_change_in_gram=self.bm_gram.isChecked(),
+                    gam_mets_param=gam_mets_param,
+                )
+            )
             self.main_window.process_fba_solution(update=False)
-            if self.appdata.project.solution.status == 'optimal':
+            if self.appdata.project.solution.status == "optimal":
                 bm_is_modified = len(bm_mod) > 0 or gam_adjust != 0
                 if len(reactions_in_objective) > 0:
                     self.main_window.centralWidget().console._append_plain_text(
-                        "\nThe fluxes of the following reactions were changed to make the scenario feasible:\n", before_prompt=True)
+                        "\nThe fluxes of the following reactions were changed to make the scenario feasible:\n",
+                        before_prompt=True,
+                    )
                     for r in reactions_in_objective:
                         given_value = self.appdata.project.scen_values[r][0]
                         computed_value = self.appdata.project.comp_values[r][0]
                         if abs(given_value - computed_value) > self.appdata.project.cobra_py_model.tolerance:
-                            self.main_window.centralWidget().console._append_plain_text(r+": "+self.appdata.format_flux_value(given_value)
-                                +" --> "+self.appdata.format_flux_value(computed_value)+"\n", before_prompt=True)
+                            self.main_window.centralWidget().console._append_plain_text(
+                                r
+                                + ": "
+                                + self.appdata.format_flux_value(given_value)
+                                + " --> "
+                                + self.appdata.format_flux_value(computed_value)
+                                + "\n",
+                                before_prompt=True,
+                            )
                     scenario_fluxes = [self.appdata.project.comp_values[r] for r in reactions_in_objective]
-                    if  bm_is_modified and self.bm_mod_scenario.isChecked():
+                    if bm_is_modified and self.bm_mod_scenario.isChecked():
                         fixed_growth_rate = self.appdata.project.scen_values[bm_reac_id][0]
-                        self.appdata.scen_values_set_multiple(reactions_in_objective+[bm_reac_id], scenario_fluxes+[(0, 0)])
+                        self.appdata.scen_values_set_multiple(
+                            reactions_in_objective + [bm_reac_id], scenario_fluxes + [(0, 0)]
+                        )
                     else:
                         self.appdata.scen_values_set_multiple(reactions_in_objective, scenario_fluxes)
                     self.modified_scenario = self.appdata.scenario_past[-1]
@@ -304,27 +362,43 @@ class FluxFeasibilityDialog(QDialog):
                                 if met in gam_mets:
                                     ref -= copysign(gam_base, ref)
                                 item = QTableWidgetItem()
-                                item.setData(Qt.DisplayRole, 100 * mod/ref)
+                                item.setData(Qt.DisplayRole, 100 * mod / ref)
                                 self.bm_constituents.setItem(i, 5, item)
                         self.bm_constituents.setSortingEnabled(True)
                         bm_reac_mod.add_metabolites(bm_mod)
-                    bm_reac_mod.add_metabolites({met: sign*gam_adjust for met, sign in zip(gam_mets, gam_mets_sign)})
-                    self.main_window.centralWidget().console._append_plain_text("\nModified biomass reaction:\n"
-                            +bm_reac_mod.build_reaction_string(), before_prompt=True)
+                    bm_reac_mod.add_metabolites(
+                        {met: sign * gam_adjust for met, sign in zip(gam_mets, gam_mets_sign, strict=False)}
+                    )
+                    self.main_window.centralWidget().console._append_plain_text(
+                        "\nModified biomass reaction:\n" + bm_reac_mod.build_reaction_string(), before_prompt=True
+                    )
                     if self.bm_mod_scenario.isChecked():
                         self.bm_mod_reac_id = "adjusted_" + bm_reac_id
-                        self.appdata.project.scen_values.reactions[self.bm_mod_reac_id] = \
-                            [{met.id: coeff for met, coeff in bm_reac_mod.metabolites.items()}, fixed_growth_rate, fixed_growth_rate]
-                        self.main_window.centralWidget().tabs.widget(ModelTabIndex.Scenario).recreate_scenario_items_needed = True
+                        self.appdata.project.scen_values.reactions[self.bm_mod_reac_id] = [
+                            {met.id: coeff for met, coeff in bm_reac_mod.metabolites.items()},
+                            fixed_growth_rate,
+                            fixed_growth_rate,
+                        ]
+                        self.main_window.centralWidget().tabs.widget(
+                            ModelTabIndex.Scenario
+                        ).recreate_scenario_items_needed = True
                 if self.bm_group.isChecked() and self.adjust_gam.isChecked():
-                    self.gam_adjustment.setText("Calculated GAM adjustment: "+coefficient_format.format(gam_adjust))
+                    self.gam_adjustment.setText("Calculated GAM adjustment: " + coefficient_format.format(gam_adjust))
             else:
-                QMessageBox.critical(self, "Solver could not find an optimal solution",
-                            "No optimal solution was found, solver returned status '"+self.appdata.project.solution.status+"'.")
+                QMessageBox.critical(
+                    self,
+                    "Solver could not find an optimal solution",
+                    "No optimal solution was found, solver returned status '"
+                    + self.appdata.project.solution.status
+                    + "'.",
+                )
             self.main_window.centralWidget().update()
         except QPnotSupportedException:
-            QMessageBox.critical(self, "Solver with support for quadratic objectives required",
-                "Choose an appropriate solver, e.g. cplex, gurobi, cbc-coinor (see Configure COBRApy in the Config menu).")
+            QMessageBox.critical(
+                self,
+                "Solver with support for quadratic objectives required",
+                "Choose an appropriate solver, e.g. cplex, gurobi, cbc-coinor (see Configure COBRApy in the Config menu).",
+            )
         finally:
             self.main_window.setCursor(Qt.ArrowCursor)
 
@@ -344,8 +418,11 @@ class FluxFeasibilityDialog(QDialog):
             checkbox.setStyleSheet("text-align: center; margin-left:10%; margin-right:10%;")
             self.bm_constituents.setCellWidget(i, 0, checkbox)
             if met.formula_weight > 0:
-                checkbox.setChecked(coeff < 0 and met.elements.get('C', 0) > 0
-                                    and not met.id.lower().startswith(('datp', 'dgtp', 'dctp', 'dttp')))
+                checkbox.setChecked(
+                    coeff < 0
+                    and met.elements.get("C", 0) > 0
+                    and not met.id.lower().startswith(("datp", "dgtp", "dctp", "dttp"))
+                )
             else:
                 checkbox.setEnabled(False)
                 checkbox.setToolTip("cannot be adjusted because it has no formula")
@@ -369,11 +446,13 @@ class FluxFeasibilityDialog(QDialog):
             if scen_val is not None and scen_val[0] == scen_val[1]:
                 return True
             else:
-                QMessageBox.information(self, "Growth rate not fixed in current scenario",
-                    "Adjustments to biomass composition are only possible if the growth rate is fixed.")
+                QMessageBox.information(
+                    self,
+                    "Growth rate not fixed in current scenario",
+                    "Adjustments to biomass composition are only possible if the growth rate is fixed.",
+                )
         else:
-            QMessageBox.information(self, "Biomass reaction not set",
-                    "Choose a biomass reaction first.")
+            QMessageBox.information(self, "Biomass reaction not set", "Choose a biomass reaction first.")
         return False
 
     @Slot(bool)
@@ -381,19 +460,23 @@ class FluxFeasibilityDialog(QDialog):
         verified = False
         if correct:
             with QSignalBlocker(self.bm_reac_id_select):
-                self.bm_group.setFocus(True) # remove focus from self.bm_reac_id_select to suppress further signals
+                self.bm_group.setFocus(True)  # remove focus from self.bm_reac_id_select to suppress further signals
             self.bm_reac_id = self.bm_reac_id_select.text().strip()
             if self.growth_rate_fixed():
                 verified = True
                 if self.bm_reac is None or self.bm_reac.id != self.bm_reac_id:
-                    bm_reac_metabolites = self.appdata.project.cobra_py_model.reactions.get_by_id(self.bm_reac_id).metabolites
+                    bm_reac_metabolites = self.appdata.project.cobra_py_model.reactions.get_by_id(
+                        self.bm_reac_id
+                    ).metabolites
                     self.gam_mets_edit.completer().model().setStringList(met.id for met in bm_reac_metabolites)
                     if "ATPM" in self.appdata.project.cobra_py_model.reactions:
-                        gam_mets = [met for met in self.appdata.project.cobra_py_model.reactions.get_by_id("ATPM").metabolites]
+                        gam_mets = [
+                            met for met in self.appdata.project.cobra_py_model.reactions.get_by_id("ATPM").metabolites
+                        ]
                         if all((met in bm_reac_metabolites) for met in gam_mets):
                             gam_mets = [met.id for met in gam_mets]
                             self.gam_mets_edit.setText(" ".join(gam_mets))
-                            adp = [met for met in gam_mets if 'adp' in met.lower()]
+                            adp = [met for met in gam_mets if "adp" in met.lower()]
                             with QSignalBlocker(self.adjust_gam):
                                 if len(adp) == 1:
                                     self.remove_gam_via.setText(adp[0])
@@ -452,10 +535,10 @@ class FluxFeasibilityDialog(QDialog):
                     else:
                         row.append(str(item.data(Qt.DisplayRole)))
                 c += 1
-            table.append('\t'.join(row))
+            table.append("\t".join(row))
             r += 1
         clipboard = QGuiApplication.clipboard()
-        clipboard.setText('\r'.join(table))
+        clipboard.setText("\r".join(table))
 
     def get_gam_removal_parameters(self, bm_reac: cobra.Reaction()):
         valid, gam_mets = self.validate_gam_mets([met.id for met in bm_reac.metabolites])
@@ -472,8 +555,11 @@ class FluxFeasibilityDialog(QDialog):
         gam_mets = self.gam_mets_edit.text().split()
         for met_id in gam_mets:
             if met_id not in bm_reac_mets:
-                QMessageBox.critical(self, "Invalid metabolite in ATP hyrolysis reaction",
-                    met_id + " is not a metabolite of the biomass reaction.")
+                QMessageBox.critical(
+                    self,
+                    "Invalid metabolite in ATP hyrolysis reaction",
+                    met_id + " is not a metabolite of the biomass reaction.",
+                )
                 valid = False
                 gam_mets = []
                 break
@@ -493,9 +579,12 @@ class FluxFeasibilityDialog(QDialog):
             gam_base = float(self.remove_gam_via.text())
         except ValueError:
             gam_base = self.remove_gam_via.text().strip()
-            if not gam_base in gam_mets:
-                QMessageBox.critical(self, "GAM removal from biomass equation incorret",
-                    "Specify either a metabolite of the ATP hydrolysis reaction or a number.")
+            if gam_base not in gam_mets:
+                QMessageBox.critical(
+                    self,
+                    "GAM removal from biomass equation incorret",
+                    "Specify either a metabolite of the ATP hydrolysis reaction or a number.",
+                )
                 gam_base = 0
                 valid = False
         return valid, gam_base
@@ -514,18 +603,24 @@ class FluxFeasibilityDialog(QDialog):
     def show_elemental_balance(self):
         non_boundary_reactions = []
         biomass_text = ""
-        if self.bm_mod_scenario.isChecked() and \
-            self.bm_mod_reac_id in self.appdata.project.scen_values.reactions:
+        if self.bm_mod_scenario.isChecked() and self.bm_mod_reac_id in self.appdata.project.scen_values.reactions:
             non_boundary_reactions.append(self.bm_mod_reac_id)
             biomass_text = " including biomass reaction " + self.bm_mod_reac_id
         elif len(self.bm_reac_id) > 0:
             non_boundary_reactions.append(self.bm_reac_id)
             biomass_text = " including biomass reaction " + self.bm_reac_id
+
         def print_to_console(*txt):
-            self.main_window.centralWidget().console._append_plain_text(' '.join(list(txt)) + "\n", before_prompt=True)
+            self.main_window.centralWidget().console._append_plain_text(" ".join(list(txt)) + "\n", before_prompt=True)
+
         print_to_console("\nScenario fluxes" + biomass_text + ":")
-        element_exchange_balance(self.appdata.project.cobra_py_model, self.appdata.project.scen_values,
-                                 non_boundary_reactions, organic_elements_only=True, print_func=print_to_console)
+        element_exchange_balance(
+            self.appdata.project.cobra_py_model,
+            self.appdata.project.scen_values,
+            non_boundary_reactions,
+            organic_elements_only=True,
+            print_func=print_to_console,
+        )
         values = Scenario()
         values.reactions = self.appdata.project.scen_values.reactions
         for reaction in self.appdata.project.cobra_py_model.boundary:
@@ -537,8 +632,14 @@ class FluxFeasibilityDialog(QDialog):
             values[self.bm_reac_id] = val
         if len(values) > 0:
             print_to_console("All boundary fluxes" + biomass_text + ":")
-            element_exchange_balance(self.appdata.project.cobra_py_model, values,
-                                     non_boundary_reactions, organic_elements_only=True, print_func=print_to_console)
+            element_exchange_balance(
+                self.appdata.project.cobra_py_model,
+                values,
+                non_boundary_reactions,
+                organic_elements_only=True,
+                print_func=print_to_console,
+            )
+
 
 class MultiCompleter(QCompleter):
     def __init__(self, parent=None):
@@ -546,26 +647,27 @@ class MultiCompleter(QCompleter):
         self.setModel(QStringListModel())
         self.setCaseSensitivity(Qt.CaseInsensitive)
 
-    def pathFromIndex(self, index): # overrides Qcompleter method
+    def pathFromIndex(self, index):  # overrides Qcompleter method
         path = QCompleter.pathFromIndex(self, index)
         lst = str(self.widget().text()).split()
         if len(lst) > 1:
-            path = '%s %s' % (" ".join(lst[:-1]), path)
+            path = "%s %s" % (" ".join(lst[:-1]), path)
         return path
 
-    def splitPath(self, path): # overrides Qcompleter method
-        path = str(path.split()[-1]).lstrip(' ')
+    def splitPath(self, path):  # overrides Qcompleter method
+        path = str(path.split()[-1]).lstrip(" ")
         return [path]
+
 
 class QLineEditC(QLineEdit):
     """
     custom QLineEdit that gives a size hint which is appropriate
     for the expected number of digits that it is going to hold
     """
+
     def __init__(self, num_digits: int, contents: str, parent=None):
         QLineEdit.__init__(self, contents, parent)
         self.num_digits = num_digits + 1
 
-    def sizeHint(self) -> QSize: # overrides QLineEdit method
-        return QSize(self.fontMetrics().horizontalAdvance("0")*self.num_digits,
-                     super().sizeHint().height())
+    def sizeHint(self) -> QSize:  # overrides QLineEdit method
+        return QSize(self.fontMetrics().horizontalAdvance("0") * self.num_digits, super().sizeHint().height())

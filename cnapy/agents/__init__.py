@@ -9,7 +9,14 @@ Architecture:
     AgentDialog (Chat UI)
            │
            ▼
-    OrchestratorAgent (Router)
+    ┌──────┴──────┐
+    │             │
+    ▼             ▼
+ CrewAI      Traditional
+Orchestrator  Orchestrator
+(LLM-based)   (Regex-based)
+    │             │
+    └──────┬──────┘
            │
     ┌──────┼──────┬──────────┬──────────┬──────────┐
     │      │      │          │          │          │
@@ -17,6 +24,13 @@ Architecture:
  Flux   Gene  Scenario    Data     Strain
 Analysis Analysis Manager  Query   Knowledge
  Agent  Agent   Agent     Agent     Agent
+
+Features:
+- Natural language understanding (regex or LLM-based)
+- Korean/English auto-detection
+- Parametric analysis support (e.g., "Growth rate 0~100% 10% step pFBA")
+- Cancellable long-running operations
+- Multi-step workflow execution
 """
 
 from cnapy.agents.base_agent import (

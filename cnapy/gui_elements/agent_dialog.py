@@ -1,17 +1,18 @@
 """AI Agent Dialog for CNApy
 
 This module provides the chat interface for the CNApy Multi-Agent System.
-Users can interact with the system using natural language commands in
-Korean or English.
+Users can interact with the system using natural language commands.
 
 Features:
 - Chat-based interface
 - Quick action buttons for common operations
-- Agent filter tabs
 - Real-time execution feedback
 - LLM configuration integration
+- CrewAI integration for intelligent natural language understanding
+- Cancellable long-running operations
 """
 
+import logging
 import traceback
 
 from qtpy.QtCore import Qt, QThread, Signal, Slot
@@ -26,7 +27,6 @@ from qtpy.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSplitter,
-    QTabWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -37,28 +37,72 @@ from cnapy.agents.orchestrator_agent import OrchestratorAgent
 from cnapy.appdata import AppData
 from cnapy.gui_elements.llm_analysis_dialog import LLMConfig
 
+logger = logging.getLogger(__name__)
+
 
 class AgentWorkerThread(QThread):
-    """Worker thread for executing agent requests without blocking the UI."""
+    """Worker thread for executing agent requests without blocking the UI.
+
+    Supports cancellation for long-running operations like FVA or essential gene finding.
+    """
 
     result_ready = Signal(object)  # AgentResponse
     error_occurred = Signal(str)
     status_update = Signal(str)
+    cancelled = Signal()
 
-    def __init__(self, orchestrator: OrchestratorAgent, message: str):
+    def __init__(self, orchestrator, message: str, use_crewai: bool = False):
+        """Initialize the worker thread.
+
+        Args:
+            orchestrator: OrchestratorAgent or CNApyCrewOrchestrator
+            message: User message to process
+            use_crewai: Whether to use CrewAI orchestrator
+        """
         super().__init__()
         self.orchestrator = orchestrator
         self.message = message
+        self.use_crewai = use_crewai
+        self._cancel_requested = False
+
+    def request_cancel(self):
+        """Request cancellation of the current operation."""
+        self._cancel_requested = True
+        logger.info("Cancellation requested for agent operation")
+
+    def is_cancel_requested(self) -> bool:
+        """Check if cancellation was requested.
+
+        Returns:
+            True if cancellation was requested
+        """
+        return self._cancel_requested
 
     def run(self):
         """Execute the agent request."""
         try:
             self.status_update.emit("Processing...")
-            response = self.orchestrator.route(self.message)
-            self.result_ready.emit(response)
+
+            if self.use_crewai:
+                # Use CrewAI orchestrator with cancel check
+                response = self.orchestrator.route(
+                    self.message,
+                    cancel_check=self.is_cancel_requested,
+                )
+            else:
+                # Use traditional orchestrator
+                response = self.orchestrator.route(self.message)
+
+            if self._cancel_requested:
+                self.cancelled.emit()
+            else:
+                self.result_ready.emit(response)
         except Exception as e:
             traceback.print_exc()
-            self.error_occurred.emit(str(e))
+            if self._cancel_requested:
+                self.cancelled.emit()
+            else:
+                self.error_occurred.emit(str(e))
 
 
 class ChatMessage(QFrame):
@@ -124,7 +168,11 @@ class ChatMessage(QFrame):
 
 
 class AgentDialog(QDialog):
-    """Main dialog for AI Agent interaction."""
+    """Main dialog for AI Agent interaction.
+
+    Supports both traditional regex-based routing and CrewAI-based
+    intelligent routing when LLM is configured.
+    """
 
     def __init__(self, appdata: AppData, main_window=None):
         super().__init__()
@@ -132,27 +180,56 @@ class AgentDialog(QDialog):
         self.main_window = main_window
         self.llm_config = LLMConfig()
         self.worker_thread: AgentWorkerThread | None = None
+        self._use_crewai = False
+        self._crewai_orchestrator = None
 
-        # Initialize agent context and orchestrator
+        # Initialize agent context
         self.context = AgentContext(
             appdata=appdata,
             main_window=main_window,
         )
+
+        # Initialize traditional orchestrator
         self.orchestrator = OrchestratorAgent(self.context, self.llm_config)
+
+        # Try to initialize CrewAI orchestrator
+        self._init_crewai_orchestrator()
 
         self.setWindowTitle("CNApy AI Agent")
         self.setMinimumSize(800, 600)
         self.setup_ui()
 
         # Add welcome message
+        crewai_status = " (AI-powered)" if self._use_crewai else ""
         self._add_assistant_message(
-            "Hello! I'm the CNApy AI Agent. I can help you with metabolic model analysis.\n\n"
-            "안녕하세요! CNApy AI 에이전트입니다. 대사 모델 분석을 도와드릴 수 있습니다.\n\n"
+            f"Hello! I'm the CNApy AI Agent{crewai_status}. I can help you with metabolic model analysis.\n\n"
             "Try commands like:\n"
-            "- 'Perform FBA' / 'FBA 수행해줘'\n"
-            "- 'Set anaerobic condition' / '혐기 조건 설정해줘'\n"
-            "- 'Find essential genes' / '필수 유전자 찾아줘'"
+            "- 'Perform FBA' - Run Flux Balance Analysis\n"
+            "- 'Set anaerobic condition' - Change culture conditions\n"
+            "- 'Find essential genes' - Identify essential genes\n"
+            "- 'Growth rate 0~100% 10% step pFBA' - Parametric analysis\n"
+            "- 'Show model info' - Get model statistics"
         )
+
+    def _init_crewai_orchestrator(self):
+        """Initialize CrewAI orchestrator if available."""
+        try:
+            from cnapy.agents.crewai_orchestrator import CNApyCrewOrchestrator
+
+            self._crewai_orchestrator = CNApyCrewOrchestrator(
+                self.context,
+                self.llm_config,
+            )
+
+            if self._crewai_orchestrator.is_crewai_available():
+                self._use_crewai = True
+                logger.info("CrewAI orchestrator initialized successfully")
+            else:
+                logger.info("CrewAI not available, using traditional orchestrator")
+        except ImportError:
+            logger.debug("CrewAI not installed")
+        except Exception as e:
+            logger.warning(f"Failed to initialize CrewAI: {e}")
 
     def setup_ui(self):
         """Setup the dialog UI."""
@@ -171,17 +248,13 @@ class AgentDialog(QDialog):
         header_layout.addWidget(config_btn)
         main_layout.addLayout(header_layout)
 
-        # Agent filter tabs
-        self.agent_tabs = QTabWidget()
-        self.agent_tabs.addTab(QWidget(), "All")
-        self.agent_tabs.addTab(QWidget(), "Flux")
-        self.agent_tabs.addTab(QWidget(), "Gene")
-        self.agent_tabs.addTab(QWidget(), "Scenario")
-        self.agent_tabs.addTab(QWidget(), "Query")
-        self.agent_tabs.addTab(QWidget(), "Strain")
-        self.agent_tabs.setTabPosition(QTabWidget.North)
-        self.agent_tabs.setMaximumHeight(30)
-        main_layout.addWidget(self.agent_tabs)
+        # Agent info label
+        info_label = QLabel(
+            "<small>Available agents: Flux Analysis | Gene Analysis | "
+            "Scenario Manager | Data Query | Strain Knowledge</small>"
+        )
+        info_label.setStyleSheet("color: gray;")
+        main_layout.addWidget(info_label)
 
         # Splitter for chat and quick actions
         splitter = QSplitter(Qt.Vertical)
@@ -219,19 +292,20 @@ class AgentDialog(QDialog):
         actions_layout.setContentsMargins(0, 0, 0, 0)
 
         quick_actions = [
-            ("FBA", "FBA 수행", "perform_fba"),
-            ("pFBA", "pFBA 수행", "perform_pfba"),
-            ("FVA", "FVA 분석", "perform_fva"),
-            ("Aerobic", "호기 조건", "aerobic"),
-            ("Anaerobic", "혐기 조건", "anaerobic"),
-            ("Essential", "필수 유전자", "essential_genes"),
-            ("Clear", "초기화", "clear_scenario"),
+            ("FBA", "perform_fba"),
+            ("pFBA", "perform_pfba"),
+            ("FVA", "perform_fva"),
+            ("Aerobic", "aerobic"),
+            ("Anaerobic", "anaerobic"),
+            ("Essential Genes", "essential_genes"),
+            ("Model Info", "model_info"),
+            ("Clear", "clear_scenario"),
         ]
 
-        for en_label, ko_label, action_id in quick_actions:
-            btn = QPushButton(f"{en_label}\n{ko_label}")
+        for label, action_id in quick_actions:
+            btn = QPushButton(label)
             btn.setMaximumWidth(100)
-            btn.setMinimumHeight(50)
+            btn.setMinimumHeight(40)
             btn.clicked.connect(lambda checked, a=action_id: self._execute_quick_action(a))
             actions_layout.addWidget(btn)
 
@@ -246,9 +320,19 @@ class AgentDialog(QDialog):
         main_layout.addWidget(splitter)
 
         # Status bar
+        status_layout = QHBoxLayout()
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: gray;")
-        main_layout.addWidget(self.status_label)
+        status_layout.addWidget(self.status_label)
+
+        # AI mode indicator
+        self.ai_mode_label = QLabel("")
+        if self._use_crewai:
+            self.ai_mode_label.setText("AI Mode")
+            self.ai_mode_label.setStyleSheet("color: green; font-weight: bold;")
+            self.ai_mode_label.setToolTip("Using CrewAI for intelligent natural language understanding")
+        status_layout.addWidget(self.ai_mode_label)
+        main_layout.addLayout(status_layout)
 
         # Progress bar (hidden by default)
         self.progress_bar = QProgressBar()
@@ -262,14 +346,23 @@ class AgentDialog(QDialog):
         input_layout = QHBoxLayout()
 
         self.input_field = QLineEdit()
-        self.input_field.setPlaceholderText("Enter your command... / 명령을 입력하세요...")
+        self.input_field.setPlaceholderText("Enter your command (e.g., 'Perform FBA', 'Set anaerobic condition')")
         self.input_field.returnPressed.connect(self._send_message)
         input_layout.addWidget(self.input_field)
 
-        self.send_btn = QPushButton("Send 📤")
+        self.send_btn = QPushButton("Send")
         self.send_btn.clicked.connect(self._send_message)
         self.send_btn.setMinimumWidth(80)
         input_layout.addWidget(self.send_btn)
+
+        # Cancel button (hidden by default)
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.clicked.connect(self._cancel_operation)
+        self.cancel_btn.setMinimumWidth(80)
+        self.cancel_btn.setStyleSheet("background-color: #ffcccc;")
+        self.cancel_btn.setVisible(False)
+        self.cancel_btn.setToolTip("Cancel the current operation")
+        input_layout.addWidget(self.cancel_btn)
 
         main_layout.addLayout(input_layout)
 
@@ -317,21 +410,36 @@ class AgentDialog(QDialog):
         self.input_field.clear()
         self.input_field.setEnabled(False)
         self.send_btn.setEnabled(False)
+        self.send_btn.setVisible(False)
+        self.cancel_btn.setVisible(True)
 
         # Add user message to chat
         self._add_user_message(message)
 
         # Show progress
         self.progress_bar.setVisible(True)
-        self.status_label.setText("🔄 Processing...")
+        self.status_label.setText("Processing...")
+
+        # Decide which orchestrator to use
+        use_crewai = self._use_crewai and self._crewai_orchestrator is not None
+        orchestrator = self._crewai_orchestrator if use_crewai else self.orchestrator
 
         # Execute in background thread
-        self.worker_thread = AgentWorkerThread(self.orchestrator, message)
+        self.worker_thread = AgentWorkerThread(orchestrator, message, use_crewai=use_crewai)
         self.worker_thread.result_ready.connect(self._on_result)
         self.worker_thread.error_occurred.connect(self._on_error)
         self.worker_thread.status_update.connect(self._on_status_update)
+        self.worker_thread.cancelled.connect(self._on_cancelled)
         self.worker_thread.finished.connect(self._on_finished)
         self.worker_thread.start()
+
+    @Slot()
+    def _cancel_operation(self):
+        """Cancel the current operation."""
+        if self.worker_thread and self.worker_thread.isRunning():
+            self.worker_thread.request_cancel()
+            self.status_label.setText("Cancelling...")
+            self.cancel_btn.setEnabled(False)
 
     @Slot(object)
     def _on_result(self, response: AgentResponse):
@@ -372,12 +480,20 @@ class AgentDialog(QDialog):
         self.status_label.setText(f"🔄 {status}")
 
     @Slot()
+    def _on_cancelled(self):
+        """Handle cancellation of the operation."""
+        self._add_system_message("Operation cancelled.")
+
+    @Slot()
     def _on_finished(self):
         """Handle completion of the worker thread."""
         self.progress_bar.setVisible(False)
         self.status_label.setText("")
         self.input_field.setEnabled(True)
         self.send_btn.setEnabled(True)
+        self.send_btn.setVisible(True)
+        self.cancel_btn.setVisible(False)
+        self.cancel_btn.setEnabled(True)
         self.input_field.setFocus()
 
     def _execute_quick_action(self, action_id: str):
@@ -390,6 +506,7 @@ class AgentDialog(QDialog):
             "aerobic": "Set aerobic condition",
             "anaerobic": "Set anaerobic condition",
             "essential_genes": "Find essential genes",
+            "model_info": "Show model info",
             "clear_scenario": "Clear scenario",
         }
 
@@ -405,9 +522,20 @@ class AgentDialog(QDialog):
         dialog = LLMAnalysisDialog(self.appdata)
         dialog.tabs.setCurrentIndex(0)  # Show config tab
         dialog.exec()
+
         # Reload config
         self.llm_config = LLMConfig()
         self.orchestrator.llm_config = self.llm_config
+
+        # Reinitialize CrewAI orchestrator with new config
+        self._init_crewai_orchestrator()
+
+        # Update AI mode indicator
+        if self._use_crewai:
+            self.ai_mode_label.setText("AI Mode")
+            self.ai_mode_label.setStyleSheet("color: green; font-weight: bold;")
+        else:
+            self.ai_mode_label.setText("")
 
     def closeEvent(self, event):
         """Handle dialog close."""

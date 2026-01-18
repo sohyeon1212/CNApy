@@ -7,13 +7,13 @@ from zipfile import ZipFile
 
 import cobra
 from qtpy.QtGui import QColor
+
 from cnapy.application import Application
 
 
 def run(cna: Application):
     print("Hello!")
-    open_project(cna, str(os.path.join(
-        cna.appdata.work_directory, 'ECC2comp.cna')))
+    open_project(cna, str(os.path.join(cna.appdata.work_directory, "ECC2comp.cna")))
     disco(cna)
     print("I like all colors.")
 
@@ -41,26 +41,23 @@ def disco(cna: Application):
 
 
 def open_project(cna, filename):
-
     temp_dir = TemporaryDirectory()
 
-    with ZipFile(filename, 'r') as zip_ref:
+    with ZipFile(filename, "r") as zip_ref:
         zip_ref.extractall(temp_dir.name)
 
-        with open(temp_dir.name+"/box_positions.json", 'r') as fp:
+        with open(temp_dir.name + "/box_positions.json") as fp:
             maps = json.load(fp)
 
             count = 1
             for _name, m in maps.items():
-                m["background"] = temp_dir.name + \
-                    "/map" + str(count) + ".svg"
+                m["background"] = temp_dir.name + "/map" + str(count) + ".svg"
                 count += 1
         # load meta_data
-        with open(temp_dir.name+"/meta.json", 'r') as fp:
+        with open(temp_dir.name + "/meta.json") as fp:
             meta_data = json.load(fp)
 
-        cobra_py_model = cobra.io.read_sbml_model(
-            temp_dir.name + "/model.sbml")
+        cobra_py_model = cobra.io.read_sbml_model(temp_dir.name + "/model.sbml")
 
         cna.appdata.temp_dir = temp_dir
         cna.appdata.project.maps = maps
@@ -73,15 +70,14 @@ def open_project(cna, filename):
         cna.appdata.scenario_past.clear()
         cna.appdata.scenario_future.clear()
         for r in cna.appdata.project.cobra_py_model.reactions:
-            if 'cnapy-default' in r.annotation.keys():
-                cna.centralWidget().update_reaction_value(
-                    r.id, r.annotation['cnapy-default'])
+            if "cnapy-default" in r.annotation.keys():
+                cna.centralWidget().update_reaction_value(r.id, r.annotation["cnapy-default"])
         cna.nounsaved_changes()
 
         # if project contains maps move splitter and fit mapview
         if len(cna.appdata.project.maps) > 0:
             (_, r) = cna.centralWidget().splitter2.getRange(1)
-            cna.centralWidget().splitter2.moveSplitter(r*0.8, 1)
+            cna.centralWidget().splitter2.moveSplitter(r * 0.8, 1)
             cna.centralWidget().fit_mapview()
 
         cna.centralWidget().update()

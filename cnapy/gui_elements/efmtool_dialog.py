@@ -1,7 +1,7 @@
 """The cnapy elementary flux modes calculator dialog"""
+
 from qtpy.QtCore import Qt, QThread, Signal, Slot
-from qtpy.QtWidgets import (QCheckBox, QDialog, QHBoxLayout, QMessageBox,
-                            QPushButton, QVBoxLayout, QTextEdit)
+from qtpy.QtWidgets import QCheckBox, QDialog, QHBoxLayout, QMessageBox, QPushButton, QTextEdit, QVBoxLayout
 
 import cnapy.core
 from cnapy.appdata import AppData
@@ -44,12 +44,15 @@ class EFMtoolDialog(QDialog):
 
     def compute(self):
         self.setCursor(Qt.BusyCursor)
-        self.efm_computation = EFMComputationThread(self.appdata.project.cobra_py_model, self.appdata.project.scen_values,
-                                                    self.constraints.checkState() == Qt.Checked)
+        self.efm_computation = EFMComputationThread(
+            self.appdata.project.cobra_py_model,
+            self.appdata.project.scen_values,
+            self.constraints.checkState() == Qt.Checked,
+        )
         self.button.setText("Abort computation")
         self.button.clicked.disconnect(self.compute)
         self.button.clicked.connect(self.efm_computation.activate_abort)
-        self.rejected.connect(self.efm_computation.activate_abort) # for the X button of the window frame
+        self.rejected.connect(self.efm_computation.activate_abort)  # for the X button of the window frame
         self.cancel.hide()
         self.efm_computation.send_progress_text.connect(self.receive_progress_text)
         self.efm_computation.finished_computation.connect(self.conclude_computation)
@@ -64,13 +67,11 @@ class EFMtoolDialog(QDialog):
                 # in this case the progress window should still be left open and the cancel button reappear
                 self.button.hide()
                 self.cancel.show()
-                QMessageBox.information(self, 'No modes',
-                                        'An error occured and modes have not been calculated.')
+                QMessageBox.information(self, "No modes", "An error occured and modes have not been calculated.")
             else:
                 self.accept()
                 if len(self.efm_computation.ems) == 0:
-                    QMessageBox.information(self, 'No modes',
-                                            'No elementary modes exist.')
+                    QMessageBox.information(self, "No modes", "No elementary modes exist.")
                 else:
                     self.appdata.project.modes = self.efm_computation.ems
                     self.central_widget.mode_navigator.current = 0
@@ -82,6 +83,7 @@ class EFMtoolDialog(QDialog):
     def receive_progress_text(self, text):
         self.text_field.append(text)
         # self.central_widget.console._append_plain_text(text) # causes some kind of deadlock?!?
+
 
 class EFMComputationThread(QThread):
     def __init__(self, model, scen_values, constraints):
@@ -100,8 +102,13 @@ class EFMComputationThread(QThread):
         self.abort = True
 
     def run(self):
-        (self.ems, self.scenario) = cnapy.core.efm_computation(self.model, self.scen_values, self.constraints,
-                                        print_progress_function=self.print_progress_function, abort_callback=self.do_abort)
+        (self.ems, self.scenario) = cnapy.core.efm_computation(
+            self.model,
+            self.scen_values,
+            self.constraints,
+            print_progress_function=self.print_progress_function,
+            abort_callback=self.do_abort,
+        )
         self.finished_computation.emit()
 
     def print_progress_function(self, text):

@@ -1,7 +1,8 @@
 from enum import Enum
+
 from qtpy.QtCore import Qt, Signal, Slot
-from qtpy.QtWidgets import QApplication, QTableWidget, QTableWidgetItem, QAbstractItemView, QPlainTextEdit, QFrame
 from qtpy.QtGui import QMouseEvent, QTextCursor
+from qtpy.QtWidgets import QAbstractItemView, QApplication, QFrame, QPlainTextEdit, QTableWidget, QTableWidgetItem
 
 
 class ModelElementType(Enum):
@@ -12,7 +13,9 @@ class ModelElementType(Enum):
 class ReactionString(QPlainTextEdit):
     def __init__(self, reaction, metabolite_list):
         super().__init__()
-        reaction_string = reaction.build_reaction_string() + " " # extra space to be able to click outside the equation without triggering a jump to the metabolite
+        reaction_string = (
+            reaction.build_reaction_string() + " "
+        )  # extra space to be able to click outside the equation without triggering a jump to the metabolite
         self.setPlainText(reaction_string)
         self.text_width = self.fontMetrics().horizontalAdvance(reaction_string)
         self.setReadOnly(True)
@@ -39,6 +42,7 @@ class ReactionString(QPlainTextEdit):
                     self.jumpToMetabolite.emit(text)
                     self.metabolite_list.set_current_item(text)
 
+
 class ReactionTableWidget(QTableWidget):
     def __init__(self, appdata, element_type: ModelElementType) -> None:
         super().__init__()
@@ -53,9 +57,9 @@ class ReactionTableWidget(QTableWidget):
 
     def update_state(self, id_text, metabolite_list):
         QApplication.setOverrideCursor(Qt.BusyCursor)
-        QApplication.processEvents() # to put the change above into effect
+        QApplication.processEvents()  # to put the change above into effect
         self.clearContents()
-        self.setRowCount(0) # also resets manually changed row heights
+        self.setRowCount(0)  # also resets manually changed row heights
 
         if self.element_type is ModelElementType.METABOLITE:
             model_elements = self.appdata.project.cobra_py_model.metabolites
@@ -63,9 +67,7 @@ class ReactionTableWidget(QTableWidget):
             model_elements = self.appdata.project.cobra_py_model.genes
 
         if model_elements.has_id(id_text):
-            metabolite_or_gene = model_elements.get_by_id(
-                id_text
-            )
+            metabolite_or_gene = model_elements.get_by_id(id_text)
             self.setSortingEnabled(False)
             self.setRowCount(len(metabolite_or_gene.reactions))
             for i, reaction in enumerate(metabolite_or_gene.reactions):
@@ -84,17 +86,20 @@ class ReactionTableWidget(QTableWidget):
         if index == 1:
             for row in range(self.rowCount()):
                 reaction_string_widget: ReactionString = self.cellWidget(row, index)
-                font_metrics= reaction_string_widget.fontMetrics()
+                font_metrics = reaction_string_widget.fontMetrics()
                 base_height = font_metrics.lineSpacing()
                 margins = reaction_string_widget.contentsMargins()
                 height_margin = 12
                 if reaction_string_widget.text_width + margins.left() + margins.right() > new_size:
                     reaction_string_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-                    self.setRowHeight(row, base_height*2 + font_metrics.leading() + height_margin) # font_metrics.leading(): space between two lines
+                    self.setRowHeight(
+                        row, base_height * 2 + font_metrics.leading() + height_margin
+                    )  # font_metrics.leading(): space between two lines
                 else:
                     reaction_string_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
                     self.setRowHeight(row, base_height + height_margin)
 
     jumpToMetabolite = Signal(str)
+
     def emit_jump_to_metabolite(self, metabolite):
         self.jumpToMetabolite.emit(metabolite)

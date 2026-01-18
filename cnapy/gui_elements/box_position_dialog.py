@@ -1,10 +1,7 @@
 """The cnapy clipboard calculator dialog"""
-from tkinter.tix import X_REGION
-from qtpy.QtWidgets import (QButtonGroup, QComboBox, QDialog, QHBoxLayout, QLabel,
-                            QLineEdit, QMessageBox, QPushButton, QRadioButton,
-                            QVBoxLayout)
 
-from cnapy.appdata import AppData
+from qtpy.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout
+
 # from cnapy.gui_elements.map_view import ReactionBox
 
 

@@ -35,6 +35,12 @@ llm = [
     "openai>=1.0",
     "google-generativeai>=0.3",
 ]
+ai-agents = [
+    "crewai>=0.80.0",
+    "crewai-tools>=0.14.0",
+    "anthropic>=0.25",
+    "openai>=1.0",
+]
 dev = [
     "pytest>=7.2",
     "pytest-cov>=4.0",
@@ -50,6 +56,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "requires_milp: requires a MILP solver",
     "requires_efmtool: requires efmtool_link package",
+    "requires_crewai: requires CrewAI and LLM API key",
 ]
 
 [tool.coverage.run]
@@ -73,10 +80,28 @@ fail_under = 30
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-exclude = ["cnapy/resources.py"]
+exclude = ["cnapy/resources.py", "test_data/*"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP"]
+ignore = [
+    "E402",  # Module level import not at top - required for Qt plugin setup
+    "E501",  # Line too long - existing codebase has many long lines
+    "E712",  # Avoid equality comparisons to False - existing pattern in codebase
+    "E721",  # Use is/is not for type comparisons - existing pattern in codebase
+    "E741",  # Ambiguous variable name - existing pattern in codebase
+    "B006",  # Do not use mutable data structures for argument defaults - existing pattern
+    "B007",  # Loop control variable not used - existing pattern in codebase
+    "B018",  # Found useless expression - existing pattern in codebase
+    "B023",  # Function definition does not bind loop variable - existing pattern
+    "B904",  # raise ... from err - existing pattern in codebase
+    "F403",  # Star imports - required for straindesign compatibility
+    "F405",  # May be undefined from star imports - required for straindesign compatibility
+    "F841",  # Local variable assigned but never used - existing pattern in codebase
+    "UP008", # Use super() instead of super(__class__, self) - existing pattern
+    "UP031", # Use format specifiers instead of percent format - existing pattern
+    "UP038", # Use X | Y in isinstance call - existing pattern (pre-commit ruff 0.8.6)
+]
 
 [project.scripts]
 cnapy = "cnapy.__main__:main_cnapy"

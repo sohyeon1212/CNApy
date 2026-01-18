@@ -1,6 +1,7 @@
 """The in out flux dialog"""
-from qtpy.QtWidgets import (QDialog, QHBoxLayout, QLabel,
-                            QPushButton, QVBoxLayout, QComboBox)
+
+from qtpy.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+
 from cnapy.appdata import AppData
 
 

@@ -7,10 +7,14 @@ This agent handles all flux-based analyses:
 - MOMA (Linear MOMA)
 - ROOM (Regulatory On/Off Minimization)
 - Flux Sampling
+- Parametric Analysis (varying parameters across ranges)
 """
 
+import logging
+from collections.abc import Callable
 
 import cobra
+import numpy as np
 
 from cnapy.agents.base_agent import (
     BaseAgent,
@@ -19,13 +23,28 @@ from cnapy.agents.base_agent import (
     SkillStatus,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class FluxAnalysisAgent(BaseAgent):
     """Agent for flux-based metabolic analyses.
 
-    Handles FBA, pFBA, FVA, MOMA, ROOM, and flux sampling analyses.
+    Handles FBA, pFBA, FVA, MOMA, ROOM, flux sampling, and parametric analyses.
     Requires a loaded COBRA model in the context.
+
+    Attributes:
+        cancel_check: Optional callback to check for cancellation during long operations
     """
+
+    def __init__(self, context, cancel_check: Callable[[], bool] | None = None):
+        """Initialize the agent.
+
+        Args:
+            context: Shared agent context
+            cancel_check: Optional callback to check for cancellation
+        """
+        self._cancel_check = cancel_check or (lambda: False)
+        super().__init__(context)
 
     @property
     def name(self) -> str:
@@ -211,6 +230,46 @@ class FluxAnalysisAgent(BaseAgent):
                 },
                 required_params=["state1", "state2"],
                 handler=self._compare_flux_states,
+            )
+        )
+
+        # Parametric analysis (varying parameter across range)
+        self.register_skill(
+            Skill(
+                name="parametric_analysis",
+                description="Run analysis while varying a parameter across a range (e.g., growth rate 0-100%)",
+                description_ko="파라미터를 범위에 걸쳐 변화시키며 분석 수행 (예: 성장률 0-100%)",
+                parameters={
+                    "analysis_type": {
+                        "type": "string",
+                        "description": "Type of analysis (fba, pfba, fva)",
+                        "enum": ["fba", "pfba", "fva"],
+                    },
+                    "parameter": {
+                        "type": "string",
+                        "description": "Parameter to vary (growth_rate, oxygen_uptake)",
+                        "enum": ["growth_rate", "oxygen_uptake"],
+                    },
+                    "start_percent": {
+                        "type": "number",
+                        "description": "Starting value as percentage (0-100)",
+                    },
+                    "end_percent": {
+                        "type": "number",
+                        "description": "Ending value as percentage (0-100)",
+                    },
+                    "step_percent": {
+                        "type": "number",
+                        "description": "Step size as percentage",
+                        "default": 10.0,
+                    },
+                    "save_csv": {
+                        "type": "string",
+                        "description": "Path to save results as CSV file (optional)",
+                    },
+                },
+                required_params=["analysis_type", "parameter", "start_percent", "end_percent"],
+                handler=self._parametric_analysis,
             )
         )
 
@@ -721,6 +780,267 @@ class FluxAnalysisAgent(BaseAgent):
             message=f"Current objective value: {obj_value}",
             message_ko=f"현재 목적함수 값: {obj_value}",
         )
+
+    def _parametric_analysis(
+        self,
+        analysis_type: str,
+        parameter: str,
+        start_percent: float,
+        end_percent: float,
+        step_percent: float = 10.0,
+        save_csv: str | None = None,
+    ) -> SkillResult:
+        """Run analysis while varying a parameter across a range.
+
+        This enables requests like "Growth rate 0~100% 10%씩 pFBA" which
+        performs pFBA at growth rates from 0% to 100% in 10% increments.
+
+        Args:
+            analysis_type: Type of analysis (fba, pfba, fva)
+            parameter: Parameter to vary (growth_rate, oxygen_uptake)
+            start_percent: Starting value as percentage (0-100)
+            end_percent: Ending value as percentage (0-100)
+            step_percent: Step size as percentage (default 10)
+            save_csv: Path to save results as CSV file (optional)
+
+        Returns:
+            SkillResult with parametric results
+        """
+        check = self._check_model()
+        if check:
+            return check
+
+        model = self.context.model
+        results = []
+
+        try:
+            # First, get the maximum value for the parameter
+            with model as test_model:
+                if self.context.appdata and self.context.appdata.project:
+                    self.context.appdata.project.load_scenario_into_model(test_model)
+
+                base_solution = test_model.optimize()
+                if base_solution.status != "optimal":
+                    return SkillResult(
+                        status=SkillStatus.FAILURE,
+                        error="Base optimization failed",
+                        message="Could not determine base optimal value.",
+                        message_ko="기본 최적 값을 결정할 수 없습니다.",
+                    )
+
+                max_growth = base_solution.objective_value
+
+            # Calculate steps
+            steps = (
+                np.arange(
+                    start_percent,
+                    end_percent + step_percent / 2,  # Include endpoint
+                    step_percent,
+                )
+                / 100.0
+            )
+
+            # Find the biomass reaction (objective)
+            biomass_rxn_id = None
+            for rxn in model.reactions:
+                if rxn.objective_coefficient != 0:
+                    biomass_rxn_id = rxn.id
+                    break
+
+            if biomass_rxn_id is None:
+                return SkillResult(
+                    status=SkillStatus.FAILURE,
+                    error="No objective found",
+                    message="Could not identify the objective reaction.",
+                    message_ko="목적함수 반응을 찾을 수 없습니다.",
+                )
+
+            # Run analysis at each step
+            for fraction in steps:
+                # Check for cancellation
+                if self._cancel_check():
+                    return SkillResult(
+                        status=SkillStatus.PARTIAL,
+                        data={
+                            "parametric_results": results,
+                            "parameter": parameter,
+                            "cancelled_at": round(fraction * 100, 1),
+                        },
+                        message=(
+                            f"Analysis cancelled at {round(fraction * 100, 1)}%. Completed {len(results)} data points."
+                        ),
+                        message_ko=f"{round(fraction * 100, 1)}%에서 분석 취소됨. {len(results)}개 데이터 포인트 완료.",
+                    )
+
+                try:
+                    with model as step_model:
+                        if self.context.appdata and self.context.appdata.project:
+                            self.context.appdata.project.load_scenario_into_model(step_model)
+
+                        # Set constraint based on parameter
+                        if parameter == "growth_rate":
+                            target = max_growth * fraction
+                            rxn = step_model.reactions.get_by_id(biomass_rxn_id)
+                            rxn.bounds = (target, target)
+
+                        # Run analysis
+                        if analysis_type == "pfba":
+                            solution = cobra.flux_analysis.pfba(step_model)
+                        elif analysis_type == "fba":
+                            solution = step_model.optimize()
+                        elif analysis_type == "fva":
+                            # For FVA, we return min/max ranges
+                            fva_result = cobra.flux_analysis.flux_variability_analysis(
+                                step_model, fraction_of_optimum=0.0
+                            )
+                            results.append(
+                                {
+                                    "fraction": round(fraction * 100, 1),
+                                    "growth_rate": round(target, 6) if parameter == "growth_rate" else None,
+                                    "n_variable": sum(
+                                        1
+                                        for rxn_id in fva_result.minimum.index
+                                        if abs(fva_result.maximum[rxn_id] - fva_result.minimum[rxn_id]) > 1e-6
+                                    ),
+                                    "status": "optimal",
+                                }
+                            )
+                            continue
+                        else:
+                            return SkillResult(
+                                status=SkillStatus.FAILURE,
+                                error=f"Unknown analysis type: {analysis_type}",
+                                message=f"Unknown analysis type: {analysis_type}",
+                                message_ko=f"알 수 없는 분석 유형: {analysis_type}",
+                            )
+
+                        if solution.status == "optimal":
+                            result_data = {
+                                "fraction": round(fraction * 100, 1),
+                                "growth_rate": round(target, 6) if parameter == "growth_rate" else None,
+                                "objective_value": round(solution.objective_value, 6),
+                                "status": solution.status,
+                            }
+
+                            if analysis_type == "pfba":
+                                result_data["total_flux"] = round(sum(abs(v) for v in solution.fluxes.values()), 4)
+
+                            results.append(result_data)
+                        else:
+                            results.append(
+                                {
+                                    "fraction": round(fraction * 100, 1),
+                                    "growth_rate": round(target, 6) if parameter == "growth_rate" else None,
+                                    "status": solution.status,
+                                    "error": "infeasible",
+                                }
+                            )
+
+                except Exception as e:
+                    results.append(
+                        {
+                            "fraction": round(fraction * 100, 1),
+                            "error": str(e),
+                        }
+                    )
+
+            # Format results message
+            n_success = sum(1 for r in results if r.get("status") == "optimal")
+            n_total = len(results)
+
+            # Save to CSV if requested
+            csv_path = None
+            if save_csv:
+                import csv
+                import os
+                from datetime import datetime
+
+                # Generate default filename if only directory is given or save_csv is True-like
+                if save_csv in ("true", "True", "1", "yes"):
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    csv_path = f"parametric_{analysis_type}_{timestamp}.csv"
+                else:
+                    csv_path = save_csv
+
+                # Ensure .csv extension
+                if not csv_path.endswith(".csv"):
+                    csv_path += ".csv"
+
+                try:
+                    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+                        if results:
+                            # Get all unique keys from results
+                            fieldnames = []
+                            for r in results:
+                                for key in r.keys():
+                                    if key not in fieldnames:
+                                        fieldnames.append(key)
+
+                            writer = csv.DictWriter(f, fieldnames=fieldnames)
+                            writer.writeheader()
+                            writer.writerows(results)
+
+                    csv_path = os.path.abspath(csv_path)
+                except Exception as e:
+                    # Log error but don't fail the analysis
+                    logger.warning(f"Failed to save CSV: {e}")
+                    csv_path = None
+
+            if analysis_type == "pfba":
+                # Create summary table for pFBA
+                summary_lines = ["Parametric pFBA Results:"]
+                summary_lines.append(f"{'Growth %':<12} {'Objective':<12} {'Total Flux':<12}")
+                summary_lines.append("-" * 36)
+                for r in results:
+                    if r.get("status") == "optimal":
+                        summary_lines.append(
+                            f"{r['fraction']:<12.1f} {r['objective_value']:<12.4f} {r.get('total_flux', 'N/A'):<12}"
+                        )
+                    else:
+                        summary_lines.append(f"{r['fraction']:<12.1f} {'INFEASIBLE':<24}")
+
+                message = "\n".join(summary_lines)
+                message_ko = f"파라미터 pFBA 완료: {n_success}/{n_total}개 데이터 포인트 성공"
+            else:
+                message = f"Parametric {analysis_type.upper()} completed: {n_success}/{n_total} data points successful."
+                message_ko = f"파라미터 {analysis_type.upper()} 완료: {n_success}/{n_total}개 데이터 포인트 성공"
+
+            # Add CSV info to message
+            if csv_path:
+                message += f"\nResults saved to: {csv_path}"
+                message_ko += f"\n결과 저장됨: {csv_path}"
+
+            return SkillResult(
+                status=SkillStatus.SUCCESS,
+                data={
+                    "parametric_results": results,
+                    "parameter": parameter,
+                    "analysis_type": analysis_type,
+                    "max_growth": round(max_growth, 6),
+                    "n_points": len(results),
+                    "n_success": n_success,
+                    "csv_path": csv_path,
+                },
+                message=message,
+                message_ko=message_ko,
+                metadata={"analysis_type": f"parametric_{analysis_type}"},
+            )
+
+        except Exception as e:
+            return SkillResult(
+                status=SkillStatus.FAILURE,
+                error=str(e),
+                message=f"Parametric analysis failed: {str(e)}",
+                message_ko=f"파라미터 분석 실패: {str(e)}",
+            )
+
+    def set_cancel_check(self, cancel_check: Callable[[], bool]):
+        """Set the cancellation check callback.
+
+        Args:
+            cancel_check: Callback that returns True if cancellation requested
+        """
+        self._cancel_check = cancel_check
 
     def _compare_flux_states(
         self,

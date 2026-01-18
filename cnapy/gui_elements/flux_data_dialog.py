@@ -6,20 +6,38 @@ This module provides functionality to:
 - Calculate and visualize log2 fold change between conditions
 """
 
-import os
 import csv
-import numpy as np
-from qtpy.QtCore import Qt, Slot, Signal
-from qtpy.QtWidgets import (QDialog, QHBoxLayout, QLabel, QVBoxLayout,
-                            QPushButton, QGroupBox, QTextEdit, QTabWidget,
-                            QWidget, QMessageBox, QCheckBox, QListWidget,
-                            QListWidgetItem, QAbstractItemView, QFileDialog,
-                            QComboBox, QDoubleSpinBox, QTableWidget,
-                            QTableWidgetItem, QHeaderView, QRadioButton,
-                            QButtonGroup, QSpinBox, QLineEdit, QGridLayout)
-from qtpy.QtGui import QColor
-from typing import Dict, List, Tuple, Optional
 import math
+import os
+
+import numpy as np
+from qtpy.QtCore import Signal, Slot
+from qtpy.QtGui import QColor
+from qtpy.QtWidgets import (
+    QAbstractItemView,
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDoubleSpinBox,
+    QFileDialog,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
 from cnapy.appdata import AppData
 
 
@@ -29,11 +47,11 @@ class FluxDataCondition:
     def __init__(self, name: str, file_path: str = ""):
         self.name = name
         self.file_path = file_path
-        self.flux_data: Dict[str, float] = {}  # reaction_id -> flux value
+        self.flux_data: dict[str, float] = {}  # reaction_id -> flux value
 
-    def load_from_file(self, file_path: str, reaction_col: int = 0,
-                       flux_col: int = 1, has_header: bool = True,
-                       delimiter: str = ',') -> Tuple[bool, str]:
+    def load_from_file(
+        self, file_path: str, reaction_col: int = 0, flux_col: int = 1, has_header: bool = True, delimiter: str = ","
+    ) -> tuple[bool, str]:
         """Load flux data from CSV/TSV file.
 
         Returns:
@@ -43,7 +61,7 @@ class FluxDataCondition:
         self.flux_data = {}
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding="utf-8") as f:
                 reader = csv.reader(f, delimiter=delimiter)
 
                 if has_header:
@@ -63,9 +81,9 @@ class FluxDataCondition:
             return False, f"Error loading file: {str(e)}"
 
 
-def calculate_log2_fold_change(condition1: FluxDataCondition,
-                               condition2: FluxDataCondition,
-                               pseudocount: float = 1e-6) -> Dict[str, float]:
+def calculate_log2_fold_change(
+    condition1: FluxDataCondition, condition2: FluxDataCondition, pseudocount: float = 1e-6
+) -> dict[str, float]:
     """
     Calculate log2 fold change between two conditions.
 
@@ -107,7 +125,7 @@ class FluxDataDialog(QDialog):
         self.central_widget = central_widget
         self.setMinimumSize(900, 700)
 
-        self.conditions: List[FluxDataCondition] = []
+        self.conditions: list[FluxDataCondition] = []
         self._setup_ui()
 
     def _setup_ui(self):
@@ -321,7 +339,7 @@ class FluxDataDialog(QDialog):
             self,
             "Open Flux Data File",
             self.appdata.work_directory,
-            "Data files (*.csv *.tsv *.txt);;CSV files (*.csv);;TSV files (*.tsv);;All files (*.*)"
+            "Data files (*.csv *.tsv *.txt);;CSV files (*.csv);;TSV files (*.tsv);;All files (*.*)",
         )
 
         if not file_path:
@@ -349,9 +367,7 @@ class FluxDataDialog(QDialog):
         flux_col = self.flux_col_spin.value()
         has_header = self.has_header_check.isChecked()
 
-        success, message = condition.load_from_file(
-            file_path, rxn_col, flux_col, has_header, delimiter
-        )
+        success, message = condition.load_from_file(file_path, rxn_col, flux_col, has_header, delimiter)
 
         if success:
             self.conditions.append(condition)
@@ -411,7 +427,7 @@ class FluxDataDialog(QDialog):
         if idx >= 0:
             self.target_condition_combo.setCurrentIndex(idx)
 
-    def _get_selected_condition(self, name: str) -> Optional[FluxDataCondition]:
+    def _get_selected_condition(self, name: str) -> FluxDataCondition | None:
         """Get condition by name."""
         for cond in self.conditions:
             if cond.name == name:
@@ -508,13 +524,11 @@ class FluxDataDialog(QDialog):
             target_cond = self._get_selected_condition(self.target_condition_combo.currentText())
 
             if not ref_cond or not target_cond:
-                QMessageBox.warning(self, "Missing Conditions",
-                                    "Please select both reference and target conditions.")
+                QMessageBox.warning(self, "Missing Conditions", "Please select both reference and target conditions.")
                 return
 
             if ref_cond.name == target_cond.name:
-                QMessageBox.warning(self, "Same Condition",
-                                    "Please select different conditions for comparison.")
+                QMessageBox.warning(self, "Same Condition", "Please select different conditions for comparison.")
                 return
 
             pseudocount = self.pseudocount_spin.value()
@@ -546,7 +560,7 @@ class FluxDataDialog(QDialog):
             # Update all map tabs
             for i in range(self.central_widget.map_tabs.count()):
                 widget = self.central_widget.map_tabs.widget(i)
-                if hasattr(widget, 'update'):
+                if hasattr(widget, "update"):
                     widget.update()
 
     def _update_visualization_log2fc(self, color_range: float):
@@ -593,7 +607,7 @@ class FluxDataDialog(QDialog):
             self.central_widget.update()
             for i in range(self.central_widget.map_tabs.count()):
                 widget = self.central_widget.map_tabs.widget(i)
-                if hasattr(widget, 'update'):
+                if hasattr(widget, "update"):
                     widget.update()
 
             # Restore original function
@@ -609,7 +623,7 @@ class FluxDataDialog(QDialog):
             self.central_widget.update()
             for i in range(self.central_widget.map_tabs.count()):
                 widget = self.central_widget.map_tabs.widget(i)
-                if hasattr(widget, 'update'):
+                if hasattr(widget, "update"):
                     widget.update()
 
         self.preview_text.setText("Visualization cleared.")
@@ -622,9 +636,9 @@ class FluxDataVisualizationManager:
         self.appdata = appdata
         self.log2fc_mode = False
         self.color_range = 2.0
-        self.log2fc_values: Dict[str, float] = {}
+        self.log2fc_values: dict[str, float] = {}
 
-    def set_log2fc_data(self, log2fc_values: Dict[str, float], color_range: float = 2.0):
+    def set_log2fc_data(self, log2fc_values: dict[str, float], color_range: float = 2.0):
         """Set log2FC data for visualization."""
         self.log2fc_mode = True
         self.log2fc_values = log2fc_values

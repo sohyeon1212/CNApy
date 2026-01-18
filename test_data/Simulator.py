@@ -1,21 +1,21 @@
 import cobra.io as io
-from optlang import Model, Variable, Constraint, Objective
+from optlang import Constraint, Model, Objective, Variable
 
 
-class Simulator(object):
+class Simulator:
     """
     Constraint-based metabolic model simulator implementing FBA, Linear MOMA, and ROOM methods.
-    
+
     This class provides methods for:
     - Flux Balance Analysis (FBA)
     - Linear Minimization of Metabolic Adjustment (Linear MOMA)
     - Regulatory On/Off Minimization (ROOM)
     """
-    
+
     def __init__(self):
         """
         Constructor for Simulator
-        
+
         Initializes all model components to None. These will be populated
         when a model is loaded using read_model() or load_cobra_model().
         """
@@ -31,12 +31,12 @@ class Simulator(object):
     def run_MOMA(self, wild_flux={}, flux_constraints={}, inf_flag=False):
         """
         Linear MOMA (Minimization of Metabolic Adjustment) analysis.
-        
+
         Linear MOMA finds a flux distribution that minimizes the Manhattan distance (L1 norm)
         to a reference (wild-type) flux distribution while satisfying stoichiometric
         and flux bound constraints. This is computationally more efficient than
         quadratic MOMA while providing similar biological insights.
-        
+
         Parameters:
         -----------
         wild_flux : dict
@@ -47,14 +47,14 @@ class Simulator(object):
             of (lower_bound, upper_bound).
         inf_flag : bool, optional (default=False)
             If False, replaces infinite bounds with ±1000.
-            
+
         Returns:
         --------
         tuple: (status, objective_value, flux_distribution)
             - status: Optimization status ('optimal' if successful)
             - objective_value: Minimized Manhattan distance (sum of absolute deviations)
             - flux_distribution: Dict of reaction IDs to flux values
-            
+
         Notes:
         ------
         The objective minimizes: sum(|v - w|) where v is mutant flux and w is wild-type flux.
@@ -78,7 +78,7 @@ class Simulator(object):
                     upper_boundary_constraints[key] = 1000.0
 
         # Create optlang model
-        m = Model(name='Linear_MOMA')
+        m = Model(name="Linear_MOMA")
 
         # Create variables
         v = {}  # Flux variables
@@ -91,15 +91,13 @@ class Simulator(object):
             # Set flux bounds based on constraints or model defaults
             if each_reaction in flux_constraints:
                 v[each_reaction] = Variable(
-                    each_reaction,
-                    lb=flux_constraints[each_reaction][0],
-                    ub=flux_constraints[each_reaction][1]
+                    each_reaction, lb=flux_constraints[each_reaction][0], ub=flux_constraints[each_reaction][1]
                 )
             else:
                 v[each_reaction] = Variable(
                     each_reaction,
                     lb=lower_boundary_constraints[each_reaction],
-                    ub=upper_boundary_constraints[each_reaction]
+                    ub=upper_boundary_constraints[each_reaction],
                 )
             # Deviation variables (non-negative)
             fplus[each_reaction] = Variable(f"fplus_{each_reaction}", lb=0.0, ub=1000.0)
@@ -117,14 +115,17 @@ class Simulator(object):
         for each_reaction in model_reactions:
             if each_reaction in wild_flux:
                 w = wild_flux[each_reaction]  # Wild-type flux
-                
+
                 # Constraint: v - w = fplus - fminus
                 # Rearranged: v - fplus + fminus = w
-                constraints.append(Constraint(
-                    v[each_reaction] - fplus[each_reaction] + fminus[each_reaction],
-                    lb=w, ub=w,
-                    name=f"abs_decomp_{each_reaction}"
-                ))
+                constraints.append(
+                    Constraint(
+                        v[each_reaction] - fplus[each_reaction] + fminus[each_reaction],
+                        lb=w,
+                        ub=w,
+                        name=f"abs_decomp_{each_reaction}",
+                    )
+                )
 
         m.add(constraints)
 
@@ -139,27 +140,22 @@ class Simulator(object):
                 continue
 
             # Create mass balance expression: sum(S_ij * v_j) = 0
-            expr = sum(v[reaction] * Smatrix[metabolite, reaction]
-                      for metabolite, reaction in metabolite_reactions)
+            expr = sum(v[reaction] * Smatrix[metabolite, reaction] for metabolite, reaction in metabolite_reactions)
 
-            mass_balance_constraints.append(Constraint(
-                expr, lb=0, ub=0,
-                name=f"mass_balance_{each_metabolite}"
-            ))
+            mass_balance_constraints.append(Constraint(expr, lb=0, ub=0, name=f"mass_balance_{each_metabolite}"))
 
         m.add(mass_balance_constraints)
 
         # Set objective: minimize sum of absolute deviations (Manhattan distance)
         target_reactions = wild_flux.keys()
-        objective_expr = sum((fplus[each_reaction] + fminus[each_reaction])
-                            for each_reaction in target_reactions)
-        m.objective = Objective(objective_expr, direction='min')
+        objective_expr = sum((fplus[each_reaction] + fminus[each_reaction]) for each_reaction in target_reactions)
+        m.objective = Objective(objective_expr, direction="min")
 
         # Solve the optimization problem
         m.optimize()
 
         # Extract results if optimization was successful
-        if m.status == 'optimal':
+        if m.status == "optimal":
             flux_distribution = {}
             for reaction in model_reactions:
                 flux_distribution[reaction] = float(v[reaction].primal)
@@ -174,11 +170,11 @@ class Simulator(object):
     def run_ROOM(self, wild_flux={}, flux_constraints={}, delta=0.03, epsilon=0.001, inf_flag=False):
         """
         Regulatory On/Off Minimization (ROOM) analysis.
-        
+
         ROOM finds a flux distribution that minimizes the number of significant flux changes
         compared to a reference (wild-type) flux distribution. It uses binary variables to
         count reactions that deviate significantly from the reference state.
-        
+
         Parameters:
         -----------
         wild_flux : dict
@@ -195,14 +191,14 @@ class Simulator(object):
             and to define inactive reactions.
         inf_flag : bool, optional (default=False)
             If False, replaces infinite bounds with ±1000.
-            
+
         Returns:
         --------
         tuple: (status, objective_value, flux_distribution)
             - status: Gurobi optimization status (2 = optimal)
             - objective_value: Number of significantly changed reactions
             - flux_distribution: Dict of reaction IDs to flux values
-            
+
         Notes:
         ------
         ROOM is particularly useful for predicting gene knockout phenotypes, as it
@@ -225,7 +221,7 @@ class Simulator(object):
                     upper_boundary_constraints[key] = 1000.0
 
         # Create optlang model
-        m = Model(name='ROOM')
+        m = Model(name="ROOM")
 
         # Create variables
         v = {}  # Flux variables
@@ -237,19 +233,17 @@ class Simulator(object):
             # Set flux bounds based on constraints or model defaults
             if each_reaction in flux_constraints:
                 v[each_reaction] = Variable(
-                    each_reaction,
-                    lb=flux_constraints[each_reaction][0],
-                    ub=flux_constraints[each_reaction][1]
+                    each_reaction, lb=flux_constraints[each_reaction][0], ub=flux_constraints[each_reaction][1]
                 )
             else:
                 v[each_reaction] = Variable(
                     each_reaction,
                     lb=lower_boundary_constraints[each_reaction],
-                    ub=upper_boundary_constraints[each_reaction]
+                    ub=upper_boundary_constraints[each_reaction],
                 )
 
             # Binary indicator variable for significant flux change
-            y[each_reaction] = Variable(f"y_{each_reaction}", type='binary')
+            y[each_reaction] = Variable(f"y_{each_reaction}", type="binary")
 
             variables_to_add.extend([v[each_reaction], y[each_reaction]])
 
@@ -266,13 +260,9 @@ class Simulator(object):
                 continue
 
             # Create mass balance expression: sum(S_ij * v_j) = 0
-            expr = sum(v[reaction] * Smatrix[metabolite, reaction]
-                      for metabolite, reaction in metabolite_reactions)
+            expr = sum(v[reaction] * Smatrix[metabolite, reaction] for metabolite, reaction in metabolite_reactions)
 
-            mass_balance_constraints.append(Constraint(
-                expr, lb=0, ub=0,
-                name=f"mass_balance_{each_metabolite}"
-            ))
+            mass_balance_constraints.append(Constraint(expr, lb=0, ub=0, name=f"mass_balance_{each_metabolite}"))
 
         m.add(mass_balance_constraints)
 
@@ -281,9 +271,9 @@ class Simulator(object):
         for each_reaction in model_reactions:
             if each_reaction not in wild_flux:
                 continue
-                
+
             w = wild_flux[each_reaction]  # Reference (wild-type) flux
-            
+
             # Calculate upper and lower bounds for allowable flux range
             if abs(w) < epsilon:
                 # If wild-type flux is near zero, use absolute tolerance
@@ -293,11 +283,11 @@ class Simulator(object):
                 # Use relative tolerance based on wild-type flux magnitude
                 w_upper = w + delta * abs(w)
                 w_lower = w - delta * abs(w)
-            
+
             # Big-M formulation to link binary variable y to flux deviation
             # If y = 0 (no significant change), then w_lower <= v <= w_upper
             # If y = 1 (significant change allowed), then lb <= v <= ub (no additional constraint)
-            
+
             # Get actual bounds for the reaction
             if each_reaction in flux_constraints:
                 lb = flux_constraints[each_reaction][0]
@@ -305,38 +295,38 @@ class Simulator(object):
             else:
                 lb = lower_boundary_constraints[each_reaction]
                 ub = upper_boundary_constraints[each_reaction]
-            
+
             # Big-M values (should be larger than any feasible flux)
             M_upper = ub - w_upper if ub < 1000 else 2000
             M_lower = w_lower - lb if lb > -1000 else 2000
-            
+
             # v <= w_upper + M_upper * y
             # When y=0: v <= w_upper (enforces upper bound of allowable range)
             # When y=1: v <= w_upper + M_upper (effectively no constraint)
-            m.add(Constraint(
-                v[each_reaction] - M_upper * y[each_reaction],
-                ub=w_upper,
-                name=f"room_upper_{each_reaction}"
-            ))
+            m.add(
+                Constraint(
+                    v[each_reaction] - M_upper * y[each_reaction], ub=w_upper, name=f"room_upper_{each_reaction}"
+                )
+            )
 
             # v >= w_lower - M_lower * y
             # When y=0: v >= w_lower (enforces lower bound of allowable range)
             # When y=1: v >= w_lower - M_lower (effectively no constraint)
-            m.add(Constraint(
-                v[each_reaction] + M_lower * y[each_reaction],
-                lb=w_lower,
-                name=f"room_lower_{each_reaction}"
-            ))
+            m.add(
+                Constraint(
+                    v[each_reaction] + M_lower * y[each_reaction], lb=w_lower, name=f"room_lower_{each_reaction}"
+                )
+            )
 
         # Set objective: minimize number of significantly changed reactions
         objective_expr = sum(y[each_reaction] for each_reaction in wild_flux.keys())
-        m.objective = Objective(objective_expr, direction='min')
+        m.objective = Objective(objective_expr, direction="min")
 
         # Solve the optimization problem
         m.optimize()
 
         # Extract results if optimization was successful
-        if m.status == 'optimal':
+        if m.status == "optimal":
             objective_value = m.objective.value  # Number of changed reactions
             flux_distribution = {}
             for reaction in model_reactions:
@@ -349,11 +339,10 @@ class Simulator(object):
         else:
             return m.status, False, False
 
-    def run_FSEOF(self, target_reaction, objective_fraction=1.0, flux_constraints={}, 
-                  n_points=10, inf_flag=False):
+    def run_FSEOF(self, target_reaction, objective_fraction=1.0, flux_constraints={}, n_points=10, inf_flag=False):
         """
         Flux Scanning based on Enforced Objective Flux (FSEOF).
-        
+
         Parameters:
         -----------
         target_reaction : str
@@ -366,7 +355,7 @@ class Simulator(object):
             Additional flux constraints
         inf_flag : bool
             If False, replaces infinite bounds with ±1000
-            
+
         Returns:
         --------
         tuple: (status, results_df, correlations_df)
@@ -374,104 +363,96 @@ class Simulator(object):
             - results_df: DataFrame with columns [target_flux, objective_flux, reaction1, reaction2, ...]
             - correlations_df: DataFrame with correlation coefficients
         """
-        import pandas as pd
         import numpy as np
-        
+        import pandas as pd
+
         # Step 1: Find maximum objective value
-        fba_status, max_obj_value, _ = self.run_FBA(
-            flux_constraints=flux_constraints,
-            inf_flag=inf_flag
-        )
-        
-        if fba_status != 'optimal':
+        fba_status, max_obj_value, _ = self.run_FBA(flux_constraints=flux_constraints, inf_flag=inf_flag)
+
+        if fba_status != "optimal":
             return fba_status, None, None
-        
+
         # Step 2: Set minimum objective constraint
         min_obj_flux = objective_fraction * max_obj_value
         objective = self.objective
         fseof_constraints = flux_constraints.copy()
-        fseof_constraints[objective] = (min_obj_flux, float('inf'))
-        
+        fseof_constraints[objective] = (min_obj_flux, float("inf"))
+
         # Step 3: Find target reaction's feasible range
         min_status, min_flux_val, _ = self.run_FBA(
-            new_objective=target_reaction,
-            flux_constraints=fseof_constraints,
-            inf_flag=inf_flag,
-            mode='min'
+            new_objective=target_reaction, flux_constraints=fseof_constraints, inf_flag=inf_flag, mode="min"
         )
-        
+
         max_status, max_flux_val, _ = self.run_FBA(
-            new_objective=target_reaction,
-            flux_constraints=fseof_constraints,
-            inf_flag=inf_flag,
-            mode='max'
+            new_objective=target_reaction, flux_constraints=fseof_constraints, inf_flag=inf_flag, mode="max"
         )
-        
-        if min_status != 'optimal' or max_status != 'optimal':
-            return 'failed', None, None
-        
+
+        if min_status != "optimal" or max_status != "optimal":
+            return "failed", None, None
+
         # Step 4: Generate scan points
         scan_points = np.linspace(min_flux_val, max_flux_val, n_points)
-        
+
         # Step 5: Scan through each point
         flux_data = []
-        
+
         for target_flux in scan_points:
             # Fix target reaction at current scan point
             scan_constraints = fseof_constraints.copy()
             scan_constraints[target_reaction] = (target_flux, target_flux)
-            
+
             # Run FBA
-            status, obj_val, flux_dist = self.run_FBA(
-                flux_constraints=scan_constraints,
-                inf_flag=inf_flag
-            )
-            
-            if status == 'optimal':
+            status, obj_val, flux_dist = self.run_FBA(flux_constraints=scan_constraints, inf_flag=inf_flag)
+
+            if status == "optimal":
                 # Store flux distribution with target and objective values
                 row_data = flux_dist.copy()
-                row_data['target_flux'] = target_flux
-                row_data['objective_flux'] = obj_val
+                row_data["target_flux"] = target_flux
+                row_data["objective_flux"] = obj_val
                 flux_data.append(row_data)
-        
+
         if not flux_data:
-            return 'failed', None, None
-        
+            return "failed", None, None
+
         # Step 6: Create results DataFrame
         results_df = pd.DataFrame(flux_data)
-        
+
         # Reorder columns: target_flux, objective_flux, then all reactions
-        cols = ['target_flux', 'objective_flux'] + [col for col in results_df.columns 
-                                                      if col not in ['target_flux', 'objective_flux']]
+        cols = ["target_flux", "objective_flux"] + [
+            col for col in results_df.columns if col not in ["target_flux", "objective_flux"]
+        ]
         results_df = results_df[cols]
-        
+
         # Step 7: Calculate correlations with target reaction
-        reaction_columns = [col for col in results_df.columns 
-                            if col not in ['target_flux', 'objective_flux']]
-        
+        reaction_columns = [col for col in results_df.columns if col not in ["target_flux", "objective_flux"]]
+
         correlations = {}
         for rxn in reaction_columns:
-            corr = results_df['target_flux'].corr(results_df[rxn])
+            corr = results_df["target_flux"].corr(results_df[rxn])
             correlations[rxn] = corr
-        
+
         # Create correlations DataFrame
-        correlations_df = pd.DataFrame([
-            {'reaction': rxn, 'correlation': corr, 'abs_correlation': abs(corr)}
-            for rxn, corr in correlations.items()
-        ]).sort_values('abs_correlation', ascending=False).reset_index(drop=True)
-        
-        return 'optimal', results_df, correlations_df
+        correlations_df = (
+            pd.DataFrame(
+                [
+                    {"reaction": rxn, "correlation": corr, "abs_correlation": abs(corr)}
+                    for rxn, corr in correlations.items()
+                ]
+            )
+            .sort_values("abs_correlation", ascending=False)
+            .reset_index(drop=True)
+        )
 
+        return "optimal", results_df, correlations_df
 
-    def run_FVA(self, fraction_of_optimum=1.0, flux_constraints={}, inf_flag=False, 
-                reactions_to_analyze=None):
+    def run_FVA(self, fraction_of_optimum=1.0, flux_constraints={}, inf_flag=False, reactions_to_analyze=None):
         """
         Flux Variability Analysis (FVA).
-        
+
         FVA determines the minimum and maximum possible flux through each reaction
         while maintaining a minimum objective flux. This reveals the flexibility
         of the metabolic network.
-        
+
         Parameters:
         -----------
         fraction_of_optimum : float, optional (default=1.0)
@@ -483,7 +464,7 @@ class Simulator(object):
             If False, replaces infinite boundobjective_fractions with ±1000.
         reactions_to_analyze : list, optional
             List of reaction IDs to analyze. If None, analyzes all reactions.
-            
+
         Returns:
         --------
         dict: FVA results containing:
@@ -492,67 +473,51 @@ class Simulator(object):
             - 'objective_value': The enforced objective value
         """
         # First, find maximum objective value
-        fba_status, max_obj_value, _ = self.run_FBA(
-            flux_constraints=flux_constraints,
-            inf_flag=inf_flag
-        )
-        
-        if fba_status != 'optimal':
-            return {'status': fba_status, 'fva_data': {}, 'objective_value': 0}
-        
+        fba_status, max_obj_value, _ = self.run_FBA(flux_constraints=flux_constraints, inf_flag=inf_flag)
+
+        if fba_status != "optimal":
+            return {"status": fba_status, "fva_data": {}, "objective_value": 0}
+
         # Calculate minimum required objective flux
         min_obj_flux = fraction_of_optimum * max_obj_value
-        
+
         # Determine which reactions to analyze
         if reactions_to_analyze is None:
             reactions_to_analyze = self.model_reactions
-        
+
         # Add constraint to maintain minimum objective
         objective = self.objective
         fva_constraints = flux_constraints.copy()
-        fva_constraints[objective] = (min_obj_flux, float('inf'))
-        
+        fva_constraints[objective] = (min_obj_flux, float("inf"))
+
         # Perform FVA for each reaction
         fva_data = {}
-        
+
         for reaction in reactions_to_analyze:
             # Minimize reaction flux
             min_status, min_flux, _ = self.run_FBA(
-                new_objective=reaction,
-                flux_constraints=fva_constraints,
-                inf_flag=inf_flag,
-                mode='min'
+                new_objective=reaction, flux_constraints=fva_constraints, inf_flag=inf_flag, mode="min"
             )
-            
+
             # Maximize reaction flux
             max_status, max_flux, _ = self.run_FBA(
-                new_objective=reaction,
-                flux_constraints=fva_constraints,
-                inf_flag=inf_flag,
-                mode='max'
+                new_objective=reaction, flux_constraints=fva_constraints, inf_flag=inf_flag, mode="max"
             )
-            
-            if min_status == 'optimal' and max_status == 'optimal':
-                fva_data[reaction] = {
-                    'minimum': min_flux,
-                    'maximum': max_flux,
-                    'range': max_flux - min_flux
-                }
-        
-        return {
-            'status': 'optimal',
-            'fva_data': fva_data,
-            'objective_value': min_obj_flux
-        }
 
-    def run_FBA(self, new_objective='', flux_constraints={}, inf_flag=False, 
-                internal_flux_minimization=False, mode='max'):
+            if min_status == "optimal" and max_status == "optimal":
+                fva_data[reaction] = {"minimum": min_flux, "maximum": max_flux, "range": max_flux - min_flux}
+
+        return {"status": "optimal", "fva_data": fva_data, "objective_value": min_obj_flux}
+
+    def run_FBA(
+        self, new_objective="", flux_constraints={}, inf_flag=False, internal_flux_minimization=False, mode="max"
+    ):
         """
         Flux Balance Analysis (FBA).
-        
+
         FBA maximizes or minimizes an objective function (typically biomass or a target
         metabolite production) subject to stoichiometric constraints and flux bounds.
-        
+
         Parameters:
         -----------
         new_objective : str, optional
@@ -567,14 +532,14 @@ class Simulator(object):
             maintaining optimal objective value.
         mode : str, optional (default='max')
             Optimization mode: 'max' for maximization, 'min' for minimization.
-            
+
         Returns:
         --------
         tuple: (status, objective_value, flux_distribution)
             - status: Gurobi optimization status (2 = optimal)
             - objective_value: Optimized objective function value (or total flux for pFBA)
             - flux_distribution: Dict of reaction IDs to flux values
-            
+
         Notes:
         ------
         Parsimonious FBA (pFBA) is useful for obtaining more biologically realistic
@@ -585,7 +550,7 @@ class Simulator(object):
         model_reactions = self.model_reactions
 
         # Determine objective reaction
-        if new_objective == '':
+        if new_objective == "":
             objective = self.objective
         else:
             objective = new_objective
@@ -605,7 +570,7 @@ class Simulator(object):
                     upper_boundary_constraints[key] = 1000.0
 
         # Create optlang model
-        m = Model(name='FBA')
+        m = Model(name="FBA")
 
         # Create variables
         v = {}  # Flux variables
@@ -618,15 +583,13 @@ class Simulator(object):
             # Set flux bounds based on constraints or model defaults
             if each_reaction in flux_constraints:
                 v[each_reaction] = Variable(
-                    each_reaction,
-                    lb=flux_constraints[each_reaction][0],
-                    ub=flux_constraints[each_reaction][1]
+                    each_reaction, lb=flux_constraints[each_reaction][0], ub=flux_constraints[each_reaction][1]
                 )
             else:
                 v[each_reaction] = Variable(
                     each_reaction,
                     lb=lower_boundary_constraints[each_reaction],
-                    ub=upper_boundary_constraints[each_reaction]
+                    ub=upper_boundary_constraints[each_reaction],
                 )
             # Auxiliary variables for pFBA
             fplus[each_reaction] = Variable(f"fplus_{each_reaction}", lb=0.0, ub=1000.0)
@@ -647,26 +610,22 @@ class Simulator(object):
                 continue
 
             # Create mass balance expression: sum(S_ij * v_j) = 0
-            expr = sum(v[reaction] * Smatrix[metabolite, reaction]
-                      for metabolite, reaction in metabolite_reactions)
+            expr = sum(v[reaction] * Smatrix[metabolite, reaction] for metabolite, reaction in metabolite_reactions)
 
-            mass_balance_constraints.append(Constraint(
-                expr, lb=0, ub=0,
-                name=f"mass_balance_{each_metabolite}"
-            ))
+            mass_balance_constraints.append(Constraint(expr, lb=0, ub=0, name=f"mass_balance_{each_metabolite}"))
 
         m.add(mass_balance_constraints)
 
         # Set primary objective (maximize or minimize target reaction flux)
-        if mode == 'max':
-            m.objective = Objective(v[objective], direction='max')
-        elif mode == 'min':
-            m.objective = Objective(v[objective], direction='min')
+        if mode == "max":
+            m.objective = Objective(v[objective], direction="max")
+        elif mode == "min":
+            m.objective = Objective(v[objective], direction="min")
 
         # Solve primary optimization
         m.optimize()
 
-        if m.status == 'optimal':
+        if m.status == "optimal":
             objective_value = m.objective.value
 
             # Parsimonious FBA: minimize total flux while maintaining optimal objective
@@ -677,23 +636,27 @@ class Simulator(object):
                 # Add flux decomposition constraints for all reactions
                 pfba_constraints = []
                 for each_reaction in model_reactions:
-                    pfba_constraints.append(Constraint(
-                        fplus[each_reaction] - fminus[each_reaction] - v[each_reaction],
-                        lb=0, ub=0,
-                        name=f"flux_decomp_{each_reaction}"
-                    ))
+                    pfba_constraints.append(
+                        Constraint(
+                            fplus[each_reaction] - fminus[each_reaction] - v[each_reaction],
+                            lb=0,
+                            ub=0,
+                            name=f"flux_decomp_{each_reaction}",
+                        )
+                    )
 
                 m.add(pfba_constraints)
 
                 # New objective: minimize sum of absolute fluxes
-                objective_expr = sum((fplus[each_reaction] + fminus[each_reaction])
-                                    for each_reaction in model_reactions)
-                m.objective = Objective(objective_expr, direction='min')
+                objective_expr = sum(
+                    (fplus[each_reaction] + fminus[each_reaction]) for each_reaction in model_reactions
+                )
+                m.objective = Objective(objective_expr, direction="min")
 
                 # Solve secondary optimization
                 m.optimize()
 
-                if m.status == 'optimal':
+                if m.status == "optimal":
                     objective_value = m.objective.value  # Total flux sum
                     flux_distribution = {}
                     for reaction in model_reactions:
@@ -719,12 +682,12 @@ class Simulator(object):
     def read_model(self, filename):
         """
         Load a metabolic model from an SBML file.
-        
+
         Parameters:
         -----------
         filename : str
             Path to the SBML model file.
-            
+
         Returns:
         --------
         tuple: (metabolites, reactions, Smatrix, lb, ub, objective)
@@ -736,15 +699,15 @@ class Simulator(object):
     def load_cobra_model(self, cobra_model):
         """
         Load a COBRApy model into the simulator.
-        
+
         Extracts all necessary components from a COBRApy model including metabolites,
         reactions, stoichiometric matrix, flux bounds, and objective function.
-        
+
         Parameters:
         -----------
         cobra_model : cobra.Model
             A COBRApy model object.
-            
+
         Returns:
         --------
         tuple: (metabolites, reactions, Smatrix, lb, ub, objective)
@@ -762,8 +725,8 @@ class Simulator(object):
         model_genes = []
         lower_boundary_constraints = {}
         upper_boundary_constraints = {}
-        objective_reaction = ''
-        
+        objective_reaction = ""
+
         # Extract metabolites
         for each_metabolite in model.metabolites:
             model_metabolites.append(each_metabolite.id)
@@ -782,14 +745,14 @@ class Simulator(object):
             # Extract stoichiometric coefficients for reactants
             reactant_list = each_reaction.reactants
             reactant_coff_list = each_reaction.get_coefficients(reactant_list)
-            
+
             # Extract stoichiometric coefficients for products
             product_list = each_reaction.products
             product_coff_list = each_reaction.get_coefficients(product_list)
-            
+
             reactant_coff_list = list(reactant_coff_list)
             product_coff_list = list(product_coff_list)
-            
+
             # Add reactant coefficients to Smatrix (negative by convention)
             for i in range(len(reactant_list)):
                 Smatrix[(reactant_list[i].id, each_reaction.id)] = reactant_coff_list[i]
@@ -800,17 +763,17 @@ class Simulator(object):
 
             # Store reaction ID
             model_reactions.append(each_reaction.id)
-            
+
             # Extract flux bounds
             lb = each_reaction.lower_bound
             ub = each_reaction.upper_bound
-            
+
             # Convert very large bounds to infinity for cleaner representation
             if lb < -1000.0:
-                lb = float('-inf')
+                lb = float("-inf")
             if ub > 1000.0:
-                ub = float('inf')
-            
+                ub = float("inf")
+
             lower_boundary_constraints[each_reaction.id] = lb
             upper_boundary_constraints[each_reaction.id] = ub
 
@@ -823,9 +786,14 @@ class Simulator(object):
         self.upper_boundary_constraints = upper_boundary_constraints
         self.objective = objective_reaction
 
-        return (model_metabolites, model_reactions, Smatrix, lower_boundary_constraints,
-                upper_boundary_constraints, objective_reaction)
-
+        return (
+            model_metabolites,
+            model_reactions,
+            Smatrix,
+            lower_boundary_constraints,
+            upper_boundary_constraints,
+            objective_reaction,
+        )
 
 
 def test_simulator_comparison(model_name="iJO1366"):
@@ -839,13 +807,13 @@ def test_simulator_comparison(model_name="iJO1366"):
         Model to test. Options: "iJO1366", "textbook", "e_coli_core"
     """
     import cobra
-    from cobra.flux_analysis import moma, room
     import numpy as np
+    from cobra.flux_analysis import moma, room
     from scipy.stats import pearsonr
 
-    print("="*80)
+    print("=" * 80)
     print(f"Testing Simulator vs COBRApy with {model_name} model")
-    print("="*80)
+    print("=" * 80)
 
     # Load model
     print(f"\n[1] Loading {model_name} model...")
@@ -857,7 +825,7 @@ def test_simulator_comparison(model_name="iJO1366"):
         print("  Trying alternative method...")
         try:
             cobra_model = cobra.io.read_sbml_model(f"{model_name}.xml")
-            print(f"✓ Model loaded from file")
+            print("✓ Model loaded from file")
         except:
             print(f"✗ Please ensure {model_name} model is available")
             return
@@ -867,9 +835,9 @@ def test_simulator_comparison(model_name="iJO1366"):
     sim.load_cobra_model(cobra_model)
 
     # ===== FBA Test =====
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("[2] FBA (Flux Balance Analysis) Comparison")
-    print("="*80)
+    print("=" * 80)
 
     # Simulator FBA
     print("\nRunning Simulator FBA...")
@@ -910,13 +878,13 @@ def test_simulator_comparison(model_name="iJO1366"):
     wild_flux = sim_flux.copy()
 
     # ===== Gene Knockout Setup =====
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("[3] Setting up gene knockout scenario")
-    print("="*80)
+    print("=" * 80)
 
     # Find a reaction to knockout (e.g., PGI - phosphoglucose isomerase)
     knockout_reaction = None
-    for rxn_id in ['PGI', 'PFK', 'FBP']:
+    for rxn_id in ["PGI", "PFK", "FBP"]:
         if rxn_id in sim.model_reactions:
             knockout_reaction = rxn_id
             break
@@ -933,15 +901,14 @@ def test_simulator_comparison(model_name="iJO1366"):
     cobra_model_ko.reactions.get_by_id(knockout_reaction).bounds = (0, 0)
 
     # ===== Linear MOMA Test =====
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("[4] Linear MOMA (Minimization of Metabolic Adjustment) Comparison")
-    print("="*80)
+    print("=" * 80)
 
     # Simulator Linear MOMA
     print("\nRunning Simulator Linear MOMA...")
     sim_moma_status, sim_moma_obj, sim_moma_flux = sim.run_MOMA(
-        wild_flux=wild_flux,
-        flux_constraints=knockout_constraints
+        wild_flux=wild_flux, flux_constraints=knockout_constraints
     )
     print(f"  Status: {sim_moma_status}")
     print(f"  Objective value (Manhattan distance): {sim_moma_obj:.6f}")
@@ -976,17 +943,14 @@ def test_simulator_comparison(model_name="iJO1366"):
         print("  Note: MOMA in COBRApy may require specific solvers")
 
     # ===== ROOM Test =====
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("[5] ROOM (Regulatory On/Off Minimization) Comparison")
-    print("="*80)
+    print("=" * 80)
 
     # Simulator ROOM
     print("\nRunning Simulator ROOM...")
     sim_room_status, sim_room_obj, sim_room_flux = sim.run_ROOM(
-        wild_flux=wild_flux,
-        flux_constraints=knockout_constraints,
-        delta=0.03,
-        epsilon=0.001
+        wild_flux=wild_flux, flux_constraints=knockout_constraints, delta=0.03, epsilon=0.001
     )
     print(f"  Status: {sim_room_status}")
     print(f"  Number of changed reactions: {sim_room_obj:.0f}")
@@ -1021,17 +985,17 @@ def test_simulator_comparison(model_name="iJO1366"):
         print("  Note: ROOM in COBRApy may require specific solvers")
 
     # ===== Summary =====
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("SUMMARY")
-    print("="*80)
+    print("=" * 80)
     print(f"✓ FBA: Objective diff = {obj_diff:.10f}")
-    print(f"✓ All tests completed")
-    print("="*80)
+    print("✓ All tests completed")
+    print("=" * 80)
 
 
 if __name__ == "__main__":
     import sys
-    
+
     # Parse command line arguments
     if len(sys.argv) > 1:
         test_type = sys.argv[1].lower()
@@ -1041,15 +1005,15 @@ if __name__ == "__main__":
         model = "textbook"
 
     if test_type in ["comparison", "all"]:
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("RUNNING SIMULATOR COMPARISON TESTS")
-        print("="*80)
+        print("=" * 80)
         test_simulator_comparison(model)
-    
+
     # Usage instructions
     if len(sys.argv) == 1:
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("Usage: python simulator_linear_moma.py [test_type] [model]")
         print("  test_type: 'fseof', 'comparison', or 'all' (default: all)")
         print("  model: 'textbook', 'e_coli_core', 'iJO1366' (default: textbook)")
-        print("="*80)
+        print("=" * 80)

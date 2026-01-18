@@ -61,7 +61,6 @@ import cnapy.utils as utils
 from cnapy.appdata import AppData, CnaMap
 from cnapy.flux_sampling import perform_sampling
 from cnapy.gui_elements.about_dialog import AboutDialog
-from cnapy.gui_elements.agent_dialog import AgentDialog
 from cnapy.gui_elements.central_widget import CentralWidget, ModelTabIndex
 from cnapy.gui_elements.clipboard_calculator import ClipboardCalculator
 from cnapy.gui_elements.config_cobrapy_dialog import ConfigCobrapyDialog
@@ -594,15 +593,6 @@ class MainWindow(QMainWindow):
         load_flux_data_action = QAction("Load External Flux Data...", self)
         load_flux_data_action.triggered.connect(self.show_flux_data_dialog)
         self.model_menu.addAction(load_flux_data_action)
-
-        # AI Agent menu (top-level menu)
-        self.ai_agent_menu = self.menu.addMenu("🤖 AI Agent")
-
-        ai_chat_action = QAction("Open AI Agent Chat...", self)
-        ai_chat_action.setShortcut("Ctrl+Shift+A")
-        ai_chat_action.setToolTip("Natural language interface for metabolic model analysis")
-        ai_chat_action.triggered.connect(self.show_agent_dialog)
-        self.ai_agent_menu.addAction(ai_chat_action)
 
         self.config_menu = self.menu.addMenu("Config")
 
@@ -1992,7 +1982,7 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(
                         self,
                         "Sampling Complete",
-                        f"Sampling ({mode_str}) results saved to {filename}\n" f"Total samples: {len(s)}",
+                        f"Sampling ({mode_str}) results saved to {filename}\nTotal samples: {len(s)}",
                     )
 
             except Exception as e:
@@ -2621,7 +2611,7 @@ class MainWindow(QMainWindow):
                     )
                     continue
             else:
-                warnings += f"WARNING: No Cmin for {metabolite_id}. " "This metabolite will be ignored.\n"
+                warnings += f"WARNING: No Cmin for {metabolite_id}. This metabolite will be ignored.\n"
                 continue
 
             if cmax_in_cell is not None:
@@ -2634,7 +2624,7 @@ class MainWindow(QMainWindow):
                     )
                     continue
             else:
-                warnings += f"WARNING: No Cmax for {metabolite_id}. " "This metabolite will be ignored.\n"
+                warnings += f"WARNING: No Cmax for {metabolite_id}. This metabolite will be ignored.\n"
                 continue
             print(warnings)
             concentrations[metabolite_id] = {
@@ -2689,7 +2679,7 @@ class MainWindow(QMainWindow):
                 try:
                     dG0 = float(dG0_in_cell)
                 except ValueError:
-                    warnings += f"WARNING: dG'° of {reac_id} could not be read as number. " "It will be ignored.\n"
+                    warnings += f"WARNING: dG'° of {reac_id} could not be read as number. It will be ignored.\n"
                     continue
 
                 dG0s[reac_id] = {}
@@ -2700,14 +2690,13 @@ class MainWindow(QMainWindow):
                         uncertainty = float(uncertainty_in_cell)
                     except ValueError:
                         warnings += (
-                            f"WARNING: Uncertainty of {reac_id} could not be read" "as number. It will be ignored.\n"
+                            f"WARNING: Uncertainty of {reac_id} could not be readas number. It will be ignored.\n"
                         )
                         continue
                     dG0s[reac_id]["uncertainty"] = uncertainty
             elif uncertainty_in_cell is not None:
                 warnings += (
-                    f"WARNING: Uncertainty of {reac_id} is set but no dG'°"
-                    " value exists. Hence, it will be ignored.\n"
+                    f"WARNING: Uncertainty of {reac_id} is set but no dG'° value exists. Hence, it will be ignored.\n"
                 )
         if warnings != "":
             QMessageBox.warning(
@@ -2793,9 +2782,3 @@ class MainWindow(QMainWindow):
         dialog = FluxDataDialog(self.appdata, self.central_widget)
         dialog.exec()
         self.central_widget.update()
-
-    @Slot()
-    def show_agent_dialog(self):
-        """Show the AI Agent dialog for natural language interaction."""
-        dialog = AgentDialog(self.appdata, self)
-        dialog.exec()

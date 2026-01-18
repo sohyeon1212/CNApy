@@ -1,23 +1,30 @@
-import numpy
+import json
+import zipfile
+from io import BytesIO
 from random import randint
-from copy import deepcopy
+from typing import Any
+
 import matplotlib.pyplot as plt
-
-from qtpy.QtCore import Qt, Signal, Slot, QStringListModel
-from qtpy.QtGui import QIcon, QBrush, QColor
-from qtpy.QtWidgets import (QDialog, QFileDialog, QHBoxLayout, QLabel, QPushButton,
-                            QVBoxLayout, QWidget, QCompleter, QLineEdit, QMessageBox, QToolButton)
-
+import numpy
+from qtpy.QtCore import QStringListModel, Qt, Signal, Slot
+from qtpy.QtGui import QBrush, QColor, QIcon
+from qtpy.QtWidgets import (
+    QCompleter,
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cnapy.appdata import AppData
 from cnapy.flux_vector_container import FluxVectorContainer
 from cnapy.utils import QComplReceivLineEdit
-import zipfile
-import os
-from io import BytesIO
-
-import json
-from typing import Any
 
 
 def json_zip_write(
@@ -28,9 +35,9 @@ def json_zip_write(
 ) -> None:
     data = json.dumps(json_data, indent=4)
 
-    json_bytes = BytesIO(data.encode('utf-8'))
+    json_bytes = BytesIO(data.encode("utf-8"))
 
-    with zipfile.ZipFile(zip_path, 'w', zip_method) as zipf:
+    with zipfile.ZipFile(zip_path, "w", zip_method) as zipf:
         zipf.writestr(zipped_file_name, json_bytes.getvalue())
 
 
@@ -42,8 +49,8 @@ class ModeNavigator(QWidget):
         self.appdata = appdata
         self.central_widget = central_widget
         self.current = 0
-        self.current_flux_values = None # are set in update_mode of central_widget
-        self.mode_type = 0 # EFM or some sort of flux vector
+        self.current_flux_values = None  # are set in update_mode of central_widget
+        self.mode_type = 0  # EFM or some sort of flux vector
         self.scenario = {}
         self.modified_scenario = None
         self.setFixedHeight(70)
@@ -104,14 +111,15 @@ class ModeNavigator(QWidget):
         self.apply_button.clicked.connect(self.apply)
         self.clear_button.clicked.connect(self.clear)
         self.selector.returnPressed.connect(self.apply_selection)
-        self.selector.findChild(QToolButton).triggered.connect(self.reset_selection) # findChild(QToolButton) retrieves the clear button
+        self.selector.findChild(QToolButton).triggered.connect(
+            self.reset_selection
+        )  # findChild(QToolButton) retrieves the clear button
         self.size_histogram_button.clicked.connect(self.size_histogram)
         self.normalization_button.clicked.connect(self.normalization)
         self.central_widget.broadcastReactionID.connect(self.selector.receive_input)
 
     def update(self):
-        txt = str(self.current + 1) + "/" + \
-            str(len(self.appdata.project.modes))
+        txt = str(self.current + 1) + "/" + str(len(self.appdata.project.modes))
         if self.num_selected < len(self.appdata.project.modes):
             txt = txt + " (" + str(self.num_selected) + " selected)"
         if isinstance(self.appdata.project.modes, FluxVectorContainer):
@@ -129,8 +137,7 @@ class ModeNavigator(QWidget):
 
     def save_mcs(self):
         dialog = QFileDialog(self)
-        filename: str = dialog.getSaveFileName(
-            directory=self.appdata.work_directory, filter="*.npz")[0]
+        filename: str = dialog.getSaveFileName(directory=self.appdata.work_directory, filter="*.npz")[0]
         if not filename or len(filename) == 0:
             return
         self.appdata.project.modes.save(filename)
@@ -154,17 +161,16 @@ class ModeNavigator(QWidget):
 
     def save_sd(self):
         dialog = QFileDialog(self)
-        filename: str = dialog.getSaveFileName(
-            directory=self.appdata.work_directory, filter="*.sds")[0]
+        filename: str = dialog.getSaveFileName(directory=self.appdata.work_directory, filter="*.sds")[0]
         if not filename or len(filename) == 0:
             return
-        elif len(filename)<=4 or filename[-4:] != '.sds':
-            filename += '.sds'
+        elif len(filename) <= 4 or filename[-4:] != ".sds":
+            filename += ".sds"
         self.appdata.project.sd_solutions.save(filename)
 
     def update_completion_list(self):
         reac_id = self.appdata.project.cobra_py_model.reactions.list_attr("id")
-        self.completion_list.setStringList(reac_id+["!"+str(r) for r in reac_id])
+        self.completion_list.setStringList(reac_id + ["!" + str(r) for r in reac_id])
 
     def set_to_mcs(self):
         self.central_widget.mode_normalization_reaction = ""
@@ -181,7 +187,7 @@ class ModeNavigator(QWidget):
         self.update_completion_list()
 
     def set_to_efm(self):
-        self.mode_type = 0 # EFM or some sort of flux vector
+        self.mode_type = 0  # EFM or some sort of flux vector
         self.title.setText("Mode Navigation")
         if self.save_button_connection is not None:
             self.save_button.clicked.disconnect(self.save_button_connection)
@@ -207,7 +213,7 @@ class ModeNavigator(QWidget):
 
     def clear(self):
         self.central_widget.mode_normalization_reaction = ""
-        self.mode_type = 0 # EFM or some sort of flux vector
+        self.mode_type = 0  # EFM or some sort of flux vector
         self.appdata.project.modes.clear()
         self.appdata.recreate_scenario_from_history()
         self.selector.accept_signal_input = False
@@ -228,7 +234,7 @@ class ModeNavigator(QWidget):
     def prev(self):
         while True:
             if self.current == 0:
-                self.current = len(self.appdata.project.modes)-1
+                self.current = len(self.appdata.project.modes) - 1
             else:
                 self.current -= 1
             if self.selection[self.current]:
@@ -237,7 +243,7 @@ class ModeNavigator(QWidget):
 
     def next(self):
         while True:
-            if self.current == len(self.appdata.project.modes)-1:
+            if self.current == len(self.appdata.project.modes) - 1:
                 self.current = 0
             else:
                 self.current += 1
@@ -245,13 +251,14 @@ class ModeNavigator(QWidget):
                 break
         self.display_mode()
 
-        for i in range (len(self.appdata.project.modes)):
+        for i in range(len(self.appdata.project.modes)):
             values = self.appdata.project.modes[i]
             print(values)
 
     def apply(self):
-        self.appdata.scen_values_set_multiple(list(self.current_flux_values.keys()),
-                                              list(self.current_flux_values.values()))
+        self.appdata.scen_values_set_multiple(
+            list(self.current_flux_values.keys()), list(self.current_flux_values.values())
+        )
         self.modified_scenario = self.appdata.scenario_past[-1]
         if self.appdata.auto_fba:
             self.central_widget.parent.fba()
@@ -265,12 +272,12 @@ class ModeNavigator(QWidget):
 
     def reset_selection(self):
         self.selector.accept_signal_input = False
-        self.selection[:] = True # select all
+        self.selection[:] = True  # select all
         self.num_selected = len(self.appdata.project.modes)
         self.update()
 
     def apply_selection(self):
-        must_occur =  []
+        must_occur = []
         must_not_occur = []
         self.selector.accept_signal_input = False
         selector_text = self.selector.text().strip()
@@ -278,16 +285,18 @@ class ModeNavigator(QWidget):
             self.reset_selection()
         else:
             try:
-                for r in map(str.strip, selector_text.split(',')):
+                for r in map(str.strip, selector_text.split(",")):
                     if r[0] == "!":
                         must_not_occur.append(r[1:].lstrip())
                     else:
                         must_occur.append(r)
                 self.select(must_occur=must_occur, must_not_occur=must_not_occur)
-            except (ValueError, IndexError): # some ID was not found / an empty ID was encountered
+            except (ValueError, IndexError):  # some ID was not found / an empty ID was encountered
                 QMessageBox.critical(self, "Cannot apply selection", "Check the selection for mistakes.")
             if self.num_selected == 0:
-                QMessageBox.information(self, "Selection not applied", "This selection is empty and was therefore not applied.")
+                QMessageBox.information(
+                    self, "Selection not applied", "This selection is empty and was therefore not applied."
+                )
                 self.reset_selection()
             else:
                 self.current = 0
@@ -298,7 +307,7 @@ class ModeNavigator(QWidget):
 
     def select(self, must_occur=None, must_not_occur=None):
         self.selection[:] = True  # reset selection
-        if self.appdata.window.centralWidget().mode_navigator.mode_type <=1:
+        if self.appdata.window.centralWidget().mode_navigator.mode_type <= 1:
             if must_occur is not None:
                 for r in must_occur:
                     r_idx = self.appdata.project.modes.reac_id.index(r)
@@ -316,37 +325,42 @@ class ModeNavigator(QWidget):
                 for r in must_occur:
                     for i, selected in enumerate(self.selection):
                         s = self.appdata.project.modes[i]
-                        if selected and r not in s or numpy.any(numpy.isnan(s[r])) or numpy.all((s[r] == 0)):
+                        if selected and r not in s or numpy.any(numpy.isnan(s[r])) or numpy.all(s[r] == 0):
                             self.selection[i] = False
             if must_not_occur is not None:
                 for r in must_not_occur:
                     for i, selected in enumerate(self.selection):
                         s = self.appdata.project.modes[i]
-                        if selected and r in s and not numpy.any(numpy.isnan(s[r])) or numpy.all((s[r] == 0)):
+                        if selected and r in s and not numpy.any(numpy.isnan(s[r])) or numpy.all(s[r] == 0):
                             self.selection[i] = False
-            if self.appdata.window.sd_sols and self.appdata.window.sd_sols.__weakref__: # if dialog exists
+            if self.appdata.window.sd_sols and self.appdata.window.sd_sols.__weakref__:  # if dialog exists
                 for i in range(self.appdata.window.sd_sols.sd_table.rowCount()):
-                    r_sd_idx = int(self.appdata.window.sd_sols.sd_table.item(i,0).text())-1
+                    r_sd_idx = int(self.appdata.window.sd_sols.sd_table.item(i, 0).text()) - 1
                     if self.selection[r_sd_idx]:
-                        self.appdata.window.sd_sols.sd_table.item(i,0).setForeground(QBrush(QColor(0, 0, 0)))
-                        self.appdata.window.sd_sols.sd_table.item(i,1).setForeground(QBrush(QColor(0, 0, 0)))
+                        self.appdata.window.sd_sols.sd_table.item(i, 0).setForeground(QBrush(QColor(0, 0, 0)))
+                        self.appdata.window.sd_sols.sd_table.item(i, 1).setForeground(QBrush(QColor(0, 0, 0)))
                         if self.appdata.window.sd_sols.sd_table.columnCount() == 3:
-                            self.appdata.window.sd_sols.sd_table.item(i,2).setForeground(QBrush(QColor(0, 0, 0)))
+                            self.appdata.window.sd_sols.sd_table.item(i, 2).setForeground(QBrush(QColor(0, 0, 0)))
                     else:
-                        self.appdata.window.sd_sols.sd_table.item(i,0).setForeground(QBrush(QColor(200, 200, 200)))
-                        self.appdata.window.sd_sols.sd_table.item(i,1).setForeground(QBrush(QColor(200, 200, 200)))
+                        self.appdata.window.sd_sols.sd_table.item(i, 0).setForeground(QBrush(QColor(200, 200, 200)))
+                        self.appdata.window.sd_sols.sd_table.item(i, 1).setForeground(QBrush(QColor(200, 200, 200)))
                         if self.appdata.window.sd_sols.sd_table.columnCount() == 3:
-                            self.appdata.window.sd_sols.sd_table.item(i,2).setForeground(QBrush(QColor(200, 200, 200)))
+                            self.appdata.window.sd_sols.sd_table.item(i, 2).setForeground(QBrush(QColor(200, 200, 200)))
         self.num_selected = numpy.sum(self.selection)
 
     def size_histogram(self):
-        if self.appdata.window.centralWidget().mode_navigator.mode_type <=1:
+        if self.appdata.window.centralWidget().mode_navigator.mode_type <= 1:
             sizes = numpy.sum(self.appdata.project.modes.fv_mat[self.selection, :] != 0, axis=1)
-            if isinstance(sizes, numpy.matrix): # numpy.sum returns a matrix with one row when fv_mat is scipy.sparse
-                sizes = sizes.A1 # flatten into 1D array
+            if isinstance(sizes, numpy.matrix):  # numpy.sum returns a matrix with one row when fv_mat is scipy.sparse
+                sizes = sizes.A1  # flatten into 1D array
         elif self.appdata.window.centralWidget().mode_navigator.mode_type == 2:
-            sizes = [numpy.sum([not numpy.any(numpy.isnan(v)) or numpy.all((v == 0)) \
-                                for v in self.appdata.project.modes[i].values()]) for i,s in enumerate(self.selection) if s]
+            sizes = [
+                numpy.sum(
+                    [not numpy.any(numpy.isnan(v)) or numpy.all(v == 0) for v in self.appdata.project.modes[i].values()]
+                )
+                for i, s in enumerate(self.selection)
+                if s
+            ]
         plt.hist(sizes, bins="auto")
         plt.show()
 
@@ -362,6 +376,7 @@ class ModeNavigator(QWidget):
 
     changedCurrentMode = Signal(int)
     modeNavigatorClosed = Signal()
+
 
 class SelectorLineEdit(QLineEdit):
     def __init__(self, parent=None):
@@ -382,22 +397,23 @@ class SelectorLineEdit(QLineEdit):
                 self.insert(text)
             else:
                 self.setCursorPosition(len(self.text()))
-                self.insert(","+text)
+                self.insert("," + text)
             self.completer().setCompletionMode(completer_mode)
+
 
 class CustomCompleter(QCompleter):
     def __init__(self, parent=None):
         QCompleter.__init__(self, parent)
 
-    def pathFromIndex(self, index): # overrides Qcompleter method
+    def pathFromIndex(self, index):  # overrides Qcompleter method
         path = QCompleter.pathFromIndex(self, index)
-        lst = str(self.widget().text()).split(',')
+        lst = str(self.widget().text()).split(",")
         if len(lst) > 1:
-            path = '%s, %s' % (','.join(lst[:-1]), path)
+            path = "%s, %s" % (",".join(lst[:-1]), path)
         return path
 
-    def splitPath(self, path): # overrides Qcompleter method
-        path = str(path.split(',')[-1]).lstrip(' ')
+    def splitPath(self, path):  # overrides Qcompleter method
+        path = str(path.split(",")[-1]).lstrip(" ")
         return [path]
 
 
@@ -414,9 +430,9 @@ class NormalizationDialog(QDialog):
         self.reac_ids = list(self.appdata.project.comp_values.keys())
         numr = len(self.reac_ids)
         if numr > 1:
-            r1 = self.reac_ids[randint(0, numr-1)]
+            r1 = self.reac_ids[randint(0, numr - 1)]
         else:
-            r1 = 'r_product'
+            r1 = "r_product"
 
         self.layout = QVBoxLayout()
         label = QLabel("Select reaction to which the Flux Mode shall be normalized:")

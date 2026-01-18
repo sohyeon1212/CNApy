@@ -1,10 +1,19 @@
 import ast
 import webbrowser
 
-from qtpy.QtCore import Qt, Signal, Slot
+from qtpy.QtCore import Signal
 from qtpy.QtGui import QIcon
-from qtpy.QtWidgets import (QHBoxLayout, QHeaderView, QLabel, QPushButton, QSizePolicy, QTableWidget,
-                            QTableWidgetItem, QVBoxLayout, QMessageBox)
+from qtpy.QtWidgets import (
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+)
 
 from cnapy.utils_for_cnapy_api import check_in_identifiers_org
 
@@ -29,8 +38,7 @@ class AnnotationWidget(QVBoxLayout):
 
         lh2 = QHBoxLayout()
         self.annotation = QTableWidget(0, 2)
-        self.annotation.setHorizontalHeaderLabels(
-            ["key", "value"])
+        self.annotation.setHorizontalHeaderLabels(["key", "value"])
         self.annotation.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         lh2.addWidget(self.annotation)
 
@@ -77,6 +85,7 @@ class AnnotationWidget(QVBoxLayout):
         check_in_identifiers_org(self.parent)
 
     deleteAnnotation = Signal(str)
+
     def delete_anno_row(self):
         row_to_delete = self.annotation.currentRow()
         try:
@@ -99,13 +108,12 @@ class AnnotationWidget(QVBoxLayout):
             url = f"https://identifiers.org/{identifier_type}:{identifier_value}"
             webbrowser.open_new_tab(url)
         else:
-            QMessageBox.information(self.parent, 'Select annotation',
-                'Select one of the annotations from the list by clicking on a row.')
+            QMessageBox.information(
+                self.parent, "Select annotation", "Select one of the annotations from the list by clicking on a row."
+            )
 
     def update_annotations(self, annotation):
-        self.annotation.itemChanged.disconnect(
-            self.parent.throttler.throttle
-        )
+        self.annotation.itemChanged.disconnect(self.parent.throttler.throttle)
         self.annotation.setRowCount(len(annotation))
         self.annotation.clearContents()
         i = 0
@@ -116,5 +124,4 @@ class AnnotationWidget(QVBoxLayout):
             self.annotation.setItem(i, 1, iteml)
             i += 1
 
-        self.annotation.itemChanged.connect(
-            self.parent.throttler.throttle)
+        self.annotation.itemChanged.connect(self.parent.throttler.throttle)

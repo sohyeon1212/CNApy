@@ -1,23 +1,35 @@
 """The reactions list"""
-from math import isclose
+
+import copy
 from enum import IntEnum
-from typing_extensions import Annotated
+from math import isclose
 
 import cobra
-import copy
-from qtpy.QtCore import QMimeData, Qt, Signal, Slot, QPoint, QSignalBlocker
-from qtpy.QtGui import QColor, QDrag, QIcon, QGuiApplication, QKeyEvent
-from qtpy.QtWidgets import (QHBoxLayout, QTreeWidget, QLabel, QLineEdit,
-                            QMessageBox, QPushButton, QSizePolicy, QSplitter,
-                            QTreeWidgetItem, QVBoxLayout, QWidget, QMenu,
-                            QAbstractItemView)
+from qtpy.QtCore import QMimeData, QPoint, QSignalBlocker, Qt, Signal, Slot
+from qtpy.QtGui import QColor, QDrag, QGuiApplication, QIcon, QKeyEvent
+from qtpy.QtWidgets import (
+    QAbstractItemView,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QSplitter,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cnapy.appdata import AppData, ModelItemType
 from cnapy.gui_elements.annotation_widget import AnnotationWidget
-from cnapy.utils import SignalThrottler, turn_red, turn_white, update_selected
-from cnapy.utils_for_cnapy_api import check_identifiers_org_entry, check_in_identifiers_org
-from cnapy.gui_elements.map_view import validate_value
 from cnapy.gui_elements.escher_map_view import EscherMapView
+from cnapy.gui_elements.map_view import validate_value
+from cnapy.utils import SignalThrottler, turn_red, turn_white, update_selected
+from cnapy.utils_for_cnapy_api import check_in_identifiers_org
+
 
 class ReactionListColumn(IntEnum):
     Id = 0
@@ -28,8 +40,9 @@ class ReactionListColumn(IntEnum):
     UB = 5
     DF = 6
 
+
 class DragableTreeWidget(QTreeWidget):
-    '''A list of dragable reaction items'''
+    """A list of dragable reaction items"""
 
     def mouseMoveEvent(self, _event):
         item = self.currentItem()
@@ -49,17 +62,18 @@ class DragableTreeWidget(QTreeWidget):
                 if key == Qt.Key_Up or key == Qt.Key_Down:
                     self.editItem(self.currentItem(), self.currentColumn())
 
+
 class ReactionListItem(QTreeWidgetItem):
-    """ For custom sorting of columns """
+    """For custom sorting of columns"""
 
     def __init__(self, reaction: cobra.Reaction, parent: QTreeWidget):
         # although QTreeWidgetItem is constructed with the reaction_list as parent this
         # will not be its parent() which is None because it is a top-level item
         QTreeWidgetItem.__init__(self, parent)
         self.reaction: cobra.Reaction = reaction
-        self.flux_sort_val = -float('inf')
-        self.lb_val = -float('inf')
-        self.ub_val = float('inf')
+        self.flux_sort_val = -float("inf")
+        self.lb_val = -float("inf")
+        self.ub_val = float("inf")
         self.df_val = -float("inf")
         self.pin_at_top = False
 
@@ -72,12 +86,12 @@ class ReactionListItem(QTreeWidgetItem):
 
     def reset_flux_data(self):
         self.setText(ReactionListColumn.Flux, "")
-        self.flux_sort_val = -float('inf')
-        self.lb_val = -float('inf')
-        self.ub_val = float('inf')
+        self.flux_sort_val = -float("inf")
+        self.lb_val = -float("inf")
+        self.ub_val = float("inf")
 
     def __lt__(self, other):
-        """ overrides QTreeWidgetItem::operator< """
+        """overrides QTreeWidgetItem::operator<"""
         if self.pin_at_top != other.pin_at_top:
             if self.treeWidget().header().sortIndicatorOrder() == Qt.DescendingOrder:
                 return self.pin_at_top < other.pin_at_top
@@ -93,17 +107,27 @@ class ReactionListItem(QTreeWidgetItem):
         elif column == ReactionListColumn.DF:
             return self.df_val < other.df_val
         else:  # use Qt default comparison for the other columns
-#            return super().__lt__(other) # infinite recursion with PySide2, __lt__ is a virtual function of QTreeWidgetItem
+            #            return super().__lt__(other) # infinite recursion with PySide2, __lt__ is a virtual function of QTreeWidgetItem
             return self.text(column) < other.text(column)
 
     def update_tooltips(self):
-        text = "Id: " + self.reaction.id + "\nName: " + self.reaction.name \
-            + "\nEquation: " + self.reaction.build_reaction_string()\
-            + "\nLowerbound: " + str(self.reaction.lower_bound) \
-            + "\nUpper bound: " + str(self.reaction.upper_bound) \
-            + "\nObjective coefficient: " + str(self.reaction.objective_coefficient)
+        text = (
+            "Id: "
+            + self.reaction.id
+            + "\nName: "
+            + self.reaction.name
+            + "\nEquation: "
+            + self.reaction.build_reaction_string()
+            + "\nLowerbound: "
+            + str(self.reaction.lower_bound)
+            + "\nUpper bound: "
+            + str(self.reaction.upper_bound)
+            + "\nObjective coefficient: "
+            + str(self.reaction.objective_coefficient)
+        )
         self.setToolTip(ReactionListColumn.Id, text)
         self.setToolTip(ReactionListColumn.Name, text)
+
 
 class ReactionList(QWidget):
     """A list of reaction"""
@@ -132,11 +156,12 @@ class ReactionList(QWidget):
         # heuristic initial column widths
         self.reaction_list.resizeColumnToContents(ReactionListColumn.Scenario)
         self.reaction_list.resizeColumnToContents(ReactionListColumn.LB)
-        width = self.reaction_list.header().sectionSize(ReactionListColumn.Scenario) + \
-                self.reaction_list.header().sectionSize(ReactionListColumn.LB)
+        width = self.reaction_list.header().sectionSize(
+            ReactionListColumn.Scenario
+        ) + self.reaction_list.header().sectionSize(ReactionListColumn.LB)
         self.reaction_list.header().resizeSection(ReactionListColumn.Id, width)
         self.reaction_list.header().resizeSection(ReactionListColumn.Name, width)
-        self.visible_column = [True]*len(self.header_labels)
+        self.visible_column = [True] * len(self.header_labels)
         self.reaction_list.setSortingEnabled(True)
         self.reaction_list.sortByColumn(ReactionListColumn.Id, Qt.AscendingOrder)
         self.reaction_list.header().setContextMenuPolicy(Qt.CustomContextMenu)
@@ -166,13 +191,10 @@ class ReactionList(QWidget):
         self.reaction_list.itemClicked.connect(self.handle_item_clicked)
         self.reaction_list.itemChanged.connect(self.handle_item_changed)
 
-        self.reaction_mask.reactionChanged.connect(
-            self.handle_changed_reaction)
-        self.reaction_mask.reactionDeleted.connect(
-            self.handle_deleted_reaction)
+        self.reaction_mask.reactionChanged.connect(self.handle_changed_reaction)
+        self.reaction_mask.reactionDeleted.connect(self.handle_deleted_reaction)
         self.reaction_mask.jumpToMap.connect(self.emit_jump_to_map)
-        self.reaction_mask.jumpToMetabolite.connect(
-            self.emit_jump_to_metabolite)
+        self.reaction_mask.jumpToMetabolite.connect(self.emit_jump_to_metabolite)
 
         self.add_button.clicked.connect(self.add_new_reaction)
         self.reaction_list.setColumnHidden(ReactionListColumn.DF, True)
@@ -183,7 +205,7 @@ class ReactionList(QWidget):
         self.reaction_mask.hide()
 
     def add_reaction(self, reaction: cobra.Reaction) -> ReactionListItem:
-        ''' create a new item in the reaction list'''
+        """create a new item in the reaction list"""
         self.reaction_list.clearSelection()
         item = ReactionListItem(reaction, self.reaction_list)
         item.setFlags(item.flags() | Qt.ItemIsEditable)
@@ -194,7 +216,7 @@ class ReactionList(QWidget):
         return item
 
     def update_item(self, item: ReactionListItem):
-        ''' update Scenario, Flux, LB, UB columns '''
+        """update Scenario, Flux, LB, UB columns"""
         if self.appdata.project.comp_values_type == 0:
             self.set_flux_value(item)
         self.set_bounds_values(item)
@@ -203,11 +225,13 @@ class ReactionList(QWidget):
             (vl, vu) = self.appdata.project.scen_values[item.reaction.id]
             scen_text = self.appdata.format_flux_value(vl)
             if vl != vu:
-                scen_text = scen_text+", "+self.appdata.format_flux_value(vu)
+                scen_text = scen_text + ", " + self.appdata.format_flux_value(vu)
         else:
             scen_background_color = QColor(75, 75, 75) if self.appdata.is_in_dark_mode else Qt.white
             scen_text = ""
-            item.setForeground(ReactionListColumn.Scenario, QColor(255, 255, 255) if self.appdata.is_in_dark_mode else QColor(0, 0, 0))
+            item.setForeground(
+                ReactionListColumn.Scenario, QColor(255, 255, 255) if self.appdata.is_in_dark_mode else QColor(0, 0, 0)
+            )
         item.setBackground(ReactionListColumn.Scenario, scen_background_color)
         item.setText(ReactionListColumn.Scenario, scen_text)
         if item.reaction.id in self.appdata.project.df_values.keys():
@@ -223,7 +247,9 @@ class ReactionList(QWidget):
         else:
             item.reset_flux_data()
             background_color = QColor(75, 75, 75) if self.appdata.is_in_dark_mode else Qt.white
-            item.setForeground(ReactionListColumn.Flux, QColor(255, 255, 255) if self.appdata.is_in_dark_mode else QColor(0, 0, 0))
+            item.setForeground(
+                ReactionListColumn.Flux, QColor(255, 255, 255) if self.appdata.is_in_dark_mode else QColor(0, 0, 0)
+            )
         item.setBackground(ReactionListColumn.Flux, background_color)
         item.setForeground(ReactionListColumn.Flux, Qt.black)
 
@@ -238,7 +264,7 @@ class ReactionList(QWidget):
                     else:
                         background_color = Qt.green
                 else:
-                        background_color = self.appdata.comp_color
+                    background_color = self.appdata.comp_color
             else:
                 if isclose(vl, 0.0, abs_tol=self.appdata.abs_tol):
                     background_color = self.appdata.special_color_1
@@ -252,9 +278,13 @@ class ReactionList(QWidget):
             vl = item.reaction.lower_bound
             vu = item.reaction.upper_bound
             background_color = QColor(75, 75, 75) if self.appdata.is_in_dark_mode else Qt.white
-            item.setForeground(ReactionListColumn.LB, QColor(255, 255, 255) if self.appdata.is_in_dark_mode else QColor(0, 0, 0))
-            item.setForeground(ReactionListColumn.UB, QColor(255, 255, 255) if self.appdata.is_in_dark_mode else QColor(0, 0, 0))
-        item.setBackground(ReactionListColumn.LB, background_color)  #ZZZ
+            item.setForeground(
+                ReactionListColumn.LB, QColor(255, 255, 255) if self.appdata.is_in_dark_mode else QColor(0, 0, 0)
+            )
+            item.setForeground(
+                ReactionListColumn.UB, QColor(255, 255, 255) if self.appdata.is_in_dark_mode else QColor(0, 0, 0)
+            )
+        item.setBackground(ReactionListColumn.LB, background_color)  # ZZZ
         item.lb_val = vl
         item.setText(ReactionListColumn.LB, self.appdata.format_flux_value(vl))
         item.setBackground(ReactionListColumn.UB, background_color)
@@ -264,7 +294,7 @@ class ReactionList(QWidget):
     def add_new_reaction(self):
         self.reaction_mask.show()
         while True:
-            name = "rxn_"+str(self.reaction_counter)
+            name = "rxn_" + str(self.reaction_counter)
             self.reaction_counter += 1
             if name not in self.appdata.project.cobra_py_model.reactions:
                 break
@@ -295,14 +325,11 @@ class ReactionList(QWidget):
 
             self.reaction_mask.id.setText(reaction.id)
             self.reaction_mask.name.setText(reaction.name)
-            self.reaction_mask.equation.setText(
-                reaction.build_reaction_string())
+            self.reaction_mask.equation.setText(reaction.build_reaction_string())
             self.reaction_mask.lower_bound.setText(str(reaction.lower_bound))
             self.reaction_mask.upper_bound.setText(str(reaction.upper_bound))
-            self.reaction_mask.coefficent.setText(
-                str(reaction.objective_coefficient))
-            self.reaction_mask.gene_reaction_rule.setText(
-                str(reaction.gene_reaction_rule))
+            self.reaction_mask.coefficent.setText(str(reaction.objective_coefficient))
+            self.reaction_mask.gene_reaction_rule.setText(str(reaction.gene_reaction_rule))
             self.update_annotations(reaction.annotation)
 
             turn_white(self.reaction_mask.id, self.appdata.is_in_dark_mode)
@@ -316,7 +343,7 @@ class ReactionList(QWidget):
             self.reaction_mask.is_valid = True
 
             (_, r) = self.splitter.getRange(1)
-            self.splitter.moveSplitter(int(r/2), 1)
+            self.splitter.moveSplitter(int(r / 2), 1)
             self.reaction_list.scrollToItem(item)
             self.reaction_mask.update_state()
 
@@ -340,7 +367,7 @@ class ReactionList(QWidget):
         self.reactionChanged.emit(old_id, reaction)
 
     def handle_deleted_reaction(self, reaction: cobra.Reaction):
-        '''Remove reaction item from reaction list'''
+        """Remove reaction item from reaction list"""
         root = self.reaction_list.invisibleRootItem()
         child_count = root.childCount()
         with QSignalBlocker(self.reaction_list):
@@ -348,8 +375,7 @@ class ReactionList(QWidget):
                 item = root.child(i)
                 if item.reaction == reaction:
                     # remove item
-                    self.reaction_list.takeTopLevelItem(
-                        self.reaction_list.indexOfTopLevelItem(item))
+                    self.reaction_list.takeTopLevelItem(self.reaction_list.indexOfTopLevelItem(item))
                     break
 
         self.last_selected = self.reaction_mask.id.text()
@@ -366,10 +392,11 @@ class ReactionList(QWidget):
         if column == ReactionListColumn.Scenario:
             scen_text = item.text(column).strip()
             if len(scen_text) == 0 or validate_value(scen_text):
-                self.central_widget.update_reaction_value(item.reaction.id, scen_text,
-                    update_reaction_list=False) # not necessary to update the whole reaction list
+                self.central_widget.update_reaction_value(
+                    item.reaction.id, scen_text, update_reaction_list=False
+                )  # not necessary to update the whole reaction list
                 if self.appdata.auto_fba:
-                    self.central_widget.parent.run_auto_analysis() # makes an update
+                    self.central_widget.parent.run_auto_analysis()  # makes an update
                 else:
                     self.update_item(item)
                     self.central_widget.update_maps()
@@ -391,7 +418,7 @@ class ReactionList(QWidget):
 
         # should only need to rebuild the whole list if the model changes
         self.reaction_list.itemChanged.disconnect(self.handle_item_changed)
-        self.reaction_list.setSortingEnabled(False) # keep row order stable so that each item is updated
+        self.reaction_list.setSortingEnabled(False)  # keep row order stable so that each item is updated
         if rebuild:
             self.reaction_list.clear()
             for r in self.appdata.project.cobra_py_model.reactions:
@@ -404,8 +431,7 @@ class ReactionList(QWidget):
         if self.last_selected is None:
             self.reaction_list.setCurrentItem(None)
         else:
-            items = self.reaction_list.findItems(
-                self.last_selected, Qt.MatchExactly)
+            items = self.reaction_list.findItems(self.last_selected, Qt.MatchExactly)
             for i in items:
                 # triggers self.reaction_selected which also does a self.reaction_mask.update_state()
                 self.reaction_list.setCurrentItem(i)
@@ -455,7 +481,9 @@ class ReactionList(QWidget):
     def change_pinned(self, checked: bool):
         self.reaction_list.currentItem().pin_at_top = checked
         if checked:
-            self.reaction_list.sortItems(self.reaction_list.sortColumn(), self.reaction_list.header().sortIndicatorOrder())
+            self.reaction_list.sortItems(
+                self.reaction_list.sortColumn(), self.reaction_list.header().sortIndicatorOrder()
+            )
             self.appdata.project.scen_values.pinned_reactions.add(self.reaction_list.currentItem().reaction.id)
         else:
             self.appdata.project.scen_values.pinned_reactions.discard(self.reaction_list.currentItem().reaction.id)
@@ -580,7 +608,7 @@ class JumpList(QWidget):
 
         jb.jumpToMap.connect(self.parent.emit_jump_to_map)
 
-    @ Slot(str)
+    @Slot(str)
     def emit_jump_to_map(self: JumpButton, name: str):
         self.parent.emit_jump_to_map(name)
 
@@ -668,8 +696,7 @@ class ReactionMask(QWidget):
         self.metabolites.setSortingEnabled(True)
         l2.addWidget(self.metabolites)
         l.addItem(l2)
-        self.metabolites.itemDoubleClicked.connect(
-            self.emit_jump_to_metabolite)
+        self.metabolites.itemDoubleClicked.connect(self.emit_jump_to_metabolite)
         layout.addItem(l)
 
         self.jump_list = JumpList(self)
@@ -678,7 +705,6 @@ class ReactionMask(QWidget):
         self.setLayout(layout)
 
         self.delete_button.clicked.connect(self.delete_reaction)
-
 
         self.id.textEdited.connect(self.throttler.throttle)
         self.name.textEdited.connect(self.throttler.throttle)
@@ -696,14 +722,12 @@ class ReactionMask(QWidget):
         self.gene_reaction_rule.editingFinished.connect(self.throttler.throttle)
 
         self.grp_test_model = cobra.Model(id_or_model="GPR test")
-        reaction = cobra.Reaction('GPR_TEST')
-        metabolite = cobra.Metabolite('X')
+        reaction = cobra.Reaction("GPR_TEST")
+        metabolite = cobra.Metabolite("X")
         reaction.add_metabolites({metabolite: -1})
         self.grp_test_model.add_reactions([reaction])
 
-        self.annotation_widget.deleteAnnotation.connect(
-            self.delete_selected_annotation
-        )
+        self.annotation_widget.deleteAnnotation.connect(self.delete_selected_annotation)
 
     def apply(self):
         bounds = self.reaction.bounds
@@ -713,25 +737,21 @@ class ReactionMask(QWidget):
             self.is_valid = False
             turn_red(self.lower_bound)
             turn_red(self.upper_bound)
-            QMessageBox.warning(self, 'ValueError', str(exception))
+            QMessageBox.warning(self, "ValueError", str(exception))
             return
 
         id_ = self.reaction.id
         if self.reaction.id != self.id.text():
-            if (" " in self.id.text()):
+            if " " in self.id.text():
                 turn_red(self.id)
-                QMessageBox.warning(
-                    self,
-                    "Reaction ID error",
-                    "A reaction ID must not contain a whitespace."
-                )
+                QMessageBox.warning(self, "Reaction ID error", "A reaction ID must not contain a whitespace.")
                 return
             self.reaction.id = self.id.text()
         name = self.reaction.name
         self.reaction.name = self.name.text()
         metabolites = self.reaction.metabolites
         if self.equation.isModified():
-            self.reaction.build_reaction_from_string(self.equation.text()) # creates a new metabolites dict
+            self.reaction.build_reaction_from_string(self.equation.text())  # creates a new metabolites dict
             self.equation.setModified(False)
         objective_coefficient = self.reaction.objective_coefficient
         self.reaction.objective_coefficient = float(self.coefficent.text())
@@ -743,14 +763,21 @@ class ReactionMask(QWidget):
         annotation = self.reaction.annotation
         self.annotation_widget.apply_annotation(self.reaction)
 
-        if bounds != self.reaction.bounds or metabolites != self.reaction.metabolites or \
-            objective_coefficient != self.reaction.objective_coefficient:
+        if (
+            bounds != self.reaction.bounds
+            or metabolites != self.reaction.metabolites
+            or objective_coefficient != self.reaction.objective_coefficient
+        ):
             self.fba_relevant_change = True
             self.reaction.set_hash_value()
             self.parent.appdata.project.cobra_py_model.set_stoichiometry_hash_object()
-        if self.fba_relevant_change or name != self.reaction.name or \
-            gene_reaction_rule != self.reaction.gene_reaction_rule or id_ != self.reaction.id or \
-            annotation != self.reaction.annotation:
+        if (
+            self.fba_relevant_change
+            or name != self.reaction.name
+            or gene_reaction_rule != self.reaction.gene_reaction_rule
+            or id_ != self.reaction.id
+            or annotation != self.reaction.annotation
+        ):
             self.reactionChanged.emit(self.reaction)
             current_item = self.parent.reaction_list.currentItem()
             if current_item is not None:
@@ -771,7 +798,7 @@ class ReactionMask(QWidget):
 
     def delete_selected_annotation(self, identifier_key):
         try:
-            del(self.reaction.annotation[identifier_key])
+            del self.reaction.annotation[identifier_key]
             self.parent.appdata.window.unsaved_changes()
         except IndexError:
             pass
@@ -785,7 +812,9 @@ class ReactionMask(QWidget):
             msg_box = QMessageBox(self)
             msg_box.setIcon(QMessageBox.Question)
             msg_box.setWindowTitle("Malformed GPR rule")
-            msg_box.setText("It appears that your changed GPR rule is not valid. Do you want to edit or revert your changes?")
+            msg_box.setText(
+                "It appears that your changed GPR rule is not valid. Do you want to edit or revert your changes?"
+            )
             edit_but = msg_box.addButton("Edit GPR rule", QMessageBox.RejectRole)
             revert_but = msg_box.addButton("Revert GPR rule", QMessageBox.ResetRole)
             msg_box.setDefaultButton(revert_but)
@@ -800,12 +829,18 @@ class ReactionMask(QWidget):
                 self.gene_reaction_rule.setModified(False)
                 return
 
-        genes = copy.deepcopy(self.gene_reaction_rule.text())\
-            .replace("AND", "").replace("and", "")\
-            .replace("OR", "").replace("or", "")\
-            .replace("(", "").replace(")", "")\
-            .replace("  ", " ").replace("\t", " ")\
+        genes = (
+            copy.deepcopy(self.gene_reaction_rule.text())
+            .replace("AND", "")
+            .replace("and", "")
+            .replace("OR", "")
+            .replace("or", "")
+            .replace("(", "")
+            .replace(")", "")
+            .replace("  ", " ")
+            .replace("\t", " ")
             .split(" ")
+        )
 
         model_gene_ids = [x.id for x in self.parent.appdata.project.cobra_py_model.genes]
         genes_to_add = []
@@ -820,8 +855,9 @@ class ReactionMask(QWidget):
             msg_box = QMessageBox(self)
             msg_box.setIcon(QMessageBox.Question)
             msg_box.setWindowTitle("Create new genes?")
-            msg_box.setText("The following genes do not exist and will be added to the model:\n" +
-                            ', '.join(genes_to_add))
+            msg_box.setText(
+                "The following genes do not exist and will be added to the model:\n" + ", ".join(genes_to_add)
+            )
             msg_box.setDefaultButton(msg_box.addButton(QMessageBox.Ok))
             edit_but = msg_box.addButton("Edit GPR rule", QMessageBox.RejectRole)
             revert_but = msg_box.addButton("Revert GPR rule", QMessageBox.ResetRole)
@@ -848,8 +884,8 @@ class ReactionMask(QWidget):
             elif self.id.text() in self.parent.appdata.project.cobra_py_model.reactions:
                 turn_red(self.id)
                 QMessageBox.information(
-                    self, 'Invalid id', 'Please change identifier ' +
-                    self.id.text() + ' because it is already in use.')
+                    self, "Invalid id", "Please change identifier " + self.id.text() + " because it is already in use."
+                )
                 return False
         turn_white(self.id, self.parent.appdata.is_in_dark_mode)
         return True
@@ -870,15 +906,14 @@ class ReactionMask(QWidget):
         if not self.equation.isModified():
             return True
         ok = False
-        existing_metabolites = set(self.parent.appdata.project.cobra_py_model.metabolites.list_attr('id'))
-        test_reaction = cobra.Reaction(
-            "xxxx_cnapy_test_reaction", name="cnapy test reaction")
+        existing_metabolites = set(self.parent.appdata.project.cobra_py_model.metabolites.list_attr("id"))
+        test_reaction = cobra.Reaction("xxxx_cnapy_test_reaction", name="cnapy test reaction")
         with self.parent.appdata.project.cobra_py_model as model:
             model.add_reactions([test_reaction])
 
             try:
                 eqtxt = self.equation.text().rstrip()
-                if len(eqtxt) > 0 and eqtxt[-1] == '+':
+                if len(eqtxt) > 0 and eqtxt[-1] == "+":
                     turn_red(self.equation)
                 else:
                     test_reaction.build_reaction_from_string(eqtxt)
@@ -894,9 +929,11 @@ class ReactionMask(QWidget):
                     msg_box = QMessageBox(self)
                     msg_box.setIcon(QMessageBox.Question)
                     msg_box.setWindowTitle("Create new metabolites?")
-                    msg_box.setText("The following metabolites do not exist and will be added to the model:\n" +
-                                    ', '.join(new_metabolites))
-                    msg_box.setDefaultButton(msg_box.addButton(QMessageBox.Ok)) #"Ok", QMessageBox.AcceptRole))
+                    msg_box.setText(
+                        "The following metabolites do not exist and will be added to the model:\n"
+                        + ", ".join(new_metabolites)
+                    )
+                    msg_box.setDefaultButton(msg_box.addButton(QMessageBox.Ok))  # "Ok", QMessageBox.AcceptRole))
                     edit_but = msg_box.addButton("Edit equation", QMessageBox.RejectRole)
                     revert_but = msg_box.addButton("Revert equation", QMessageBox.ResetRole)
                     msg_box.exec()
@@ -909,10 +946,8 @@ class ReactionMask(QWidget):
                     self.equation.blockSignals(False)
 
         try:
-            test_reaction = self.parent.appdata.project.cobra_py_model.reactions.get_by_id(
-                "xxxx_cnapy_test_reaction")
-            self.parent.appdata.project.cobra_py_model.remove_reactions(
-                [test_reaction], remove_orphans=True)
+            test_reaction = self.parent.appdata.project.cobra_py_model.reactions.get_by_id("xxxx_cnapy_test_reaction")
+            self.parent.appdata.project.cobra_py_model.remove_reactions([test_reaction], remove_orphans=True)
         except KeyError:
             pass
 
@@ -972,14 +1007,13 @@ class ReactionMask(QWidget):
             if EscherMapView in mmap:
                 # creates one button even if the reaction occurs multiple times on the map
                 mmap[EscherMapView].cnapy_bridge.addMapToJumpListIfReactionPresent.emit(self.id.text(), name)
-            else: # CNApy map
+            else:  # CNApy map
                 if self.id.text() in mmap["boxes"]:
                     self.jump_list.add(name)
 
         self.metabolites.clear()
         if self.parent.appdata.project.cobra_py_model.reactions.has_id(self.id.text()):
-            reaction = self.parent.appdata.project.cobra_py_model.reactions.get_by_id(
-                self.id.text())
+            reaction = self.parent.appdata.project.cobra_py_model.reactions.get_by_id(self.id.text())
             for m in reaction.metabolites:
                 item = QTreeWidgetItem(self.metabolites)
                 item.setText(0, m.id)

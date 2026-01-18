@@ -9,29 +9,46 @@ This module provides functionality to:
 - Rate limiting and retry logic for robust API calls
 """
 
-import os
-import json
-import re
-import time
-import random
 import hashlib
+import json
+import os
+import random
+import re
 import threading
+import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
-from configparser import ConfigParser
-
-from qtpy.QtCore import Qt, Slot, Signal, QThread
-from qtpy.QtWidgets import (QDialog, QHBoxLayout, QLabel, QVBoxLayout,
-                            QPushButton, QGroupBox, QTextEdit, QTabWidget,
-                            QWidget, QMessageBox, QCheckBox, QListWidget,
-                            QListWidgetItem, QAbstractItemView, QFileDialog,
-                            QComboBox, QLineEdit, QGridLayout, QProgressBar,
-                            QRadioButton, QButtonGroup, QSpinBox, QSplitter,
-                            QTableWidget, QTableWidgetItem, QHeaderView,
-                            QApplication)
-from qtpy.QtGui import QFont, QColor
 
 import appdirs
+from qtpy.QtCore import Qt, QThread, Signal, Slot
+from qtpy.QtGui import QColor
+from qtpy.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QRadioButton,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cnapy.appdata import AppData
 
@@ -65,17 +82,17 @@ class LLMConfig:
         """Load configuration from file."""
         if os.path.exists(self.config_path):
             try:
-                with open(self.config_path, 'r', encoding='utf-8') as f:
+                with open(self.config_path, encoding="utf-8") as f:
                     data = json.load(f)
-                    self.openai_api_key = data.get('openai_api_key', '')
-                    self.gemini_api_key = data.get('gemini_api_key', '')
-                    self.anthropic_api_key = data.get('anthropic_api_key', '')
-                    self.default_provider = data.get('default_provider', 'gemini')
-                    self.default_model_openai = data.get('default_model_openai', 'gpt-5.2')
-                    self.default_model_gemini = data.get('default_model_gemini', 'gemini-3-flash')
-                    self.default_model_anthropic = data.get('default_model_anthropic', 'claude-sonnet-4-20250514')
-                    self.use_cache = data.get('use_cache', True)
-                    self.cache_expiry_days = data.get('cache_expiry_days', 30)
+                    self.openai_api_key = data.get("openai_api_key", "")
+                    self.gemini_api_key = data.get("gemini_api_key", "")
+                    self.anthropic_api_key = data.get("anthropic_api_key", "")
+                    self.default_provider = data.get("default_provider", "gemini")
+                    self.default_model_openai = data.get("default_model_openai", "gpt-5.2")
+                    self.default_model_gemini = data.get("default_model_gemini", "gemini-3-flash")
+                    self.default_model_anthropic = data.get("default_model_anthropic", "claude-sonnet-4-20250514")
+                    self.use_cache = data.get("use_cache", True)
+                    self.cache_expiry_days = data.get("cache_expiry_days", 30)
             except json.JSONDecodeError:
                 # Config file corrupted, use defaults
                 pass
@@ -87,18 +104,22 @@ class LLMConfig:
         """Save configuration to file."""
         try:
             os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump({
-                    'openai_api_key': self.openai_api_key,
-                    'gemini_api_key': self.gemini_api_key,
-                    'anthropic_api_key': self.anthropic_api_key,
-                    'default_provider': self.default_provider,
-                    'default_model_openai': self.default_model_openai,
-                    'default_model_gemini': self.default_model_gemini,
-                    'default_model_anthropic': self.default_model_anthropic,
-                    'use_cache': self.use_cache,
-                    'cache_expiry_days': self.cache_expiry_days
-                }, f, indent=2)
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "openai_api_key": self.openai_api_key,
+                        "gemini_api_key": self.gemini_api_key,
+                        "anthropic_api_key": self.anthropic_api_key,
+                        "default_provider": self.default_provider,
+                        "default_model_openai": self.default_model_openai,
+                        "default_model_gemini": self.default_model_gemini,
+                        "default_model_anthropic": self.default_model_anthropic,
+                        "use_cache": self.use_cache,
+                        "cache_expiry_days": self.cache_expiry_days,
+                    },
+                    f,
+                    indent=2,
+                )
         except OSError:
             # File write error - user will notice settings aren't persisted
             pass
@@ -152,14 +173,21 @@ class LLMAnalysisThread(QThread):
 
     # Rate limits (requests per second) for each provider
     RATE_LIMITS = {
-        "openai": 1.0,      # 60 RPM
-        "gemini": 0.5,      # 30 RPM
-        "anthropic": 0.83   # 50 RPM
+        "openai": 1.0,  # 60 RPM
+        "gemini": 0.5,  # 30 RPM
+        "anthropic": 0.83,  # 50 RPM
     }
 
-    def __init__(self, config: LLMConfig, items: List[Tuple[str, str, str]],
-                 strain_name: str, provider: str, model: str,
-                 use_web_search: bool = True, use_cache: bool = True):
+    def __init__(
+        self,
+        config: LLMConfig,
+        items: list[tuple[str, str, str]],
+        strain_name: str,
+        provider: str,
+        model: str,
+        use_web_search: bool = True,
+        use_cache: bool = True,
+    ):
         """
         Args:
             config: LLM configuration
@@ -192,7 +220,7 @@ class LLMAnalysisThread(QThread):
         key_str = f"{item_id}:{item_name}:{item_type}:{self.strain_name}:{self.provider}:{self.model}"
         return hashlib.md5(key_str.encode()).hexdigest()
 
-    def _get_cached_result(self, cache_key: str) -> Optional[dict]:
+    def _get_cached_result(self, cache_key: str) -> dict | None:
         """Get cached result if valid."""
         if not self.use_cache:
             return None
@@ -200,7 +228,7 @@ class LLMAnalysisThread(QThread):
         cache_file = Path(self.config.cache_dir) / f"{cache_key}.json"
         if cache_file.exists():
             try:
-                with open(cache_file, 'r', encoding='utf-8') as f:
+                with open(cache_file, encoding="utf-8") as f:
                     data = json.load(f)
                     # Check expiration
                     timestamp = data.get("timestamp", 0)
@@ -221,11 +249,8 @@ class LLMAnalysisThread(QThread):
 
         cache_file = cache_dir / f"{cache_key}.json"
         try:
-            with open(cache_file, 'w', encoding='utf-8') as f:
-                json.dump({
-                    "timestamp": time.time(),
-                    "result": result
-                }, f, ensure_ascii=False)
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump({"timestamp": time.time(), "result": result}, f, ensure_ascii=False)
         except OSError:
             pass
 
@@ -235,11 +260,11 @@ class LLMAnalysisThread(QThread):
             try:
                 self.rate_limiter.wait_for_token()
                 return func()
-            except Exception as e:
+            except Exception:
                 if attempt == max_retries - 1:
                     raise
                 # Exponential backoff with jitter
-                wait_time = (2 ** attempt) + random.uniform(0, 1)
+                wait_time = (2**attempt) + random.uniform(0, 1)
                 time.sleep(wait_time)
 
     def run(self):
@@ -264,17 +289,11 @@ class LLMAnalysisThread(QThread):
 
                 # Call LLM API with retry
                 if self.provider == "openai":
-                    result = self._call_with_retry(
-                        lambda: self._analyze_with_openai(item_id, item_name, item_type)
-                    )
+                    result = self._call_with_retry(lambda: self._analyze_with_openai(item_id, item_name, item_type))
                 elif self.provider == "anthropic":
-                    result = self._call_with_retry(
-                        lambda: self._analyze_with_anthropic(item_id, item_name, item_type)
-                    )
+                    result = self._call_with_retry(lambda: self._analyze_with_anthropic(item_id, item_name, item_type))
                 else:  # gemini
-                    result = self._call_with_retry(
-                        lambda: self._analyze_with_gemini(item_id, item_name, item_type)
-                    )
+                    result = self._call_with_retry(lambda: self._analyze_with_gemini(item_id, item_name, item_type))
 
                 # Save to cache
                 self._save_to_cache(cache_key, result)
@@ -342,8 +361,11 @@ Respond in JSON format:
         prompt = self._build_prompt(item_id, item_name, item_type)
 
         messages = [
-            {"role": "system", "content": "You are a bioinformatics expert specializing in metabolic network analysis and comparative genomics. Provide accurate, evidence-based analysis."},
-            {"role": "user", "content": prompt}
+            {
+                "role": "system",
+                "content": "You are a bioinformatics expert specializing in metabolic network analysis and comparative genomics. Provide accurate, evidence-based analysis.",
+            },
+            {"role": "user", "content": prompt},
         ]
 
         # Use web search if available and requested
@@ -378,7 +400,9 @@ Respond in JSON format:
         try:
             import google.generativeai as genai
         except ImportError:
-            raise ImportError("Google Generative AI package not installed. Install with: pip install google-generativeai")
+            raise ImportError(
+                "Google Generative AI package not installed. Install with: pip install google-generativeai"
+            )
 
         genai.configure(api_key=self.config.gemini_api_key)
 
@@ -387,7 +411,7 @@ Respond in JSON format:
             generation_config={
                 "temperature": 0.3,
                 "max_output_tokens": 2048,
-            }
+            },
         )
 
         prompt = self._build_prompt(item_id, item_name, item_type)
@@ -398,6 +422,7 @@ Respond in JSON format:
         # Gemini 2.0 Flash supports grounding with Google Search
         try:
             from google.generativeai.types import Tool
+
             tools = [Tool(google_search={})]
             response = model.generate_content(full_prompt, tools=tools)
         except Exception:
@@ -421,12 +446,7 @@ Respond in JSON format:
         system_prompt = "You are a bioinformatics expert specializing in metabolic network analysis and comparative genomics. Provide accurate, evidence-based analysis."
 
         message = client.messages.create(
-            model=self.model,
-            max_tokens=2048,
-            system=system_prompt,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+            model=self.model, max_tokens=2048, system=system_prompt, messages=[{"role": "user", "content": prompt}]
         )
 
         content = message.content[0].text
@@ -436,9 +456,9 @@ Respond in JSON format:
     def _parse_json_response(self, content: str) -> dict:
         """Parse JSON from LLM response with support for nested structures."""
 
-        def find_balanced_json(s: str) -> Optional[str]:
+        def find_balanced_json(s: str) -> str | None:
             """Find balanced JSON object in string, supporting nested structures."""
-            start = s.find('{')
+            start = s.find("{")
             if start == -1:
                 return None
 
@@ -451,7 +471,7 @@ Respond in JSON format:
                     escape_next = False
                     continue
 
-                if c == '\\' and in_string:
+                if c == "\\" and in_string:
                     escape_next = True
                     continue
 
@@ -460,17 +480,17 @@ Respond in JSON format:
                     continue
 
                 if not in_string:
-                    if c == '{':
+                    if c == "{":
                         depth += 1
-                    elif c == '}':
+                    elif c == "}":
                         depth -= 1
                         if depth == 0:
-                            return s[start:i + 1]
+                            return s[start : i + 1]
 
             return None
 
         # Strategy 1: Extract from markdown code block
-        code_block = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', content)
+        code_block = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", content)
         if code_block:
             try:
                 return json.loads(code_block.group(1))
@@ -486,12 +506,7 @@ Respond in JSON format:
                 pass
 
         # Strategy 3: Fallback - return raw content
-        return {
-            "exists": "Unknown",
-            "confidence": "Low",
-            "evidence": content,
-            "raw_response": True
-        }
+        return {"exists": "Unknown", "confidence": "Low", "evidence": content, "raw_response": True}
 
 
 class LLMAnalysisDialog(QDialog):
@@ -502,8 +517,8 @@ class LLMAnalysisDialog(QDialog):
         self.setWindowTitle("LLM-based Strain Analysis")
         self.appdata = appdata
         self.config = LLMConfig()
-        self.analysis_thread: Optional[LLMAnalysisThread] = None
-        self.results: Dict[str, dict] = {}  # item_id -> result
+        self.analysis_thread: LLMAnalysisThread | None = None
+        self.results: dict[str, dict] = {}  # item_id -> result
 
         self.setMinimumSize(1000, 800)
         self._setup_ui()
@@ -566,24 +581,24 @@ class LLMAnalysisDialog(QDialog):
 
         self.openai_show_key = QCheckBox("Show")
         self.openai_show_key.toggled.connect(
-            lambda checked: self.openai_key_edit.setEchoMode(
-                QLineEdit.Normal if checked else QLineEdit.Password
-            )
+            lambda checked: self.openai_key_edit.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password)
         )
         openai_layout.addWidget(self.openai_show_key, 0, 2)
 
         openai_layout.addWidget(QLabel("Model:"), 1, 0)
         self.openai_model_combo = QComboBox()
-        self.openai_model_combo.addItems([
-            "gpt-5.2",           # 최신 (2025.12)
-            "gpt-5.1",
-            "gpt-5",
-            "gpt-4o",
-            "gpt-4o-mini",
-            "gpt-4-turbo",
-            "gpt-4",
-            "gpt-3.5-turbo"
-        ])
+        self.openai_model_combo.addItems(
+            [
+                "gpt-5.2",  # 최신 (2025.12)
+                "gpt-5.1",
+                "gpt-5",
+                "gpt-4o",
+                "gpt-4o-mini",
+                "gpt-4-turbo",
+                "gpt-4",
+                "gpt-3.5-turbo",
+            ]
+        )
         idx = self.openai_model_combo.findText(self.config.default_model_openai)
         if idx >= 0:
             self.openai_model_combo.setCurrentIndex(idx)
@@ -609,25 +624,25 @@ class LLMAnalysisDialog(QDialog):
 
         self.gemini_show_key = QCheckBox("Show")
         self.gemini_show_key.toggled.connect(
-            lambda checked: self.gemini_key_edit.setEchoMode(
-                QLineEdit.Normal if checked else QLineEdit.Password
-            )
+            lambda checked: self.gemini_key_edit.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password)
         )
         gemini_layout.addWidget(self.gemini_show_key, 0, 2)
 
         gemini_layout.addWidget(QLabel("Model:"), 1, 0)
         self.gemini_model_combo = QComboBox()
-        self.gemini_model_combo.addItems([
-            "gemini-3-flash",        # 최신 (2025.12)
-            "gemini-3-flash-preview",
-            "gemini-3-pro",
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-exp",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro"
-        ])
+        self.gemini_model_combo.addItems(
+            [
+                "gemini-3-flash",  # 최신 (2025.12)
+                "gemini-3-flash-preview",
+                "gemini-3-pro",
+                "gemini-2.5-flash",
+                "gemini-2.5-pro",
+                "gemini-2.0-flash",
+                "gemini-2.0-flash-exp",
+                "gemini-1.5-flash",
+                "gemini-1.5-pro",
+            ]
+        )
         idx = self.gemini_model_combo.findText(self.config.default_model_gemini)
         if idx >= 0:
             self.gemini_model_combo.setCurrentIndex(idx)
@@ -649,23 +664,23 @@ class LLMAnalysisDialog(QDialog):
 
         self.anthropic_show_key = QCheckBox("Show")
         self.anthropic_show_key.toggled.connect(
-            lambda checked: self.anthropic_key_edit.setEchoMode(
-                QLineEdit.Normal if checked else QLineEdit.Password
-            )
+            lambda checked: self.anthropic_key_edit.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password)
         )
         anthropic_layout.addWidget(self.anthropic_show_key, 0, 2)
 
         anthropic_layout.addWidget(QLabel("Model:"), 1, 0)
         self.anthropic_model_combo = QComboBox()
-        self.anthropic_model_combo.addItems([
-            "claude-sonnet-4-20250514",
-            "claude-opus-4-20250514",
-            "claude-3-5-sonnet-20241022",
-            "claude-3-5-haiku-20241022",
-            "claude-3-opus-20240229",
-            "claude-3-sonnet-20240229",
-            "claude-3-haiku-20240307"
-        ])
+        self.anthropic_model_combo.addItems(
+            [
+                "claude-sonnet-4-20250514",
+                "claude-opus-4-20250514",
+                "claude-3-5-sonnet-20241022",
+                "claude-3-5-haiku-20241022",
+                "claude-3-opus-20240229",
+                "claude-3-sonnet-20240229",
+                "claude-3-haiku-20240307",
+            ]
+        )
         idx = self.anthropic_model_combo.findText(self.config.default_model_anthropic)
         if idx >= 0:
             self.anthropic_model_combo.setCurrentIndex(idx)
@@ -868,9 +883,7 @@ class LLMAnalysisDialog(QDialog):
         # Results table
         self.results_table = QTableWidget()
         self.results_table.setColumnCount(6)
-        self.results_table.setHorizontalHeaderLabels([
-            "ID", "Name", "Type", "Exists", "Confidence", "Evidence"
-        ])
+        self.results_table.setHorizontalHeaderLabels(["ID", "Name", "Type", "Exists", "Confidence", "Evidence"])
         self.results_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.results_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
@@ -955,8 +968,7 @@ class LLMAnalysisDialog(QDialog):
             data = item.data(Qt.UserRole)
             if data:
                 item_id, item_name, _ = data
-                visible = (filter_text in item_id.lower() or
-                          filter_text in item_name.lower())
+                visible = filter_text in item_id.lower() or filter_text in item_name.lower()
                 item.setHidden(not visible)
 
     @Slot()
@@ -1036,10 +1048,11 @@ class LLMAnalysisDialog(QDialog):
     def _clear_cache(self):
         """Clear all cached results."""
         reply = QMessageBox.question(
-            self, "Clear Cache",
+            self,
+            "Clear Cache",
             "Are you sure you want to clear all cached LLM analysis results?",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.No,
         )
 
         if reply == QMessageBox.Yes:
@@ -1063,28 +1076,43 @@ class LLMAnalysisDialog(QDialog):
         try:
             if provider == "openai":
                 import openai
+
                 client = openai.OpenAI(api_key=self.openai_key_edit.text())
                 response = client.chat.completions.create(
                     model=self.openai_model_combo.currentText(),
                     messages=[{"role": "user", "content": "Say 'API connection successful' in exactly those words."}],
-                    max_tokens=20
+                    max_tokens=20,
                 )
-                QMessageBox.information(self, "Success", f"OpenAI API connection successful!\nModel: {self.openai_model_combo.currentText()}")
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    f"OpenAI API connection successful!\nModel: {self.openai_model_combo.currentText()}",
+                )
             elif provider == "anthropic":
                 from anthropic import Anthropic
+
                 client = Anthropic(api_key=self.anthropic_key_edit.text())
                 message = client.messages.create(
                     model=self.anthropic_model_combo.currentText(),
                     max_tokens=20,
-                    messages=[{"role": "user", "content": "Say 'API connection successful' in exactly those words."}]
+                    messages=[{"role": "user", "content": "Say 'API connection successful' in exactly those words."}],
                 )
-                QMessageBox.information(self, "Success", f"Anthropic API connection successful!\nModel: {self.anthropic_model_combo.currentText()}")
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    f"Anthropic API connection successful!\nModel: {self.anthropic_model_combo.currentText()}",
+                )
             else:  # gemini
                 import google.generativeai as genai
+
                 genai.configure(api_key=self.gemini_key_edit.text())
                 model = genai.GenerativeModel(self.gemini_model_combo.currentText())
                 response = model.generate_content("Say 'API connection successful'")
-                QMessageBox.information(self, "Success", f"Gemini API connection successful!\nModel: {self.gemini_model_combo.currentText()}")
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    f"Gemini API connection successful!\nModel: {self.gemini_model_combo.currentText()}",
+                )
         except ImportError as e:
             QMessageBox.critical(self, "Error", f"Required package not installed:\n{str(e)}")
         except Exception as e:
@@ -1153,8 +1181,7 @@ class LLMAnalysisDialog(QDialog):
 
         # Start analysis thread
         self.analysis_thread = LLMAnalysisThread(
-            self.config, items, strain_name, provider, model,
-            use_web_search, self.config.use_cache
+            self.config, items, strain_name, provider, model, use_web_search, self.config.use_cache
         )
         self.analysis_thread.result_ready.connect(self._on_result)
         self.analysis_thread.error_occurred.connect(self._on_error)
@@ -1186,21 +1213,13 @@ class LLMAnalysisDialog(QDialog):
     @Slot(str, str, dict)
     def _on_result(self, item_id: str, item_type: str, result: dict):
         """Handle analysis result."""
-        self.results[item_id] = {
-            "item_type": item_type,
-            **result
-        }
+        self.results[item_id] = {"item_type": item_type, **result}
         self._add_result_to_table(item_id, result)
 
     @Slot(str, str)
     def _on_error(self, item_id: str, error: str):
         """Handle analysis error."""
-        self.results[item_id] = {
-            "exists": "Error",
-            "confidence": "N/A",
-            "evidence": error,
-            "error": True
-        }
+        self.results[item_id] = {"exists": "Error", "confidence": "N/A", "evidence": error, "error": True}
         self._add_result_to_table(item_id, self.results[item_id])
 
     @Slot(int, int)
@@ -1295,16 +1314,14 @@ class LLMAnalysisDialog(QDialog):
             return
 
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export Results as JSON",
-            self.appdata.work_directory,
-            "JSON files (*.json)"
+            self, "Export Results as JSON", self.appdata.work_directory, "JSON files (*.json)"
         )
 
         if file_path:
-            if not file_path.endswith('.json'):
-                file_path += '.json'
+            if not file_path.endswith(".json"):
+                file_path += ".json"
 
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(self.results, f, indent=2, ensure_ascii=False)
 
             QMessageBox.information(self, "Exported", f"Results exported to:\n{file_path}")
@@ -1317,29 +1334,30 @@ class LLMAnalysisDialog(QDialog):
             return
 
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export Results as CSV",
-            self.appdata.work_directory,
-            "CSV files (*.csv)"
+            self, "Export Results as CSV", self.appdata.work_directory, "CSV files (*.csv)"
         )
 
         if file_path:
-            if not file_path.endswith('.csv'):
-                file_path += '.csv'
+            if not file_path.endswith(".csv"):
+                file_path += ".csv"
 
             import csv
-            with open(file_path, 'w', newline='', encoding='utf-8') as f:
+
+            with open(file_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(["ID", "Type", "Exists", "Confidence", "Evidence", "References"])
 
                 for item_id, result in self.results.items():
-                    writer.writerow([
-                        item_id,
-                        result.get("item_type", ""),
-                        result.get("exists", ""),
-                        result.get("confidence", ""),
-                        result.get("evidence", ""),
-                        "; ".join(result.get("references", []))
-                    ])
+                    writer.writerow(
+                        [
+                            item_id,
+                            result.get("item_type", ""),
+                            result.get("exists", ""),
+                            result.get("confidence", ""),
+                            result.get("evidence", ""),
+                            "; ".join(result.get("references", [])),
+                        ]
+                    )
 
             QMessageBox.information(self, "Exported", f"Results exported to:\n{file_path}")
 

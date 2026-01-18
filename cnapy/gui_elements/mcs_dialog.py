@@ -1,24 +1,39 @@
 """The dialog for calculating minimal cut sets"""
 
 import io
-import scipy
 
+import scipy
 from qtpy.QtCore import Qt, Slot
-from qtpy.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QCompleter,
-                            QDialog, QGroupBox, QHBoxLayout, QHeaderView,
-                            QLabel, QLineEdit, QMessageBox, QPushButton,
-                            QRadioButton, QTableWidget, QVBoxLayout)
+from qtpy.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QCompleter,
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QTableWidget,
+    QVBoxLayout,
+)
+
 try:
     import optlang_enumerator.mcs_computation as mcs_computation
 except ImportError:
     mcs_computation = None
 import cobra
 from cobra.util.solver import interface_to_str
-from cnapy.appdata import AppData
+
 import cnapy.utils as utils
-from cnapy.utils import QComplReceivLineEdit
-from cnapy.flux_vector_container import FluxVectorContainer
+from cnapy.appdata import AppData
 from cnapy.core_gui import except_likely_community_model_error, get_last_exception_string, has_community_error_substring
+from cnapy.flux_vector_container import FluxVectorContainer
+from cnapy.utils import QComplReceivLineEdit
 
 
 class MCSDialog(QDialog):
@@ -41,8 +56,7 @@ class MCSDialog(QDialog):
         self.reac_ids = self.appdata.project.cobra_py_model.reactions.list_attr("id")
 
         self.target_list = QTableWidget(1, 4)
-        self.target_list.setHorizontalHeaderLabels(
-            ["region no.", "T", "≥/≤", "t"])
+        self.target_list.setHorizontalHeaderLabels(["region no.", "T", "≥/≤", "t"])
         self.target_list.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.target_list.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
         self.target_list.horizontalHeader().resizeSection(0, 75)
@@ -76,8 +90,7 @@ class MCSDialog(QDialog):
         self.layout.addWidget(l2)
         s2 = QHBoxLayout()
         self.desired_list = QTableWidget(1, 4)
-        self.desired_list.setHorizontalHeaderLabels(
-            ["region no.", "D", "≥/≤", "d"])
+        self.desired_list.setHorizontalHeaderLabels(["region no.", "D", "≥/≤", "d"])
         self.desired_list.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.desired_list.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
         self.desired_list.horizontalHeader().resizeSection(0, 75)
@@ -108,8 +121,7 @@ class MCSDialog(QDialog):
         s3 = QHBoxLayout()
 
         sgx = QVBoxLayout()
-        self.exclude_boundary = QCheckBox(
-            "Exclude boundary\nreactions as cuts")
+        self.exclude_boundary = QCheckBox("Exclude boundary\nreactions as cuts")
         sg1 = QHBoxLayout()
         s31 = QVBoxLayout()
         l = QLabel("Max. Solutions")
@@ -141,8 +153,7 @@ class MCSDialog(QDialog):
         s33 = QVBoxLayout()
         self.solver_optlang = QLabel()
         self.set_optlang_solver_text()
-        self.solver_optlang.setToolTip(
-            "Change solver in COBRApy configuration.")
+        self.solver_optlang.setToolTip("Change solver in COBRApy configuration.")
         s33.addWidget(self.solver_optlang)
         g3.setLayout(s33)
         s3.addWidget(g3)
@@ -176,8 +187,7 @@ class MCSDialog(QDialog):
         self.configure_solver_options()
 
         s4 = QVBoxLayout()
-        self.consider_scenario = QCheckBox(
-            "Consider constraint given by scenario")
+        self.consider_scenario = QCheckBox("Consider constraint given by scenario")
         s4.addWidget(self.consider_scenario)
         self.layout.addItem(s4)
 
@@ -208,7 +218,7 @@ class MCSDialog(QDialog):
             completer_mode = self.active_receiver.completer.completionMode()
             # temporarily disable completer popup
             self.active_receiver.completer.setCompletionMode(QCompleter.CompletionMode.InlineCompletion)
-            self.active_receiver.insert(text+' ')
+            self.active_receiver.insert(text + " ")
             self.active_receiver.completer.setCompletionMode(completer_mode)
 
     @Slot()
@@ -219,7 +229,7 @@ class MCSDialog(QDialog):
     @Slot()
     def configure_solver_options(self):  # called when switching solver
         self.exclude_boundary.setEnabled(True)
-        if self.optlang_solver_name != 'cplex' and self.optlang_solver_name != 'gurobi':
+        if self.optlang_solver_name != "cplex" and self.optlang_solver_name != "gurobi":
             if self.mcs_by_cardinality.isChecked() or self.mcs_continuous_search.isChecked():
                 self.any_mcs.setChecked(True)
             self.mcs_by_cardinality.setEnabled(False)
@@ -227,7 +237,6 @@ class MCSDialog(QDialog):
         else:
             self.mcs_by_cardinality.setEnabled(True)
             self.mcs_continuous_search.setEnabled(True)
-
 
     def add_target_region(self):
         i = self.target_list.rowCount()
@@ -261,11 +270,11 @@ class MCSDialog(QDialog):
 
     def rem_target_region(self):
         i = self.target_list.rowCount()
-        self.target_list.removeRow(i-1)
+        self.target_list.removeRow(i - 1)
 
     def rem_desired_region(self):
         i = self.desired_list.rowCount()
-        self.desired_list.removeRow(i-1)
+        self.desired_list.removeRow(i - 1)
 
     def compute(self):
         mcs_equation_errors = self.check_for_mcs_equation_errors()
@@ -277,15 +286,14 @@ class MCSDialog(QDialog):
                 "MCS target/desired region error",
                 f"Cannot perform MCS calculation due to the following error(s) "
                 f"in the given target and/or desired regions:\n"
-                f"{mcs_equation_errors}"
+                f"{mcs_equation_errors}",
             )
-
 
     def compute_optlang(self):
         max_mcs_num = float(self.max_solu.text())
         max_mcs_size = int(self.max_size.text())
         timeout = float(self.time_limit.text())
-        if timeout == float('inf'):
+        if timeout == float("inf"):
             timeout = None
 
         if self.smalles_mcs_first.isChecked():
@@ -304,11 +312,11 @@ class MCSDialog(QDialog):
                 if len(self.appdata.project.scen_values) > 0:
                     update_stoichiometry_hash = True
             for r in model.reactions:  # make all reactions bounded for COBRApy FVA
-                if r.lower_bound == -float('inf'):
+                if r.lower_bound == -float("inf"):
                     r.lower_bound = cobra.Configuration().lower_bound
                     r.set_hash_value()
                     update_stoichiometry_hash = True
-                if r.upper_bound == float('inf'):
+                if r.upper_bound == float("inf"):
                     r.upper_bound = cobra.Configuration().upper_bound
                     r.set_hash_value()
                     update_stoichiometry_hash = True
@@ -322,7 +330,7 @@ class MCSDialog(QDialog):
                 p1 = self.target_list.cellWidget(i, 0).text()
                 p2 = self.target_list.cellWidget(i, 1).text()
                 if len(p1) > 0 and len(p2) > 0:
-                    if self.target_list.cellWidget(i, 2).currentText() == '≤':
+                    if self.target_list.cellWidget(i, 2).currentText() == "≤":
                         p3 = "<="
                     else:
                         p3 = ">="
@@ -334,18 +342,13 @@ class MCSDialog(QDialog):
             for counter in range(len(targets)):
                 try:
                     targets[counter] = mcs_computation.relations2leq_matrix(
-                        mcs_computation.parse_relations(
-                            targets[counter],
-                            reac_id_symbols=reac_id_symbols
-                        ),
-                        reac_id
+                        mcs_computation.parse_relations(targets[counter], reac_id_symbols=reac_id_symbols), reac_id
                     )
                 except (ValueError, TypeError):
                     QMessageBox.warning(
                         self,
                         "Failed to parse a target region",
-                        f"Check that the equation in the target region with no. {region_numbers[counter]} "
-                        "is correct."
+                        f"Check that the equation in the target region with no. {region_numbers[counter]} is correct.",
                     )
                     return
 
@@ -355,7 +358,7 @@ class MCSDialog(QDialog):
                 p1 = self.desired_list.cellWidget(i, 0).text()
                 p2 = self.desired_list.cellWidget(i, 1).text()
                 if len(p1) > 0 and len(p2) > 0:
-                    if self.desired_list.cellWidget(i, 2).currentText() == '≤':
+                    if self.desired_list.cellWidget(i, 2).currentText() == "≤":
                         p3 = "<="
                     else:
                         p3 = ">="
@@ -367,31 +370,31 @@ class MCSDialog(QDialog):
             for counter in range(len(desired)):
                 try:
                     desired[counter] = mcs_computation.relations2leq_matrix(
-                        mcs_computation.parse_relations(
-                            desired[counter],
-                            reac_id_symbols=reac_id_symbols
-                        ),
-                        reac_id
+                        mcs_computation.parse_relations(desired[counter], reac_id_symbols=reac_id_symbols), reac_id
                     )
                 except (ValueError, TypeError):
                     QMessageBox.warning(
                         self,
                         "Failed to parse a desired region",
-                        f"Check that the equation in the desired region with no. {region_numbers[counter]} "
-                        "is correct."
+                        f"Check that the equation in the desired region with no. {region_numbers[counter]} is correct.",
                     )
                     return
 
             self.setCursor(Qt.BusyCursor)
             try:
-                mcs, err_val = mcs_computation.compute_mcs(model,
-                                targets=targets, desired=desired, enum_method=enum_method,
-                                max_mcs_size=max_mcs_size, max_mcs_num=max_mcs_num, timeout=timeout,
-                                exclude_boundary_reactions_as_cuts=self.exclude_boundary.isChecked(),
-                                results_cache_dir=self.appdata.results_cache_dir
-                                if self.appdata.use_results_cache else None)
+                mcs, err_val = mcs_computation.compute_mcs(
+                    model,
+                    targets=targets,
+                    desired=desired,
+                    enum_method=enum_method,
+                    max_mcs_size=max_mcs_size,
+                    max_mcs_num=max_mcs_num,
+                    timeout=timeout,
+                    exclude_boundary_reactions_as_cuts=self.exclude_boundary.isChecked(),
+                    results_cache_dir=self.appdata.results_cache_dir if self.appdata.use_results_cache else None,
+                )
             except mcs_computation.InfeasibleRegion as e:
-                QMessageBox.warning(self, 'Cannot calculate MCS', str(e))
+                QMessageBox.warning(self, "Cannot calculate MCS", str(e))
                 return targets, desired
             except Exception:
                 exstr = get_last_exception_string()
@@ -406,27 +409,31 @@ class MCSDialog(QDialog):
 
         print(err_val)
         if err_val == 1:
-            QMessageBox.warning(self, "Enumeration stopped abnormally",
-                                "Result is probably incomplete.\nCheck console output for more information.")
+            QMessageBox.warning(
+                self,
+                "Enumeration stopped abnormally",
+                "Result is probably incomplete.\nCheck console output for more information.",
+            )
         elif err_val == -1:
-            QMessageBox.warning(self, "Enumeration terminated permaturely",
-                                "Aborted due to excessive generation of candidates that are not cut sets.\n"
-                                "Modify the problem or try a different enumeration setup.")
+            QMessageBox.warning(
+                self,
+                "Enumeration terminated permaturely",
+                "Aborted due to excessive generation of candidates that are not cut sets.\n"
+                "Modify the problem or try a different enumeration setup.",
+            )
 
         if len(mcs) == 0:
-            QMessageBox.information(self, 'No cut sets',
-                                          'Cut sets have not been calculated or do not exist.')
+            QMessageBox.information(self, "No cut sets", "Cut sets have not been calculated or do not exist.")
             return targets, desired
 
         # omcs = [{reac_id[i]: -1.0 for i in m} for m in mcs]
         omcs = scipy.sparse.lil_matrix((len(mcs), len(reac_id)))
-        for i,m in enumerate(mcs):
+        for i, m in enumerate(mcs):
             for j in m:
                 omcs[i, j] = -1.0
         self.appdata.project.modes = FluxVectorContainer(omcs, reac_id=reac_id)
         self.central_widget.mode_navigator.current = 0
-        QMessageBox.information(self, 'Cut sets found',
-                                      str(len(mcs))+' Cut sets have been calculated.')
+        QMessageBox.information(self, "Cut sets found", str(len(mcs)) + " Cut sets have been calculated.")
 
         self.central_widget.mode_navigator.set_to_mcs()
         self.central_widget.update_mode()

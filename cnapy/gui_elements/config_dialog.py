@@ -1,11 +1,23 @@
 """The cnapy configuration dialog"""
+
 import os
 from pathlib import Path
 
 from qtpy.QtGui import QDoubleValidator, QIntValidator, QPalette
-from qtpy.QtWidgets import (QColorDialog, QDialog, QFileDialog,
-                            QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
-                            QVBoxLayout, QCheckBox, QComboBox)
+from qtpy.QtWidgets import (
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
+
 from cnapy.appdata import AppData
 
 
@@ -51,8 +63,7 @@ class ConfigDialog(QDialog):
         self.layout.addItem(h2)
 
         h3 = QHBoxLayout()
-        label = QLabel(
-            "Default color for computed values not part of the scenario:")
+        label = QLabel("Default color for computed values not part of the scenario:")
         h3.addWidget(label)
         self.comp_color_btn = QPushButton()
         self.comp_color_btn.setFixedWidth(100)
@@ -63,8 +74,7 @@ class ConfigDialog(QDialog):
         self.layout.addItem(h3)
 
         h4 = QHBoxLayout()
-        label = QLabel(
-            "Special Color used for non equal flux bounds:")
+        label = QLabel("Special Color used for non equal flux bounds:")
         h4.addWidget(label)
         self.spec1_color_btn = QPushButton()
         self.spec1_color_btn.setFixedWidth(100)
@@ -75,8 +85,7 @@ class ConfigDialog(QDialog):
         self.layout.addItem(h4)
 
         h5 = QHBoxLayout()
-        label = QLabel(
-            "Special Color 2 used for non equal flux bounds that exclude 0: ")
+        label = QLabel("Special Color 2 used for non equal flux bounds that exclude 0: ")
         h5.addWidget(label)
         self.spec2_color_btn = QPushButton()
         self.spec2_color_btn.setFixedWidth(100)
@@ -87,8 +96,7 @@ class ConfigDialog(QDialog):
         self.layout.addItem(h5)
 
         h6 = QHBoxLayout()
-        label = QLabel(
-            "Color used for empty reaction boxes:")
+        label = QLabel("Color used for empty reaction boxes:")
         h6.addWidget(label)
         self.default_color_btn = QPushButton()
         self.default_color_btn.setFixedWidth(100)
@@ -107,8 +115,7 @@ class ConfigDialog(QDialog):
         self.layout.addItem(h)
 
         h7 = QHBoxLayout()
-        label = QLabel(
-            "Shown number of digits after the decimal point:")
+        label = QLabel("Shown number of digits after the decimal point:")
         h7.addWidget(label)
         self.rounding = QLineEdit()
         self.rounding.setFixedWidth(100)
@@ -119,8 +126,7 @@ class ConfigDialog(QDialog):
         self.layout.addItem(h7)
 
         h8 = QHBoxLayout()
-        label = QLabel(
-            "Absolute tolerance used to compare float values in the UI:")
+        label = QLabel("Absolute tolerance used to compare float values in the UI:")
         h8.addWidget(label)
         self.abs_tol = QLineEdit()
         self.abs_tol.setFixedWidth(100)
@@ -245,12 +251,11 @@ class ConfigDialog(QDialog):
         new_fontsize = float(self.font_size.text())
         if new_fontsize != self.appdata.font_size:
             self.appdata.font_size = new_fontsize
-            self.main_window.setStyleSheet("*{font-size: "+str(new_fontsize)+"pt;}")
+            self.main_window.setStyleSheet("*{font-size: " + str(new_fontsize) + "pt;}")
             QMessageBox.information(
                 self,
                 "Restart for full font size change effect",
-                "Please restart CNApy. This will also apply your font size change "
-                "on all of CNApy's subwindows."
+                "Please restart CNApy. This will also apply your font size change on all of CNApy's subwindows.",
             )
 
         self.appdata.box_width = int(self.box_width.text())

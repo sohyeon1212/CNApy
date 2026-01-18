@@ -46,8 +46,6 @@ class OrchestratorAgent:
             r"flux\s*balance",
             r"최적화",
             r"optimize",
-            r"성장\s*률",
-            r"growth\s*rate",
             r"플럭스\s*분석",
         ],
         "perform_pfba": [
@@ -60,6 +58,29 @@ class OrchestratorAgent:
             r"variability",
             r"변동성",
             r"플럭스\s*범위",
+        ],
+        # Parametric analysis patterns (high priority)
+        "parametric_analysis": [
+            r"(\d+)\s*[%~\-]\s*(\d+)\s*%?.*(?:fba|pfba|fva)",
+            r"(?:fba|pfba|fva).*(\d+)\s*[%~\-]\s*(\d+)",
+            r"(\d+)\s*%?\s*to\s*(\d+)\s*%?",
+            r"from\s*(\d+)\s*%?\s*to\s*(\d+)",
+            r"성장\s*률?.*(\d+).*(\d+)",
+            r"growth\s*rate.*(\d+).*(\d+)",
+            r"(\d+)\s*%?\s*씩",
+            r"in\s*(\d+)\s*%?\s*steps?",
+            r"step\s*(\d+)",
+            r"parametric",
+            r"파라미터",
+            r"sweep",
+            # New patterns for Korean expressions
+            r"(\d+)\s*[~\-]\s*(?:max|최대)",  # "0~max", "0~최대"
+            r"(?:max|최대)\s*[~\-]\s*(\d+)",  # "max~0" (reverse)
+            r"(\d+)\s*개로\s*나",  # "10개로 나눠서" (divide into N parts)
+            r"구간",  # "구간" (interval/range)
+            r"range",  # "range"
+            r"varying",  # "varying"
+            r"올리면서|내리면서|변화",  # "올리면서" (while increasing)
         ],
         "perform_moma": [
             r"\bmoma\b",
@@ -162,6 +183,7 @@ class OrchestratorAgent:
         "analyze_flux_distribution": "flux_analysis",
         "get_objective_value": "flux_analysis",
         "compare_flux_states": "flux_analysis",
+        "parametric_analysis": "flux_analysis",
         "apply_condition": "scenario",
         "set_reaction_bounds": "scenario",
         "set_carbon_source": "scenario",
@@ -397,6 +419,108 @@ class OrchestratorAgent:
                 if value > 1:
                     value = value / 100
                 params["threshold"] = value
+
+        # Parametric analysis extraction
+        if skill_name == "parametric_analysis":
+            # Determine analysis type (default to fba)
+            if "pfba" in message_lower or "파시모니어스" in message:
+                params["analysis_type"] = "pfba"
+            elif "fva" in message_lower or "변동성" in message:
+                params["analysis_type"] = "fva"
+            else:
+                params["analysis_type"] = "fba"
+
+            # Default parameter is growth_rate
+            params["parameter"] = "growth_rate"
+
+            # Extract range with multiple patterns
+            range_match = None
+            normalized_msg = message_lower.replace("부터", " to ").replace("에서", " to ")
+
+            # Pattern 1: "from X% to Y%"
+            range_match = re.search(
+                r"from\s*(\d+(?:\.\d+)?)\s*%?\s*to\s*(\d+(?:\.\d+)?)\s*%?",
+                normalized_msg,
+            )
+
+            # Pattern 2: "X% to Y%"
+            if not range_match:
+                range_match = re.search(
+                    r"(\d+(?:\.\d+)?)\s*%?\s+to\s+(\d+(?:\.\d+)?)\s*%?",
+                    normalized_msg,
+                )
+
+            # Pattern 3: "X~Y%", "X-Y%"
+            if not range_match:
+                range_match = re.search(
+                    r"(\d+(?:\.\d+)?)\s*%?\s*[~\-]\s*(\d+(?:\.\d+)?)\s*%?",
+                    normalized_msg,
+                )
+
+            # Pattern 4: Korean "X까지" (up to X)
+            if not range_match:
+                range_match = re.search(
+                    r"(\d+(?:\.\d+)?)\s*%?\s*까지",
+                    normalized_msg,
+                )
+                if range_match:
+                    params["start_percent"] = 0.0
+                    params["end_percent"] = float(range_match.group(1))
+                    range_match = None  # Reset to skip the standard extraction
+
+            # Pattern 5: "X~max", "X~최대" (X to maximum)
+            if not range_match and "start_percent" not in params:
+                max_match = re.search(
+                    r"(\d+(?:\.\d+)?)\s*%?\s*[~\-]\s*(?:max|최대|maximum)",
+                    normalized_msg,
+                )
+                if max_match:
+                    params["start_percent"] = float(max_match.group(1))
+                    params["end_percent"] = 100.0
+                    range_match = None  # Skip standard extraction
+
+            if range_match:
+                params["start_percent"] = float(range_match.group(1))
+                params["end_percent"] = float(range_match.group(2))
+            elif "start_percent" not in params:
+                # Default to 0-100
+                params["start_percent"] = 0.0
+                params["end_percent"] = 100.0
+
+            # Extract step: "10%씩", "step 10", "in 10% steps"
+            step_match = re.search(
+                r"(?:in\s+)?(\d+(?:\.\d+)?)\s*%?\s*(?:씩|step|steps)",
+                message_lower,
+            )
+            if step_match:
+                params["step_percent"] = float(step_match.group(1))
+            else:
+                # Check for "N개로 나눠서" (divide into N parts)
+                divide_match = re.search(
+                    r"(\d+)\s*(?:개로|등분|parts?|sections?|intervals?)\s*(?:나|divide|split)",
+                    message_lower,
+                )
+                if divide_match:
+                    n_parts = int(divide_match.group(1))
+                    if n_parts > 0:
+                        # Calculate step based on range and number of parts
+                        start = params.get("start_percent", 0.0)
+                        end = params.get("end_percent", 100.0)
+                        params["step_percent"] = (end - start) / n_parts
+                else:
+                    params["step_percent"] = 10.0
+
+            # Check for CSV save request
+            if "csv" in message_lower:
+                # Extract filename if provided (e.g., "results.csv", "output.csv")
+                csv_match = re.search(
+                    r"([a-zA-Z0-9_\-]+\.csv)",
+                    message_lower,
+                )
+                if csv_match:
+                    params["save_csv"] = csv_match.group(1)
+                else:
+                    params["save_csv"] = "true"  # Auto-generate filename
 
         return params
 

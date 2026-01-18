@@ -23,10 +23,8 @@ For each fixed value, maximize a product reaction (y-axis) and plot the result.
 This module was enhanced as part of CNApy improvements.
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
-
-from qtpy.QtCore import Qt
+import numpy as np
 from qtpy.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -54,12 +52,16 @@ class FluxResponseDialog(QDialog):
         layout = QVBoxLayout()
 
         layout.addWidget(QLabel("Target reaction (x-axis):"))
-        self.target_edit = QComplReceivLineEdit(self, self.appdata.project.reaction_ids, self.appdata.is_in_dark_mode, check=False)
+        self.target_edit = QComplReceivLineEdit(
+            self, self.appdata.project.reaction_ids, self.appdata.is_in_dark_mode, check=False
+        )
         self.target_edit.setPlaceholderText("e.g. BIOMASS or a pathway reaction id")
         layout.addWidget(self.target_edit)
 
         layout.addWidget(QLabel("Product reaction to maximize (y-axis):"))
-        self.product_edit = QComplReceivLineEdit(self, self.appdata.project.reaction_ids, self.appdata.is_in_dark_mode, check=False)
+        self.product_edit = QComplReceivLineEdit(
+            self, self.appdata.project.reaction_ids, self.appdata.is_in_dark_mode, check=False
+        )
         self.product_edit.setPlaceholderText("e.g. EX_product_e")
         layout.addWidget(self.product_edit)
 
@@ -117,7 +119,9 @@ class FluxResponseDialog(QDialog):
 
         model = self.appdata.project.cobra_py_model
         if target_id not in model.reactions or product_id not in model.reactions:
-            QMessageBox.warning(self, "Invalid reaction", "Target and product reactions must exist in the current model.")
+            QMessageBox.warning(
+                self, "Invalid reaction", "Target and product reactions must exist in the current model."
+            )
             return
 
         x_min = float(self.min_spin.value())
@@ -171,5 +175,3 @@ class FluxResponseDialog(QDialog):
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.show()
-
-

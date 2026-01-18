@@ -6,45 +6,59 @@ This module provides:
 - Scenario bookmarks/favorites
 """
 
-import os
 import json
-from typing import Dict, List, Tuple, Optional
-from dataclasses import dataclass, asdict
-
-from qtpy.QtCore import Qt, Slot, Signal
-from qtpy.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                            QPushButton, QGroupBox, QListWidget, QListWidgetItem,
-                            QTabWidget, QWidget, QComboBox, QLineEdit,
-                            QMessageBox, QCheckBox, QSpinBox, QDoubleSpinBox,
-                            QTableWidget, QTableWidgetItem, QHeaderView,
-                            QAbstractItemView, QInputDialog, QGridLayout,
-                            QTextEdit, QSplitter, QFrame)
-from qtpy.QtGui import QIcon, QColor
+import os
+from dataclasses import asdict, dataclass
 
 import appdirs
+from qtpy.QtCore import Qt, Signal, Slot
+from qtpy.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDoubleSpinBox,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cnapy.appdata import AppData
-
 
 # ============================================================================
 # Scenario Template Definitions
 # ============================================================================
 
+
 @dataclass
 class ScenarioTemplate:
     """A scenario template definition."""
+
     name: str
     description: str
     category: str
-    reactions: Dict[str, Tuple[float, float]]  # reaction_id -> (lb, ub)
+    reactions: dict[str, tuple[float, float]]  # reaction_id -> (lb, ub)
     # Common reaction patterns (will be matched against model)
-    patterns: Dict[str, Tuple[float, float]]  # pattern -> (lb, ub)
+    patterns: dict[str, tuple[float, float]]  # pattern -> (lb, ub)
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @staticmethod
-    def from_dict(data: dict) -> 'ScenarioTemplate':
+    def from_dict(data: dict) -> "ScenarioTemplate":
         return ScenarioTemplate(**data)
 
 
@@ -60,7 +74,7 @@ DEFAULT_TEMPLATES = [
             "EX_o2_e": (-1000, 1000),  # Oxygen exchange (unlimited)
             "EX_o2(e)": (-1000, 1000),
             "O2t": (-1000, 1000),
-        }
+        },
     ),
     ScenarioTemplate(
         name="Anaerobic (혐기성)",
@@ -71,7 +85,7 @@ DEFAULT_TEMPLATES = [
             "EX_o2_e": (0, 0),  # No oxygen
             "EX_o2(e)": (0, 0),
             "O2t": (0, 0),
-        }
+        },
     ),
     ScenarioTemplate(
         name="Microaerobic (미세호기성)",
@@ -82,9 +96,8 @@ DEFAULT_TEMPLATES = [
             "EX_o2_e": (-2, 0),  # Limited oxygen uptake
             "EX_o2(e)": (-2, 0),
             "O2t": (-2, 1000),
-        }
+        },
     ),
-
     # ==================== 탄소원 (Carbon Sources) ====================
     ScenarioTemplate(
         name="Glucose (포도당)",
@@ -97,7 +110,7 @@ DEFAULT_TEMPLATES = [
             "EX_glc(e)": (-10, 0),
             "GLCt1": (0, 10),
             "GLCpts": (0, 10),
-        }
+        },
     ),
     ScenarioTemplate(
         name="Glucose (Limited)",
@@ -108,7 +121,7 @@ DEFAULT_TEMPLATES = [
             "EX_glc__D_e": (-5, 0),
             "EX_glc_D_e": (-5, 0),
             "EX_glc(e)": (-5, 0),
-        }
+        },
     ),
     ScenarioTemplate(
         name="Xylose (자일로스)",
@@ -122,7 +135,7 @@ DEFAULT_TEMPLATES = [
             "EX_glc__D_e": (0, 0),  # No glucose
             "EX_glc_D_e": (0, 0),
             "EX_glc(e)": (0, 0),
-        }
+        },
     ),
     ScenarioTemplate(
         name="Glycerol (글리세롤)",
@@ -135,7 +148,7 @@ DEFAULT_TEMPLATES = [
             "GLYCt": (0, 10),
             "EX_glc__D_e": (0, 0),  # No glucose
             "EX_glc_D_e": (0, 0),
-        }
+        },
     ),
     ScenarioTemplate(
         name="Acetate (아세테이트)",
@@ -148,7 +161,7 @@ DEFAULT_TEMPLATES = [
             "ACt2r": (-10, 10),
             "EX_glc__D_e": (0, 0),  # No glucose
             "EX_glc_D_e": (0, 0),
-        }
+        },
     ),
     ScenarioTemplate(
         name="Succinate (숙신산)",
@@ -160,9 +173,8 @@ DEFAULT_TEMPLATES = [
             "EX_succ(e)": (-10, 0),
             "EX_glc__D_e": (0, 0),
             "EX_glc_D_e": (0, 0),
-        }
+        },
     ),
-
     # ==================== 생산 시나리오 (Production Scenarios) ====================
     ScenarioTemplate(
         name="Ethanol Production",
@@ -172,7 +184,7 @@ DEFAULT_TEMPLATES = [
         patterns={
             "EX_etoh_e": (0, 1000),  # Allow ethanol export
             "EX_etoh(e)": (0, 1000),
-        }
+        },
     ),
     ScenarioTemplate(
         name="Lactate Production",
@@ -183,7 +195,7 @@ DEFAULT_TEMPLATES = [
             "EX_lac__D_e": (0, 1000),
             "EX_lac_D_e": (0, 1000),
             "EX_lac(e)": (0, 1000),
-        }
+        },
     ),
     ScenarioTemplate(
         name="Succinate Production",
@@ -193,9 +205,8 @@ DEFAULT_TEMPLATES = [
         patterns={
             "EX_succ_e": (0, 1000),
             "EX_succ(e)": (0, 1000),
-        }
+        },
     ),
-
     # ==================== 스트레스 조건 (Stress Conditions) ====================
     ScenarioTemplate(
         name="Nitrogen Limitation",
@@ -205,7 +216,7 @@ DEFAULT_TEMPLATES = [
         patterns={
             "EX_nh4_e": (-1, 0),  # Limited ammonia uptake
             "EX_nh4(e)": (-1, 0),
-        }
+        },
     ),
     ScenarioTemplate(
         name="Phosphate Limitation",
@@ -215,7 +226,7 @@ DEFAULT_TEMPLATES = [
         patterns={
             "EX_pi_e": (-0.5, 0),  # Limited phosphate
             "EX_pi(e)": (-0.5, 0),
-        }
+        },
     ),
 ]
 
@@ -224,22 +235,22 @@ DEFAULT_TEMPLATES = [
 # Scenario Bookmarks Manager
 # ============================================================================
 
+
 class ScenarioBookmarksManager:
     """Manages scenario bookmarks/favorites."""
 
     def __init__(self):
         self.config_path = os.path.join(
-            appdirs.user_config_dir("cnapy", roaming=True, appauthor=False),
-            "scenario-bookmarks.json"
+            appdirs.user_config_dir("cnapy", roaming=True, appauthor=False), "scenario-bookmarks.json"
         )
-        self.bookmarks: List[Dict] = []
+        self.bookmarks: list[dict] = []
         self.load_bookmarks()
 
     def load_bookmarks(self):
         """Load bookmarks from file."""
         if os.path.exists(self.config_path):
             try:
-                with open(self.config_path, 'r', encoding='utf-8') as f:
+                with open(self.config_path, encoding="utf-8") as f:
                     self.bookmarks = json.load(f)
             except Exception:
                 self.bookmarks = []
@@ -248,43 +259,40 @@ class ScenarioBookmarksManager:
         """Save bookmarks to file."""
         try:
             os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-            with open(self.config_path, 'w', encoding='utf-8') as f:
+            with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self.bookmarks, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Error saving bookmarks: {e}")
 
-    def add_bookmark(self, name: str, description: str, 
-                     scenario_data: Dict[str, Tuple[float, float]]) -> bool:
+    def add_bookmark(self, name: str, description: str, scenario_data: dict[str, tuple[float, float]]) -> bool:
         """Add a new bookmark."""
         # Check for duplicate name
         for bm in self.bookmarks:
-            if bm['name'] == name:
+            if bm["name"] == name:
                 return False
 
-        self.bookmarks.append({
-            'name': name,
-            'description': description,
-            'scenario': {k: list(v) for k, v in scenario_data.items()}
-        })
+        self.bookmarks.append(
+            {"name": name, "description": description, "scenario": {k: list(v) for k, v in scenario_data.items()}}
+        )
         self.save_bookmarks()
         return True
 
     def remove_bookmark(self, name: str):
         """Remove a bookmark by name."""
-        self.bookmarks = [bm for bm in self.bookmarks if bm['name'] != name]
+        self.bookmarks = [bm for bm in self.bookmarks if bm["name"] != name]
         self.save_bookmarks()
 
-    def get_bookmark(self, name: str) -> Optional[Dict]:
+    def get_bookmark(self, name: str) -> dict | None:
         """Get a bookmark by name."""
         for bm in self.bookmarks:
-            if bm['name'] == name:
+            if bm["name"] == name:
                 return bm
         return None
 
-    def update_bookmark(self, name: str, new_data: Dict):
+    def update_bookmark(self, name: str, new_data: dict):
         """Update an existing bookmark."""
         for i, bm in enumerate(self.bookmarks):
-            if bm['name'] == name:
+            if bm["name"] == name:
                 self.bookmarks[i] = new_data
                 self.save_bookmarks()
                 return True
@@ -294,6 +302,7 @@ class ScenarioBookmarksManager:
 # ============================================================================
 # Scenario Templates Dialog
 # ============================================================================
+
 
 class ScenarioTemplatesDialog(QDialog):
     """Dialog for managing scenario templates and bookmarks."""
@@ -736,8 +745,7 @@ class ScenarioTemplatesDialog(QDialog):
 
         if len(matched_reactions) == 0:
             self.template_desc_label.setText(
-                template.description + 
-                "\n\n⚠️ No matching reactions found in current model."
+                template.description + "\n\n⚠️ No matching reactions found in current model."
             )
 
     @Slot()
@@ -769,15 +777,11 @@ class ScenarioTemplatesDialog(QDialog):
                 applied_count += 1
 
         if applied_count == 0:
-            QMessageBox.warning(
-                self, "No Matches",
-                "No reactions from the template were found in the current model."
-            )
+            QMessageBox.warning(self, "No Matches", "No reactions from the template were found in the current model.")
             return
 
         QMessageBox.information(
-            self, "Template Applied",
-            f"Applied {applied_count} reaction bound(s) from template '{template.name}'."
+            self, "Template Applied", f"Applied {applied_count} reaction bound(s) from template '{template.name}'."
         )
 
         self.scenarioApplied.emit()
@@ -840,10 +844,7 @@ class ScenarioTemplatesDialog(QDialog):
 
         self.appdata.scen_values_set_multiple(reactions, values)
 
-        QMessageBox.information(
-            self, "Knockout Applied",
-            f"Applied knockout to {len(reactions)} reaction(s)."
-        )
+        QMessageBox.information(self, "Knockout Applied", f"Applied knockout to {len(reactions)} reaction(s).")
 
         self.scenarioApplied.emit()
 
@@ -855,7 +856,7 @@ class ScenarioTemplatesDialog(QDialog):
         for bm in self.bookmarks_manager.bookmarks:
             item = QListWidgetItem(f"⭐ {bm['name']}")
             item.setData(Qt.UserRole, bm)
-            item.setToolTip(bm.get('description', ''))
+            item.setToolTip(bm.get("description", ""))
             self.bookmarks_list.addItem(item)
 
     def _on_bookmark_selected(self, current: QListWidgetItem, previous: QListWidgetItem):
@@ -864,10 +865,10 @@ class ScenarioTemplatesDialog(QDialog):
             return
 
         bm = current.data(Qt.UserRole)
-        self.bookmark_name_label.setText(bm['name'])
-        self.bookmark_desc_label.setText(bm.get('description', ''))
+        self.bookmark_name_label.setText(bm["name"])
+        self.bookmark_desc_label.setText(bm.get("description", ""))
 
-        scenario = bm.get('scenario', {})
+        scenario = bm.get("scenario", {})
         self.bookmark_values_table.setRowCount(len(scenario))
 
         for row, (reac_id, bounds) in enumerate(scenario.items()):
@@ -878,20 +879,12 @@ class ScenarioTemplatesDialog(QDialog):
     @Slot()
     def _save_current_as_bookmark(self):
         """Save current scenario as bookmark."""
-        name, ok = QInputDialog.getText(
-            self, "Save Bookmark",
-            "Enter bookmark name:",
-            QLineEdit.Normal, ""
-        )
+        name, ok = QInputDialog.getText(self, "Save Bookmark", "Enter bookmark name:", QLineEdit.Normal, "")
 
         if not ok or not name.strip():
             return
 
-        desc, ok = QInputDialog.getText(
-            self, "Save Bookmark",
-            "Enter description (optional):",
-            QLineEdit.Normal, ""
-        )
+        desc, ok = QInputDialog.getText(self, "Save Bookmark", "Enter description (optional):", QLineEdit.Normal, "")
 
         scenario_data = dict(self.appdata.project.scen_values)
 
@@ -910,13 +903,14 @@ class ScenarioTemplatesDialog(QDialog):
 
         bm = current.data(Qt.UserRole)
         reply = QMessageBox.question(
-            self, "Delete Bookmark",
+            self,
+            "Delete Bookmark",
             f"Are you sure you want to delete bookmark '{bm['name']}'?",
-            QMessageBox.Yes | QMessageBox.No
+            QMessageBox.Yes | QMessageBox.No,
         )
 
         if reply == QMessageBox.Yes:
-            self.bookmarks_manager.remove_bookmark(bm['name'])
+            self.bookmarks_manager.remove_bookmark(bm["name"])
             self._refresh_bookmarks_list()
 
     @Slot()
@@ -928,7 +922,7 @@ class ScenarioTemplatesDialog(QDialog):
             return
 
         bm = current.data(Qt.UserRole)
-        scenario = bm.get('scenario', {})
+        scenario = bm.get("scenario", {})
 
         self.appdata.project.scen_values.clear_flux_values()
 
@@ -945,8 +939,7 @@ class ScenarioTemplatesDialog(QDialog):
             self.appdata.scen_values_set_multiple(reactions, values)
 
         QMessageBox.information(
-            self, "Bookmark Applied",
-            f"Applied bookmark '{bm['name']}' with {len(reactions)} reaction(s)."
+            self, "Bookmark Applied", f"Applied bookmark '{bm['name']}' with {len(reactions)} reaction(s)."
         )
 
         self.scenarioApplied.emit()
@@ -1043,10 +1036,6 @@ class ScenarioTemplatesDialog(QDialog):
         if reactions:
             self.appdata.scen_values_set_multiple(reactions, values)
 
-        QMessageBox.information(
-            self, "Applied",
-            f"Applied custom template with {len(reactions)} reaction(s)."
-        )
+        QMessageBox.information(self, "Applied", f"Applied custom template with {len(reactions)} reaction(s).")
 
         self.scenarioApplied.emit()
-

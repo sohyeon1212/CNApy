@@ -3,14 +3,25 @@
 import cobra
 import cobra.manipulation
 from qtpy.QtCore import Qt, Signal, Slot
-from qtpy.QtWidgets import (QAction, QHBoxLayout, QLabel,
-                            QLineEdit, QMenu, QMessageBox, QPushButton, QSizePolicy, QSplitter,
-                            QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+from qtpy.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QSplitter,
+    QTableWidgetItem,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cnapy.appdata import AppData, ModelItemType
-from cnapy.utils import SignalThrottler, turn_red, turn_white, update_selected
 from cnapy.gui_elements.annotation_widget import AnnotationWidget
 from cnapy.gui_elements.reaction_table_widget import ModelElementType, ReactionTableWidget
+from cnapy.utils import SignalThrottler, turn_red, turn_white, update_selected
 
 
 class GeneList(QWidget):
@@ -30,8 +41,7 @@ class GeneList(QWidget):
         for m in self.appdata.project.cobra_py_model.genes:
             self.add_gene(m)
         self.gene_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.gene_list.customContextMenuRequested.connect(
-            self.on_context_menu)
+        self.gene_list.customContextMenuRequested.connect(self.on_context_menu)
 
         # create context menu
         self.gene_mask = GenesMask(self, self.appdata)
@@ -47,15 +57,10 @@ class GeneList(QWidget):
         self.layout.addWidget(self.splitter)
         self.setLayout(self.layout)
 
-        self.gene_list.currentItemChanged.connect(
-            self.gene_selected)
-        self.gene_mask.geneChanged.connect(
-            self.handle_changed_gene)
-        self.gene_mask.jumpToReaction.connect(
-            self.emit_jump_to_reaction)
-        self.gene_mask.jumpToMetabolite.connect(
-            self.emit_jump_to_metabolite
-        )
+        self.gene_list.currentItemChanged.connect(self.gene_selected)
+        self.gene_mask.geneChanged.connect(self.handle_changed_gene)
+        self.gene_mask.jumpToReaction.connect(self.emit_jump_to_reaction)
+        self.gene_mask.jumpToMetabolite.connect(self.emit_jump_to_metabolite)
 
     def clear(self):
         self.gene_list.clear()
@@ -87,7 +92,7 @@ class GeneList(QWidget):
             reaction: cobra.Reaction = reaction_x
             gpr = reaction.gene_reaction_rule + " "
             if old_id in gpr:
-                reaction.gene_reaction_rule = gpr.replace(old_id+" ", gene.id+" ").strip()
+                reaction.gene_reaction_rule = gpr.replace(old_id + " ", gene.id + " ").strip()
 
         self.last_selected = self.gene_mask.id.text()
         self.geneChanged.emit(old_id, gene)
@@ -127,8 +132,7 @@ class GeneList(QWidget):
         if self.last_selected is None:
             self.gene_list.setCurrentItem(None)
         else:
-            items = self.gene_list.findItems(
-                self.last_selected, Qt.MatchExactly)
+            items = self.gene_list.findItems(self.last_selected, Qt.MatchExactly)
 
             for i in items:
                 self.gene_list.setCurrentItem(i)
@@ -173,9 +177,7 @@ class GenesMask(QWidget):
         layout.addItem(l)
 
         self.delete_button = QPushButton("Delete gene")
-        self.delete_button.setToolTip(
-            "Delete this gene and remove it from associated reactions."
-        )
+        self.delete_button.setToolTip("Delete this gene and remove it from associated reactions.")
         policy = QSizePolicy()
         policy.ShrinkFlag = True
         self.delete_button.setSizePolicy(policy)
@@ -198,7 +200,7 @@ class GenesMask(QWidget):
         label = QLabel("Reactions using this gene:")
         l.addWidget(label)
         l2 = QHBoxLayout()
-        self.reactions = ReactionTableWidget (self.appdata, ModelElementType.GENE)
+        self.reactions = ReactionTableWidget(self.appdata, ModelElementType.GENE)
         l2.addWidget(self.reactions)
         l.addItem(l2)
         self.reactions.itemDoubleClicked.connect(self.emit_jump_to_reaction)
@@ -207,13 +209,10 @@ class GenesMask(QWidget):
 
         self.setLayout(layout)
 
-
         self.delete_button.clicked.connect(self.delete_gene)
         self.name.textEdited.connect(self.throttler.throttle)
 
-        self.annotation_widget.deleteAnnotation.connect(
-            self.delete_selected_annotation
-        )
+        self.annotation_widget.deleteAnnotation.connect(self.delete_selected_annotation)
 
         self.validate_mask()
 
@@ -230,9 +229,7 @@ class GenesMask(QWidget):
             self.geneChanged.emit(self.gene)
         except ValueError:
             turn_red(self.name)
-            QMessageBox.information(
-                self, 'Invalid name', 'Could not apply name ' +
-                self.name.text()+'.')
+            QMessageBox.information(self, "Invalid name", "Could not apply name " + self.name.text() + ".")
 
     def delete_gene(self):
         cobra.manipulation.remove_genes(
@@ -245,13 +242,12 @@ class GenesMask(QWidget):
         current_row_index = self.gene_list.gene_list.currentIndex().row()
         self.gene_list.gene_list.setCurrentItem(None)
         self.gene_list.last_selected = None
-        self.gene_list.gene_list.takeTopLevelItem(
-            current_row_index)
+        self.gene_list.gene_list.takeTopLevelItem(current_row_index)
         self.appdata.window.setFocus()
 
     def delete_selected_annotation(self, identifier_key):
         try:
-            del(self.gene.annotation[identifier_key])
+            del self.gene.annotation[identifier_key]
             self.appdata.window.unsaved_changes()
         except IndexError:
             pass

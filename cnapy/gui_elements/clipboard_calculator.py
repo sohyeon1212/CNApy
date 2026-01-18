@@ -1,7 +1,16 @@
 """The cnapy clipboard calculator dialog"""
-from qtpy.QtWidgets import (QButtonGroup, QComboBox, QDialog, QHBoxLayout,
-                            QLineEdit, QMessageBox, QPushButton, QRadioButton,
-                            QVBoxLayout)
+
+from qtpy.QtWidgets import (
+    QButtonGroup,
+    QComboBox,
+    QDialog,
+    QHBoxLayout,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QVBoxLayout,
+)
 
 from cnapy.appdata import AppData
 
@@ -81,7 +90,7 @@ class ClipboardCalculator(QDialog):
         if self.l1.isChecked():
             l_comp = self.appdata.project.comp_values
 
-            for (key, value) in self.appdata.project.scen_values.items():
+            for key, value in self.appdata.project.scen_values.items():
                 l_comp[key] = value
         elif self.l2.isChecked():
             try:
@@ -90,27 +99,25 @@ class ClipboardCalculator(QDialog):
                 QMessageBox.warning(
                     None,
                     "No clipboard created yet",
-                    "Clipboard arithmetics do not work as no clipboard was created yet. Store values to a clipboard first to solve this problem."
+                    "Clipboard arithmetics do not work as no clipboard was created yet. Store values to a clipboard first to solve this problem.",
                 )
                 return
 
         if self.r1.isChecked():
             r_comp = self.appdata.project.comp_values
 
-            for (key, value) in self.appdata.project.scen_values.items():
+            for key, value in self.appdata.project.scen_values.items():
                 r_comp[key] = value
         elif self.r2.isChecked():
             r_comp = self.appdata.clipboard_comp_values
 
         for key in self.appdata.project.comp_values:
             if self.l3.isChecked():
-                lv_comp = (float(self.left_value.text()),
-                           float(self.left_value.text()))
+                lv_comp = (float(self.left_value.text()), float(self.left_value.text()))
             else:
                 lv_comp = l_comp[key]
             if self.r3.isChecked():
-                rv_comp = (float(self.right_value.text()),
-                           float(self.right_value.text()))
+                rv_comp = (float(self.right_value.text()), float(self.right_value.text()))
             else:
                 rv_comp = r_comp[key]
 
@@ -127,10 +134,10 @@ class ClipboardCalculator(QDialog):
         (llb, lub) = lv
         (rlb, rub) = rv
         if self.op.currentText() == "+":
-            return (llb+rlb, lub+rub)
+            return (llb + rlb, lub + rub)
         if self.op.currentText() == "-":
-            return (llb-rlb, lub-rub)
+            return (llb - rlb, lub - rub)
         if self.op.currentText() == "*":
-            return (llb*rlb, lub*rub)
+            return (llb * rlb, lub * rub)
         if self.op.currentText() == "/":
-            return (llb/rlb, lub/rub)
+            return (llb / rlb, lub / rub)

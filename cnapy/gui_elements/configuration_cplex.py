@@ -1,12 +1,12 @@
 """The CPLEX configuration dialog"""
+
 import os
+import platform
 import subprocess
 import sys
-import platform
 
-from qtpy.QtWidgets import (QDialog, QFileDialog,
-                            QLabel, QMessageBox, QPushButton,
-                            QVBoxLayout)
+from qtpy.QtWidgets import QDialog, QFileDialog, QLabel, QMessageBox, QPushButton, QVBoxLayout
+
 from cnapy.appdata import AppData
 
 
@@ -65,9 +65,7 @@ class CplexConfigurationDialog(QDialog):
         )
         self.layout.addWidget(label)
 
-        self.environmental_variable_label = QLabel(
-            "NOT SET YET! Please run the previous steps."
-        )
+        self.environmental_variable_label = QLabel("NOT SET YET! Please run the previous steps.")
         self.layout.addWidget(self.environmental_variable_label)
 
         label = QLabel(
@@ -93,8 +91,7 @@ class CplexConfigurationDialog(QDialog):
 
         # Connect the signals
         self.cplex_directory.clicked.connect(self.choose_cplex_directory)
-        self.python_run_button.clicked.connect(
-            self.run_python_connection_script)
+        self.python_run_button.clicked.connect(self.run_python_connection_script)
         self.close.clicked.connect(self.accept)
 
         self.has_set_existing_cplex_directory = False
@@ -104,7 +101,7 @@ class CplexConfigurationDialog(QDialog):
             self,
             "Folder Error",
             "ERROR: The folder you chose in step 3 does not seem to exist! "
-            "Please choose an existing folder in which you have installed IBM CPLEX (see steps 1-3).\n"
+            "Please choose an existing folder in which you have installed IBM CPLEX (see steps 1-3).\n",
         )
 
     def choose_cplex_directory(self):
@@ -128,15 +125,16 @@ class CplexConfigurationDialog(QDialog):
                 QMessageBox.information(
                     self,
                     "Running",
-                    "The script is going to run as you press 'OK'.\nPlease wait for an error or success message which appears\nafter the script running has finished."
+                    "The script is going to run as you press 'OK'.\nPlease wait for an error or success message which appears\nafter the script running has finished.",
                 )
                 python_exe_path = sys.executable
                 python_dir = os.path.dirname(python_exe_path)
                 python_exe_name = os.path.split(python_exe_path)[-1]
-                command = f'cd "{python_dir}" && {python_exe_name} "{self.cplex_directory.text()}python/setup.py" install'
+                command = (
+                    f'cd "{python_dir}" && {python_exe_name} "{self.cplex_directory.text()}python/setup.py" install'
+                )
                 has_run_error = subprocess.check_call(
-                    command,
-                    shell=True
+                    command, shell=True
                 )  # The " are introduces in order to handle paths with blank spaces
             except subprocess.CalledProcessError:
                 has_run_error = True
@@ -148,22 +146,20 @@ class CplexConfigurationDialog(QDialog):
                     "Please check that you use a recent IBM CPLEX version. CNApy isn't compatible with older IBM CPLEX versions.\n"
                     "Additionally, please check that you have followed the previous steps 1 to 3.\n"
                     "If this error keeps going even though you've checked the previous error,\n"
-                    "try to run CNApy with administrator rights."
+                    "try to run CNApy with administrator rights.",
                 )
             else:
                 QMessageBox.information(
                     self,
                     "Success",
-                    "Success in running the Python connection script! Now, you can proceed with the next steps."
+                    "Success in running the Python connection script! Now, you can proceed with the next steps.",
                 )
                 self.get_and_set_environmental_variable()
 
     def get_and_set_environmental_variable(self):
         base_path = self.cplex_directory.text() + "cplex/python/3.10/"
 
-        folders_list = [
-            base_path+folder for folder in os.listdir(base_path) if os.path.isdir(base_path+folder)
-        ]
+        folders_list = [base_path + folder for folder in os.listdir(base_path) if os.path.isdir(base_path + folder)]
 
         if len(folders_list) > 1:
             folders_str = "You have to set the following multiple paths:\n"

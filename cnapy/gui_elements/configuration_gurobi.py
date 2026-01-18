@@ -1,12 +1,12 @@
 """The Gurobi configuration dialog"""
+
 import os
+import platform
 import subprocess
 import sys
-import platform
 
-from qtpy.QtWidgets import (QDialog, QFileDialog,
-                            QLabel, QMessageBox, QPushButton,
-                            QVBoxLayout)
+from qtpy.QtWidgets import QDialog, QFileDialog, QLabel, QMessageBox, QPushButton, QVBoxLayout
+
 from cnapy.appdata import AppData
 
 
@@ -71,8 +71,7 @@ class GurobiConfigurationDialog(QDialog):
 
         # Connect the signals
         self.gurobi_directory.clicked.connect(self.choose_gurobi_directory)
-        self.python_run_button.clicked.connect(
-            self.run_python_connection_script)
+        self.python_run_button.clicked.connect(self.run_python_connection_script)
         self.close.clicked.connect(self.accept)
 
         self.has_set_existing_gurobi_directory = False
@@ -82,7 +81,7 @@ class GurobiConfigurationDialog(QDialog):
             self,
             "Folder Error",
             "ERROR: The folder you chose in step 3 does not seem to exist! "
-            "Please choose an existing folder in which you have installed Gurobi (see steps 1-3).\n"
+            "Please choose an existing folder in which you have installed Gurobi (see steps 1-3).\n",
         )
 
     def choose_gurobi_directory(self):
@@ -106,15 +105,14 @@ class GurobiConfigurationDialog(QDialog):
                 QMessageBox.information(
                     self,
                     "Running",
-                    "The script is going to run as you press 'OK'.\nPlease wait for an error or success message which appears\nafter the script running has finished."
+                    "The script is going to run as you press 'OK'.\nPlease wait for an error or success message which appears\nafter the script running has finished.",
                 )
                 python_exe_path = sys.executable
                 python_dir = os.path.dirname(python_exe_path)
                 python_exe_name = os.path.split(python_exe_path)[-1]
                 command = f'cd "{python_dir}" && {python_exe_name} "{self.gurobi_directory.text()}setup.py" install'
                 has_run_error = subprocess.check_call(
-                    command,
-                    shell=True
+                    command, shell=True
                 )  # The " are introduces in order to handle paths with blank spaces
             except subprocess.CalledProcessError:
                 has_run_error = True
@@ -126,12 +124,12 @@ class GurobiConfigurationDialog(QDialog):
                     "Please check that you use a recent Gurobi version. CNApy isn't compatible with older Gurobi versions.\n"
                     "Additionally, please check that you have followed the previous steps 1 to 3.\n"
                     "If this error keeps going even though you've checked the previous error,\n"
-                    "try to run CNApy with administrator rights."
+                    "try to run CNApy with administrator rights.",
                 )
             else:
                 QMessageBox.information(
                     self,
                     "Success",
-                    "Success in running the Python connection script! Now, you can proceed with the next steps."
+                    "Success in running the Python connection script! Now, you can proceed with the next steps.",
                 )
                 self.get_and_set_environmental_variable()

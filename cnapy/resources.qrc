@@ -17,4 +17,4 @@
         <file alias="zoom-in.png">/data/zoom-in.png</file>
         <file alias="zoom-out.png">/data/zoom-out.png</file>
     </qresource>
-</RCC> 
+</RCC>

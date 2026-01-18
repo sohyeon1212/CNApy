@@ -1,28 +1,45 @@
 """The central widget"""
 
-import numpy
-from enum import IntEnum
-import cobra
 import json
 import os
+from enum import IntEnum
+
+import cobra
+import numpy
 from qtconsole.inprocess import QtInProcessKernelManager
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
-from qtpy.QtCore import Qt, Signal, Slot, QSignalBlocker
-from qtpy.QtGui import QColor, QBrush, QIcon
-from qtpy.QtWidgets import (QCheckBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSplitter,
-                            QTabWidget, QVBoxLayout, QWidget, QAction, QApplication, QComboBox, QFrame,
-                            QFileDialog, QMessageBox, QCompleter)
+from qtpy.QtCore import QSignalBlocker, Qt, Signal, Slot
+from qtpy.QtGui import QBrush, QColor
+from qtpy.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QCompleter,
+    QDialog,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cnapy.appdata import AppData, CnaMap, ModelItemType, parse_scenario
-from cnapy.gui_elements.map_view import MapView
 from cnapy.gui_elements.escher_map_view import EscherMapView
-from cnapy.gui_elements.metabolite_list import MetaboliteList
 from cnapy.gui_elements.gene_list import GeneList
+from cnapy.gui_elements.map_view import MapView
+from cnapy.gui_elements.metabolite_list import MetaboliteList
 from cnapy.gui_elements.mode_navigator import ModeNavigator
 from cnapy.gui_elements.model_info import ModelInfo
-from cnapy.gui_elements.scenario_tab import ScenarioTab
 from cnapy.gui_elements.reactions_list import ReactionList, ReactionListColumn
+from cnapy.gui_elements.scenario_tab import ScenarioTab
 from cnapy.utils import SignalThrottler
+
 
 class ModelTabIndex(IntEnum):
     Reactions = 0
@@ -30,6 +47,7 @@ class ModelTabIndex(IntEnum):
     Genes = 2
     Scenario = 3
     Model = 4
+
 
 class CentralWidget(QWidget):
     """The PyNetAnalyzer central widget"""
@@ -121,7 +139,7 @@ class CentralWidget(QWidget):
         kernel_manager = QtInProcessKernelManager()
         kernel_manager.start_kernel(show_banner=False)
         kernel = kernel_manager.kernel
-        kernel.gui = 'qt'
+        kernel.gui = "qt"
 
         myglobals = globals()
         myglobals["cna"] = self.parent
@@ -131,15 +149,14 @@ class CentralWidget(QWidget):
         self.kernel_client.start_channels()
 
         # Check if client is working
-        self.kernel_client.execute('import matplotlib.pyplot as plt', store_history=False)
+        self.kernel_client.execute("import matplotlib.pyplot as plt", store_history=False)
         # Maybe add selection for inline or separate Qt window plotting in configure menu:
         # "Show plots in separate window" - Checkbox
         # self.kernel_client.execute('%matplotlib inline')
-        self.kernel_client.execute('%matplotlib qt', store_history=False)
-        self.kernel_client.execute(
-            "%config InlineBackend.figure_format = 'svg'", store_history=False)
+        self.kernel_client.execute("%matplotlib qt", store_history=False)
+        self.kernel_client.execute("%config InlineBackend.figure_format = 'svg'", store_history=False)
         self.console = RichJupyterWidget()
-        
+
         if parent.appdata.is_in_dark_mode:
             self.console.set_default_style("linux")  # A more 'classic' dark theme :3
         else:
@@ -163,30 +180,26 @@ class CentralWidget(QWidget):
         layout.addWidget(self.splitter)
         self.setLayout(layout)
         margins = self.layout().contentsMargins()
-        margins.setBottom(0) # otherwise the distance to the status bar appears too large
+        margins.setBottom(0)  # otherwise the distance to the status bar appears too large
         self.layout().setContentsMargins(margins)
 
         self.tabs.currentChanged.connect(self.tabs_changed)
         self.reaction_list.jumpToMap.connect(self.jump_to_map)
         self.reaction_list.jumpToMetabolite.connect(self.jump_to_metabolite)
-        self.reaction_list.reactionChanged.connect(
-            self.handle_changed_reaction)
-        self.reaction_list.reactionDeleted.connect(
-            self.handle_deleted_reaction)
-        self.metabolite_list.metaboliteChanged.connect(
-            self.handle_changed_metabolite)
+        self.reaction_list.reactionChanged.connect(self.handle_changed_reaction)
+        self.reaction_list.reactionDeleted.connect(self.handle_deleted_reaction)
+        self.metabolite_list.metaboliteChanged.connect(self.handle_changed_metabolite)
         self.metabolite_list.jumpToReaction.connect(self.jump_to_reaction)
         self.metabolite_list.computeInOutFlux.connect(self.in_out_fluxes)
         self.metabolite_list.metabolite_mask.metaboliteChanged.connect(
-                self.reaction_list.reaction_mask.update_reaction_string)
+            self.reaction_list.reaction_mask.update_reaction_string
+        )
         self.metabolite_list.metabolite_mask.metaboliteDeleted.connect(
-                self.reaction_list.reaction_mask.update_reaction_string)
-        self.metabolite_list.metabolite_mask.metaboliteDeleted.connect(
-                self.handle_changed_metabolite)
-        self.metabolite_list.metabolite_mask.metaboliteDeleted.connect(
-                self.remove_top_item_history_entry)
-        self.gene_list.geneChanged.connect(
-            self.handle_changed_gene)
+            self.reaction_list.reaction_mask.update_reaction_string
+        )
+        self.metabolite_list.metabolite_mask.metaboliteDeleted.connect(self.handle_changed_metabolite)
+        self.metabolite_list.metabolite_mask.metaboliteDeleted.connect(self.remove_top_item_history_entry)
+        self.gene_list.geneChanged.connect(self.handle_changed_gene)
         self.gene_list.jumpToReaction.connect(self.jump_to_reaction)
         self.gene_list.jumpToMetabolite.connect(self.jump_to_metabolite)
         self.gene_list.computeInOutFlux.connect(self.in_out_fluxes)
@@ -208,11 +221,11 @@ class CentralWidget(QWidget):
 
     def show_bottom_of_console(self):
         (_, r) = self.splitter2.getRange(1)
-        self.splitter2.moveSplitter(r//2, 1)
+        self.splitter2.moveSplitter(r // 2, 1)
 
         vSB = self.console.children()[2].verticalScrollBar()
         max_scroll = vSB.maximum()
-        vSB.setValue(max_scroll-100)
+        vSB.setValue(max_scroll - 100)
 
     def handle_changed_reaction(self, previous_id: str, reaction: cobra.Reaction):
         self.parent.unsaved_changes()
@@ -221,9 +234,10 @@ class CentralWidget(QWidget):
         for mmap in self.appdata.project.maps:
             if previous_id in self.appdata.project.maps[mmap]["boxes"].keys():
                 self.appdata.project.maps[mmap]["boxes"][reaction.id] = self.appdata.project.maps[mmap]["boxes"].pop(
-                    previous_id)
+                    previous_id
+                )
                 reaction_has_box = True
-            if self.appdata.project.maps[mmap].get('view', '') == "escher":
+            if self.appdata.project.maps[mmap].get("view", "") == "escher":
                 escher_map_present = True
         if reaction_has_box or escher_map_present:
             self.update_reaction_on_maps(previous_id, reaction.id, reaction_has_box, escher_map_present)
@@ -232,8 +246,7 @@ class CentralWidget(QWidget):
         self.update_item_in_history(previous_id, reaction.id, reaction.name, ModelItemType.Reaction)
 
     def handle_deleted_reaction(self, reaction: cobra.Reaction):
-        self.appdata.project.cobra_py_model.remove_reactions(
-            [reaction], remove_orphans=True)
+        self.appdata.project.cobra_py_model.remove_reactions([reaction], remove_orphans=True)
         self.appdata.project.scen_values.pop(reaction.id, None)
         self.appdata.project.scen_values.objective_coefficients.pop(reaction.id, None)
         self.remove_top_item_history_entry()
@@ -251,7 +264,7 @@ class CentralWidget(QWidget):
     @Slot(cobra.Metabolite, object, str)
     def handle_changed_metabolite(self, metabolite: cobra.Metabolite, affected_reactions, previous_id: str):
         self.parent.unsaved_changes()
-        for reaction in affected_reactions: # only updates CNApy maps
+        for reaction in affected_reactions:  # only updates CNApy maps
             self.update_reaction_on_maps(reaction.id, reaction.id)
         for idx in range(0, self.map_tabs.count()):
             m = self.map_tabs.widget(idx)
@@ -281,7 +294,7 @@ class CentralWidget(QWidget):
         self.console.kernel_manager.shutdown_kernel()
 
     def switch_to_reaction(self, reaction: str):
-        with QSignalBlocker(self.tabs): # set_current_item will update
+        with QSignalBlocker(self.tabs):  # set_current_item will update
             self.tabs.setCurrentIndex(ModelTabIndex.Reactions)
         if self.tabs.width() == 0:
             (left, _) = self.splitter.sizes()
@@ -358,9 +371,9 @@ class CentralWidget(QWidget):
             mmap: EscherMapView = EscherMapView(self, name)
             self.connect_escher_map_view_signals(mmap)
             self.appdata.project.maps[name][EscherMapView] = mmap
-            self.appdata.project.maps[name]['view'] = 'escher'
-            self.appdata.project.maps[name]['pos'] = '{"x":0,"y":0}'
-            self.appdata.project.maps[name]['zoom'] = '1'
+            self.appdata.project.maps[name]["view"] = "escher"
+            self.appdata.project.maps[name]["pos"] = '{"x":0,"y":0}'
+            self.appdata.project.maps[name]["zoom"] = "1"
             # mmap.loadFinished.connect(self.finish_add_escher_map)
             # mmap.cnapy_bridge.reactionValueChanged.connect(self.update_reaction_value) # connection is not made?!
             # self.appdata.qapp.processEvents() # does not help
@@ -371,7 +384,7 @@ class CentralWidget(QWidget):
             mmap = MapView(self.appdata, self, name)
             self.connect_map_view_signals(mmap)
             idx = self.map_tabs.addTab(mmap, m["name"])
-            self.update_maps() # only update mmap?
+            self.update_maps()  # only update mmap?
         self.map_tabs.setCurrentIndex(idx)
         self.parent.unsaved_changes()
 
@@ -390,7 +403,7 @@ class CentralWidget(QWidget):
 
         with_annotations = self.search_annotations.isChecked() and self.search_annotations.isEnabled()
         QApplication.setOverrideCursor(Qt.BusyCursor)
-        QApplication.processEvents() # to put the change above into effect
+        QApplication.processEvents()  # to put the change above into effect
         if idx == ModelTabIndex.Reactions:
             found_ids = self.reaction_list.update_selected(string, with_annotations)
             found_reaction_ids = found_ids
@@ -433,17 +446,18 @@ class CentralWidget(QWidget):
             if len(self.appdata.project.modes) > self.mode_navigator.current:
                 values = self.appdata.project.modes[self.mode_navigator.current]
                 if self.mode_navigator.mode_type == 0 and not self.appdata.project.modes.is_integer_vector_rounded(
-                    self.mode_navigator.current, self.appdata.rounding):
+                    self.mode_navigator.current, self.appdata.rounding
+                ):
                     # normalize non-integer EFM for better display
-                    mean = sum(abs(v) for v in values.values())/len(values)
-                    for r,v in values.items():
-                        values[r] = v/mean
+                    mean = sum(abs(v) for v in values.values()) / len(values)
+                    for r, v in values.items():
+                        values[r] = v / mean
                 if self.mode_normalization_reaction != "":
                     if self.mode_normalization_reaction in values.keys():
                         normalization_value = values[self.mode_normalization_reaction]
                         if normalization_value != 0.0:
-                            for r,v in values.items():
-                                values[r] = v/normalization_value
+                            for r, v in values.items():
+                                values[r] = v / normalization_value
 
                 # set values
                 self.appdata.project.comp_values.clear()
@@ -451,7 +465,7 @@ class CentralWidget(QWidget):
                 for i in values:
                     if self.mode_navigator.mode_type == 1:
                         if values[i] < 0:
-                            values[i] = 0.0 # display KOs as zero flux
+                            values[i] = 0.0  # display KOs as zero flux
                     self.appdata.project.comp_values[i] = (values[i], values[i])
                 self.appdata.project.comp_values_type = 0
 
@@ -467,19 +481,22 @@ class CentralWidget(QWidget):
                 self.appdata.project.comp_values_type = 0
                 # Set values
                 bnd_dict = self.appdata.project.modes[self.mode_navigator.current]
-                for k,v in bnd_dict.items():
+                for k, v in bnd_dict.items():
                     if numpy.any(numpy.isnan(v)):
-                        self.appdata.project.comp_values[k] = (0,0)
+                        self.appdata.project.comp_values[k] = (0, 0)
                     else:
                         mod_bnds = self.appdata.project.cobra_py_model.reactions.get_by_id(k).bounds
-                        self.appdata.project.comp_values[k] = (numpy.max((v[0],mod_bnds[0])),numpy.min((v[1],mod_bnds[1])))
+                        self.appdata.project.comp_values[k] = (
+                            numpy.max((v[0], mod_bnds[0])),
+                            numpy.min((v[1], mod_bnds[1])),
+                        )
                 self.appdata.modes_coloring = True
                 self.update()
                 self.appdata.modes_coloring = False
                 idx = self.appdata.window.centralWidget().tabs.currentIndex()
                 if idx == ModelTabIndex.Reactions and self.appdata.project.comp_values_type == 0:
                     view = self.appdata.window.centralWidget().reaction_list
-                    view.reaction_list.blockSignals(True) # block itemChanged while recoloring
+                    view.reaction_list.blockSignals(True)  # block itemChanged while recoloring
                     root = view.reaction_list.invisibleRootItem()
                     child_count = root.childCount()
                     for i in range(child_count):
@@ -488,11 +505,11 @@ class CentralWidget(QWidget):
                             v = bnd_dict[item.text(0)]
                             if numpy.any(numpy.isnan(v)):
                                 item.setBackground(ReactionListColumn.Flux, self.appdata.special_color_1)
-                            elif (v[0]<0 and v[1]>=0) or (v[0]<=0 and v[1]>0):
+                            elif (v[0] < 0 and v[1] >= 0) or (v[0] <= 0 and v[1] > 0):
                                 item.setBackground(ReactionListColumn.Flux, self.appdata.special_color_2)
                             elif v[0] == 0.0 and v[1] == 0.0:
                                 item.setBackground(ReactionListColumn.Flux, QColor.fromRgb(255, 0, 0))
-                            elif (v[0]<0 and v[1]<0) or (v[0]>0 and v[1]>0):
+                            elif (v[0] < 0 and v[1] < 0) or (v[0] > 0 and v[1] > 0):
                                 item.setBackground(ReactionListColumn.Flux, self.appdata.special_color_1)
                         else:
                             item.setBackground(ReactionListColumn.Flux, QColor.fromRgb(255, 255, 255))
@@ -507,49 +524,66 @@ class CentralWidget(QWidget):
                         v = bnd_dict[key]
                         if numpy.any(numpy.isnan(v)):
                             view.reaction_boxes[key].set_color(self.appdata.special_color_1)
-                        elif (v[0]<0 and v[1]>=0) or (v[0]<=0 and v[1]>0):
+                        elif (v[0] < 0 and v[1] >= 0) or (v[0] <= 0 and v[1] > 0):
                             view.reaction_boxes[key].set_color(self.appdata.special_color_2)
                         elif v[0] == 0.0 and v[1] == 0.0:
                             view.reaction_boxes[key].set_color(QColor.fromRgb(255, 0, 0))
-                        elif (v[0]<0 and v[1]<0) or (v[0]>0 and v[1]>0):
+                        elif (v[0] < 0 and v[1] < 0) or (v[0] > 0 and v[1] > 0):
                             view.reaction_boxes[key].set_color(self.appdata.special_color_1)
                     else:
                         view.reaction_boxes[key].set_color(QColor.fromRgb(255, 255, 255))
-                if self.appdata.window.sd_sols and self.appdata.window.sd_sols.__weakref__: # if dialog exists
+                if self.appdata.window.sd_sols and self.appdata.window.sd_sols.__weakref__:  # if dialog exists
                     self.mode_navigator.current
                     for i in range(self.appdata.window.sd_sols.sd_table.rowCount()):
-                        if self.mode_navigator.current == int(self.appdata.window.sd_sols.sd_table.item(i,0).text())-1:
-                            self.appdata.window.sd_sols.sd_table.item(i,0).setBackground(QBrush(QColor(230,230,230)))
-                            self.appdata.window.sd_sols.sd_table.item(i,1).setBackground(QBrush(QColor(230,230,230)))
+                        if (
+                            self.mode_navigator.current
+                            == int(self.appdata.window.sd_sols.sd_table.item(i, 0).text()) - 1
+                        ):
+                            self.appdata.window.sd_sols.sd_table.item(i, 0).setBackground(QBrush(QColor(230, 230, 230)))
+                            self.appdata.window.sd_sols.sd_table.item(i, 1).setBackground(QBrush(QColor(230, 230, 230)))
                             if self.appdata.window.sd_sols.sd_table.columnCount() == 3:
-                                self.appdata.window.sd_sols.sd_table.item(i,2).setBackground(QBrush(QColor(230,230,230)))
+                                self.appdata.window.sd_sols.sd_table.item(i, 2).setBackground(
+                                    QBrush(QColor(230, 230, 230))
+                                )
                         else:
-                            self.appdata.window.sd_sols.sd_table.item(i,0).setBackground(QBrush(QColor(255, 255, 255)))
-                            self.appdata.window.sd_sols.sd_table.item(i,1).setBackground(QBrush(QColor(255, 255, 255)))
+                            self.appdata.window.sd_sols.sd_table.item(i, 0).setBackground(QBrush(QColor(255, 255, 255)))
+                            self.appdata.window.sd_sols.sd_table.item(i, 1).setBackground(QBrush(QColor(255, 255, 255)))
                             if self.appdata.window.sd_sols.sd_table.columnCount() == 3:
-                                self.appdata.window.sd_sols.sd_table.item(i,2).setBackground(QBrush(QColor(255, 255, 255)))
+                                self.appdata.window.sd_sols.sd_table.item(i, 2).setBackground(
+                                    QBrush(QColor(255, 255, 255))
+                                )
         self.mode_navigator.current_flux_values = self.appdata.project.comp_values.copy()
 
     def reaction_participation(self):
         self.appdata.project.comp_values.clear()
         self.parent.clear_status_bar()
-        if self.appdata.window.centralWidget().mode_navigator.mode_type <=1:
-            relative_participation = numpy.sum(self.appdata.project.modes.fv_mat[self.mode_navigator.selection, :] != 0, axis=0)/self.mode_navigator.num_selected
-            if isinstance(relative_participation, numpy.matrix): # numpy.sum returns a matrix with one row when fv_mat is scipy.sparse
-                relative_participation = relative_participation.A1 # flatten into 1D array
-            self.appdata.project.comp_values = {r: (relative_participation[i], relative_participation[i]) for i,r in enumerate(self.appdata.project.modes.reac_id)}
+        if self.appdata.window.centralWidget().mode_navigator.mode_type <= 1:
+            relative_participation = (
+                numpy.sum(self.appdata.project.modes.fv_mat[self.mode_navigator.selection, :] != 0, axis=0)
+                / self.mode_navigator.num_selected
+            )
+            if isinstance(
+                relative_participation, numpy.matrix
+            ):  # numpy.sum returns a matrix with one row when fv_mat is scipy.sparse
+                relative_participation = relative_participation.A1  # flatten into 1D array
+            self.appdata.project.comp_values = {
+                r: (relative_participation[i], relative_participation[i])
+                for i, r in enumerate(self.appdata.project.modes.reac_id)
+            }
         elif self.appdata.window.centralWidget().mode_navigator.mode_type == 2:
-            reacs = self.appdata.project.cobra_py_model.reactions.list_attr('id')
+            reacs = self.appdata.project.cobra_py_model.reactions.list_attr("id")
             abund = [0 for _ in reacs]
-            for i,r in enumerate(reacs):
-                for s in [self.appdata.project.modes[l] for l,t in enumerate(self.mode_navigator.selection) if t]:
+            for i, r in enumerate(reacs):
+                for s in [self.appdata.project.modes[l] for l, t in enumerate(self.mode_navigator.selection) if t]:
                     if r in s:
-                        if not numpy.any(numpy.isnan(s[r])) or numpy.all((s[r] == 0)):
+                        if not numpy.any(numpy.isnan(s[r])) or numpy.all(s[r] == 0):
                             abund[i] += 1
-            relative_participation = [a/self.mode_navigator.num_selected for a in abund]
-            self.appdata.project.comp_values = {r: (p,p) for r,p in zip(reacs,relative_participation)}
-        if isinstance(relative_participation, numpy.matrix): # numpy.sum returns a matrix with one row when fv_mat is scipy.sparse
-            relative_participation = relative_participation.A1 # flatten into 1D array
+            relative_participation = [a / self.mode_navigator.num_selected for a in abund]
+            self.appdata.project.comp_values = {r: (p, p) for r, p in zip(reacs, relative_participation, strict=False)}
+        if isinstance(
+            relative_participation, numpy.matrix
+        ):  # numpy.sum returns a matrix with one row when fv_mat is scipy.sparse
+            relative_participation = relative_participation.A1  # flatten into 1D array
         self.appdata.project.comp_values_type = 0
         self.update()
         self.parent.set_heaton()
@@ -564,12 +598,12 @@ class CentralWidget(QWidget):
             self.mode_navigator.update()
 
         if rebuild_all_tabs:
-                self.reaction_list.update(rebuild=True)
-                self.metabolite_list.update()
-                self.gene_list.update()
-                self.scenario_tab.recreate_scenario_items_needed = True
-                self.scenario_tab.update()
-                self.model_info.update()
+            self.reaction_list.update(rebuild=True)
+            self.metabolite_list.update()
+            self.gene_list.update()
+            self.scenario_tab.recreate_scenario_items_needed = True
+            self.scenario_tab.update()
+            self.model_info.update()
         else:
             idx = self.tabs.currentIndex()
             if idx == ModelTabIndex.Reactions:
@@ -596,8 +630,13 @@ class CentralWidget(QWidget):
             m.update()
         self.__recolor_map()
 
-    def update_reaction_on_maps(self, old_reaction_id: str, new_reaction_id: str,
-                                update_cnapy_maps:bool=True, update_escher_maps:bool=False):
+    def update_reaction_on_maps(
+        self,
+        old_reaction_id: str,
+        new_reaction_id: str,
+        update_cnapy_maps: bool = True,
+        update_escher_maps: bool = False,
+    ):
         for idx in range(0, self.map_tabs.count()):
             m = self.map_tabs.widget(idx)
             if update_cnapy_maps and isinstance(m, MapView):
@@ -700,7 +739,8 @@ class CentralWidget(QWidget):
         if data is None:
             return
         filename = QFileDialog.getSaveFileName(
-            self, "Save map", self.appdata.work_directory, "CNApy Map (*.cmap.json)")[0]
+            self, "Save map", self.appdata.work_directory, "CNApy Map (*.cmap.json)"
+        )[0]
         if not filename:
             return
         if not filename.endswith(".cmap.json"):
@@ -716,11 +756,12 @@ class CentralWidget(QWidget):
     @Slot()
     def load_map_from_file(self):
         filename = QFileDialog.getOpenFileName(
-            self, "Load map", self.appdata.work_directory, "CNApy Map (*.cmap.json)")[0]
+            self, "Load map", self.appdata.work_directory, "CNApy Map (*.cmap.json)"
+        )[0]
         if not filename or not os.path.exists(filename):
             return
         try:
-            with open(filename, "r") as fp:
+            with open(filename) as fp:
                 data = json.load(fp)
         except (OSError, json.JSONDecodeError) as exc:
             QMessageBox.critical(self, "Load map failed", str(exc))
@@ -756,7 +797,7 @@ class CentralWidget(QWidget):
     @Slot()
     def load_cnapy_map_from_escher_json(self):
         """Create a CNApy map from Escher JSON and/or image files.
-        
+
         Supports two modes:
         1. JSON + image: Full map with reaction positions from JSON
         2. Image only: Empty map with image background, reactions can be added manually
@@ -765,12 +806,14 @@ class CentralWidget(QWidget):
         dialog = EscherMapFileDialog(self, self.appdata.work_directory)
         if dialog.exec() != QDialog.Accepted:
             return
-        
+
         json_filename = dialog.json_file
         image_filename = dialog.image_file
-        
+
         if not image_filename or not os.path.exists(image_filename):
-            QMessageBox.warning(self, "Image file required", "Image file (PNG or SVG) is required to display the map background.")
+            QMessageBox.warning(
+                self, "Image file required", "Image file (PNG or SVG) is required to display the map background."
+            )
             return
 
         # Handle PNG/SVG-only mode (no JSON)
@@ -780,7 +823,7 @@ class CentralWidget(QWidget):
         # Full mode: JSON + Image
         # Read JSON file
         try:
-            with open(json_filename, "r") as fp:
+            with open(json_filename) as fp:
                 escher_json = fp.read()
         except OSError as exc:
             QMessageBox.critical(self, "Load failed", str(exc))
@@ -800,7 +843,7 @@ class CentralWidget(QWidget):
                     map_name = parsed_json[0]["map_name"]
         except (json.JSONDecodeError, KeyError, TypeError, IndexError):
             pass
-        
+
         if isinstance(data, dict):
             if "map_name" in data:
                 map_name = data["map_name"]
@@ -855,14 +898,15 @@ class CentralWidget(QWidget):
                     missing_in_model.append(rid)
 
         if len(boxes) == 0:
-            QMessageBox.warning(self, "No positions", 
-                "No reaction label positions found in the JSON file.")
+            QMessageBox.warning(self, "No positions", "No reaction label positions found in the JSON file.")
             return
-        
+
         if missing_in_model:
-            msg = (f"Successfully loaded {len(boxes)} reaction positions.\n\n"
-                   f"Note: {len(missing_in_model)} reactions from the JSON file are not in the current model "
-                   f"but were added to the map anyway.")
+            msg = (
+                f"Successfully loaded {len(boxes)} reaction positions.\n\n"
+                f"Note: {len(missing_in_model)} reactions from the JSON file are not in the current model "
+                f"but were added to the map anyway."
+            )
             if len(missing_in_model) <= 10:
                 msg += f"\nMissing reactions: {', '.join(missing_in_model)}"
             else:
@@ -886,9 +930,9 @@ class CentralWidget(QWidget):
 
     def _create_map_from_image_only(self, image_filename: str):
         """Create a CNApy map with only an image background (no JSON positions).
-        
+
         User can then manually add reaction boxes to this map.
-        
+
         Parameters:
         -----------
         image_filename : str
@@ -901,7 +945,7 @@ class CentralWidget(QWidget):
         while name in self.appdata.project.maps:
             name = f"{base_name} {suffix}"
             suffix += 1
-        
+
         # Create empty CNApy map with image background
         cmap = CnaMap(name)
         cmap["boxes"] = {}  # No boxes initially
@@ -916,13 +960,16 @@ class CentralWidget(QWidget):
         mmap.update()
         self.reaction_list.reaction_mask.update_state()
         self.parent.unsaved_changes()
-        
-        QMessageBox.information(self, "Map created", 
+
+        QMessageBox.information(
+            self,
+            "Map created",
             f"Map '{name}' created with image background.\n\n"
             "You can now add reaction boxes manually:\n"
             "• Drag reactions from the Reactions list onto the map\n"
             "• Or use the 'Add reaction' button in the map toolbar\n\n"
-            "Click on a reaction box to edit its flux value.")
+            "Click on a reaction box to edit its flux value.",
+        )
 
     def maybe_create_cnapy_from_escher(self, escher_name: str):
         """If the Escher map has JSON data, create a CNApy map mirroring reaction positions."""
@@ -1075,8 +1122,8 @@ class CentralWidget(QWidget):
         (low, high) = self.appdata.low_and_high()
         idx = self.tabs.currentIndex()
         if idx == ModelTabIndex.Reactions and self.appdata.project.comp_values_type == 0:
-            self.__set_heaton_reaction_list(low,high)
-        self.__set_heaton_map(low,high)
+            self.__set_heaton_reaction_list(low, high)
+        self.__set_heaton_map(low, high)
 
     def __set_heaton_reaction_list(self, low, high):
         # TODO: coloring of LB/UB columns
@@ -1119,7 +1166,7 @@ class CentralWidget(QWidget):
                 map_view.reaction_boxes[key].set_color(color)
 
     def __recolor_map(self):
-        ''' recolor the map based on the activated coloring mode '''
+        """recolor the map based on the activated coloring mode"""
         if self.parent.heaton_action.isChecked():
             self.set_heaton_map()
         elif self.parent.onoff_action.isChecked():
@@ -1179,27 +1226,28 @@ class CentralWidget(QWidget):
             self.model_item_history.clear()
 
     def in_out_fluxes(self, metabolite):
-        self.kernel_client.execute("cna.print_in_out_fluxes('"+metabolite+"')")
+        self.kernel_client.execute("cna.print_in_out_fluxes('" + metabolite + "')")
         self.show_bottom_of_console()
 
     broadcastReactionID = Signal(str)
 
+
 class EscherMapFileDialog(QDialog):
     """Dialog to select JSON and/or image (PNG/SVG) files for Escher map.
-    
+
     Supports two modes:
     1. JSON + PNG: Full map with reaction positions from JSON and PNG background
     2. PNG only: Map with PNG background, reactions can be added manually
     """
-    
+
     def __init__(self, parent, work_directory: str):
         super().__init__(parent)
         self.setWindowTitle("Add CNApy Map from Files")
         self.json_file = None
         self.image_file = None
-        
+
         layout = QVBoxLayout()
-        
+
         # Explanation
         explanation = QLabel(
             "Create a CNApy map from files:\n"
@@ -1210,9 +1258,9 @@ class EscherMapFileDialog(QDialog):
         )
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
-        
+
         layout.addSpacing(10)
-        
+
         # JSON file selection (optional)
         json_layout = QHBoxLayout()
         json_layout.addWidget(QLabel("JSON file (optional):"))
@@ -1227,7 +1275,7 @@ class EscherMapFileDialog(QDialog):
         clear_json_btn.clicked.connect(self.clear_json_file)
         json_layout.addWidget(clear_json_btn)
         layout.addLayout(json_layout)
-        
+
         # Image file selection (PNG/SVG)
         image_layout = QHBoxLayout()
         image_layout.addWidget(QLabel("Image file (required):"))
@@ -1239,9 +1287,9 @@ class EscherMapFileDialog(QDialog):
         image_btn.clicked.connect(self.select_image_file)
         image_layout.addWidget(image_btn)
         layout.addLayout(image_layout)
-        
+
         layout.addSpacing(10)
-        
+
         # Buttons
         btn_layout = QHBoxLayout()
         ok_btn = QPushButton("OK")
@@ -1251,36 +1299,40 @@ class EscherMapFileDialog(QDialog):
         btn_layout.addWidget(ok_btn)
         btn_layout.addWidget(cancel_btn)
         layout.addLayout(btn_layout)
-        
+
         self.setLayout(layout)
         self.work_directory = work_directory
-    
+
     def select_json_file(self):
         filename = QFileDialog.getOpenFileName(
-            self, "Select Escher JSON file", self.work_directory, "JSON files (*.json)")[0]
+            self, "Select Escher JSON file", self.work_directory, "JSON files (*.json)"
+        )[0]
         if filename and os.path.exists(filename):
             self.json_file = filename
             self.json_edit.setText(os.path.basename(filename))
             # Update work directory
             self.work_directory = os.path.dirname(filename)
-    
+
     def clear_json_file(self):
         self.json_file = None
         self.json_edit.clear()
-    
+
     def select_image_file(self):
         filename = QFileDialog.getOpenFileName(
-            self, "Select image file", self.work_directory, 
-            "Image files (*.png *.svg);;PNG files (*.png);;SVG files (*.svg)")[0]
+            self,
+            "Select image file",
+            self.work_directory,
+            "Image files (*.png *.svg);;PNG files (*.png);;SVG files (*.svg)",
+        )[0]
         if filename and os.path.exists(filename):
-            if not (filename.lower().endswith('.png') or filename.lower().endswith('.svg')):
+            if not (filename.lower().endswith(".png") or filename.lower().endswith(".svg")):
                 QMessageBox.warning(self, "Invalid file", "Please select a PNG or SVG file.")
                 return
             self.image_file = filename
             self.image_edit.setText(os.path.basename(filename))
             # Update work directory
             self.work_directory = os.path.dirname(filename)
-    
+
     def accept_dialog(self):
         # Image file is required
         if not self.image_file or not os.path.exists(self.image_file):
@@ -1294,7 +1346,6 @@ class EscherMapFileDialog(QDialog):
 
 
 class ConfirmMapDeleteDialog(QDialog):
-
     def __init__(self, parent, idx: int, name: str):
         super(ConfirmMapDeleteDialog, self).__init__(parent)
         # Create widgets
@@ -1333,7 +1384,7 @@ class MapReactionAddDialog(QDialog):
         self._reactions = appdata.project.cobra_py_model.reactions
 
         layout = QVBoxLayout()
-        
+
         # Explanation
         explanation = QLabel(
             "Add a reaction box to the map.\n"
@@ -1342,7 +1393,7 @@ class MapReactionAddDialog(QDialog):
         )
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
-        
+
         layout.addSpacing(10)
         layout.addWidget(QLabel("Reaction ID:"))
 
@@ -1357,7 +1408,7 @@ class MapReactionAddDialog(QDialog):
         self.edit.setCompleter(completer)
         self.edit.returnPressed.connect(self.accept_dialog)
         layout.addWidget(self.edit)
-        
+
         # Custom ID checkbox
         self.custom_check = QCheckBox("Allow custom ID (not in model)")
         self.custom_check.setToolTip(
@@ -1382,21 +1433,24 @@ class MapReactionAddDialog(QDialog):
         # Accept either pure ID or "id | name"
         if "|" in text:
             text = text.split("|", 1)[0].strip()
-        
+
         if not text:
             QMessageBox.warning(self, "Empty ID", "Please enter a reaction ID.")
             return
-        
+
         # Check if reaction is in model
         in_model = text in self._reactions
-        
+
         if not in_model and not self.custom_check.isChecked():
-            QMessageBox.warning(self, "Reaction not in model", 
+            QMessageBox.warning(
+                self,
+                "Reaction not in model",
                 f"Reaction '{text}' is not in the current model.\n\n"
                 "If you want to add a custom reaction box (e.g., for external reactions),\n"
-                "check the 'Allow custom ID' checkbox.")
+                "check the 'Allow custom ID' checkbox.",
+            )
             return
-        
+
         self._reaction_id = text
         self.accept()
 
@@ -1409,7 +1463,7 @@ class MapReactionAddDialog(QDialog):
 
     def reaction_id(self):
         return self._reaction_id
-    
+
     def is_custom(self):
         """Return True if this is a custom ID not in the model."""
         return self.custom_check.isChecked()

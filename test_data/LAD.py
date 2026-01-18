@@ -1,11 +1,12 @@
 import Simulator
 from gurobipy import *
 
+
 class LAD(Simulator.Simulator):
     def __init__(self):
-        '''
+        """
         Constructor
-        '''
+        """
 
     def run_LP_fitting(self, opt_flux={}, flux_constraints={}, inf_flag=False):
         model_metabolites = self.model_metabolites
@@ -26,12 +27,11 @@ class LAD(Simulator.Simulator):
         pairs, coeffvalue = multidict(Smatrix)
         pairs = tuplelist(pairs)
 
-        m = Model('RNASeq_DirectFlux')
-        m.setParam('OutputFlag', 0)
+        m = Model("RNASeq_DirectFlux")
+        m.setParam("OutputFlag", 0)
 
         # weight threshold를 적용하지 않고 opt_flux 기준으로 필터링
-        target_reactions = {rid: w for rid, w in opt_flux.items()
-                            if rid in model_reactions and abs(w) > 0.01}
+        target_reactions = {rid: w for rid, w in opt_flux.items() if rid in model_reactions and abs(w) > 0.01}
 
         if not target_reactions:
             print("No valid reactions above threshold.")
@@ -46,12 +46,12 @@ class LAD(Simulator.Simulator):
             else:
                 lb, ub = lower_bounds[reaction_id], upper_bounds[reaction_id]
 
-            v[reaction_id] = m.addVar(lb=lb, ub=ub, name=f'v_{reaction_id}')
-            f[reaction_id] = m.addVar(lb=0.0, name=f'f_{reaction_id}')
-            b[reaction_id] = m.addVar(lb=0.0, name=f'b_{reaction_id}')
+            v[reaction_id] = m.addVar(lb=lb, ub=ub, name=f"v_{reaction_id}")
+            f[reaction_id] = m.addVar(lb=0.0, name=f"f_{reaction_id}")
+            b[reaction_id] = m.addVar(lb=0.0, name=f"b_{reaction_id}")
 
         for reaction_id in target_reactions:
-            delta[reaction_id] = m.addVar(lb=0.0, name=f'delta_{reaction_id}')
+            delta[reaction_id] = m.addVar(lb=0.0, name=f"delta_{reaction_id}")
 
         m.update()
 
@@ -65,10 +65,11 @@ class LAD(Simulator.Simulator):
 
         # Stoichiometric constraints
         for met_id in model_metabolites:
-            if len(pairs.select(met_id, '*')) > 0:
+            if len(pairs.select(met_id, "*")) > 0:
                 m.addConstr(
-                    quicksum(v[rxn_id] * coeffvalue[met_id, rxn_id]
-                             for met_id, rxn_id in pairs.select(met_id, '*')) == 0)
+                    quicksum(v[rxn_id] * coeffvalue[met_id, rxn_id] for met_id, rxn_id in pairs.select(met_id, "*"))
+                    == 0
+                )
 
         # Absolute deviation constraints
         scaling_factor = 1.0
@@ -94,10 +95,10 @@ class LAD(Simulator.Simulator):
 
 def read_expression_data(filename):
     expression_info = {}
-    fp = open(filename, 'r')
+    fp = open(filename)
     fp.readline()
     for line in fp:
-        sptlist = line.split('\t')
+        sptlist = line.split("\t")
         gene_id = sptlist[0].strip()
         value = sptlist[1].strip()
         expression_info[gene_id] = float(value)

@@ -1,15 +1,20 @@
 """The model info view"""
 
-from qtpy.QtCore import Signal, Slot, QSignalBlocker
-from qtpy.QtWidgets import (QLabel, QTextEdit, QVBoxLayout, QWidget, QComboBox, QGroupBox)
+from qtpy.QtCore import QSignalBlocker, Signal, Slot
+from qtpy.QtWidgets import QComboBox, QGroupBox, QLabel, QTextEdit, QVBoxLayout, QWidget
 
 try:
     from straindesign.parse_constr import linexpr2dict
 except ImportError:
-    def linexpr2dict(*args, **kwargs): return {}
+
+    def linexpr2dict(*args, **kwargs):
+        return {}
+
+
 from cnapy.appdata import AppData
 from cnapy.gui_elements.scenario_tab import OptimizationDirection
 from cnapy.utils import QComplReceivLineEdit
+
 
 class ModelInfo(QWidget):
     """A widget that shows infos about the model"""
@@ -55,7 +60,9 @@ class ModelInfo(QWidget):
             if r.objective_coefficient != 0:
                 self.current_global_objective[r.id] = r.objective_coefficient
         with QSignalBlocker(self.opt_direction):
-            self.opt_direction.setCurrentIndex(OptimizationDirection[self.appdata.project.cobra_py_model.objective_direction].value)
+            self.opt_direction.setCurrentIndex(
+                OptimizationDirection[self.appdata.project.cobra_py_model.objective_direction].value
+            )
 
         if "description" in self.appdata.project.meta_data:
             description = self.appdata.project.meta_data["description"]
@@ -68,8 +75,9 @@ class ModelInfo(QWidget):
     @Slot(bool)
     def change_global_objective(self, yes: bool):
         if yes:
-            new_objective = linexpr2dict(self.global_objective.text(),
-                            self.appdata.project.cobra_py_model.reactions.list_attr("id"))
+            new_objective = linexpr2dict(
+                self.global_objective.text(), self.appdata.project.cobra_py_model.reactions.list_attr("id")
+            )
             if new_objective != self.current_global_objective:
                 for reac_id in self.current_global_objective.keys():
                     self.appdata.project.cobra_py_model.reactions.get_by_id(reac_id).objective_coefficient = 0
@@ -89,11 +97,9 @@ class ModelInfo(QWidget):
                     first = False
                 else:
                     if r.objective_coefficient > 0:
-                        res += " +" + \
-                            str(r.objective_coefficient) + " " + str(r.id)
+                        res += " +" + str(r.objective_coefficient) + " " + str(r.id)
                     else:
-                        res += " "+str(r.objective_coefficient) + \
-                            " " + str(r.id)
+                        res += " " + str(r.objective_coefficient) + " " + str(r.id)
 
         return res
 

@@ -8,7 +8,6 @@ This agent handles model information queries:
 - Analysis result retrieval
 """
 
-
 from cnapy.agents.base_agent import (
     BaseAgent,
     Skill,
@@ -434,8 +433,8 @@ class DataQueryAgent(BaseAgent):
         return SkillResult(
             status=SkillStatus.SUCCESS,
             data=info,
-            message=(f"Gene {gene.id}: {gene.name or 'N/A'}\n" f"• Associated reactions: {len(reactions)}"),
-            message_ko=(f"유전자 {gene.id}: {gene.name or 'N/A'}\n" f"• 연관 반응: {len(reactions)}개"),
+            message=(f"Gene {gene.id}: {gene.name or 'N/A'}\n• Associated reactions: {len(reactions)}"),
+            message_ko=(f"유전자 {gene.id}: {gene.name or 'N/A'}\n• 연관 반응: {len(reactions)}개"),
         )
 
     def _search_reactions(

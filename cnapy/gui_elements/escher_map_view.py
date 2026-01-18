@@ -1,24 +1,27 @@
 import importlib.resources as resources
 import os
 from math import isclose
-from qtpy.QtCore import Signal, Slot, QUrl, QObject, Qt
-from qtpy.QtWidgets import QFileDialog, QMessageBox
-from qtpy.QtWebEngineWidgets import QWebEngineView, QWebEngineProfile, QWebEnginePage
-from qtpy.QtWebChannel import QWebChannel
+
 import cobra
+from qtpy.QtCore import QObject, Qt, QUrl, Signal, Slot
+from qtpy.QtWebChannel import QWebChannel
+from qtpy.QtWebEngineWidgets import QWebEnginePage, QWebEngineProfile, QWebEngineView
+from qtpy.QtWidgets import QFileDialog, QMessageBox
+
 from cnapy.appdata import AppData
 from cnapy.gui_elements.map_view import validate_value
 
+
 class EscherMapView(QWebEngineView):
-    web_engine_profile: QWebEngineProfile = None #QWebEngineProfile()
+    web_engine_profile: QWebEngineProfile = None  # QWebEngineProfile()
     download_directory: str = ""
 
     @staticmethod
-    @Slot("QWebEngineDownloadItem*") # QWebEngineDownloadItem not declared in qtpy
+    @Slot("QWebEngineDownloadItem*")  # QWebEngineDownloadItem not declared in qtpy
     def save_from_escher(download):
-        file_name = os.path.basename(download.path()) # path()/setPath() delared in PyQt
+        file_name = os.path.basename(download.path())  # path()/setPath() delared in PyQt
         (_, ext) = os.path.splitext(file_name)
-        file_name = QFileDialog.getSaveFileName(directory=EscherMapView.download_directory, filter="*"+ext)[0]
+        file_name = QFileDialog.getSaveFileName(directory=EscherMapView.download_directory, filter="*" + ext)[0]
         if file_name is None or len(file_name) == 0:
             download.cancel()
         else:
@@ -41,34 +44,40 @@ class EscherMapView(QWebEngineView):
         self.initialized = False
         self.central_widget = central_widget
         self.cnapy_bridge = CnapyBridge(self, central_widget)
-        self.channel = QWebChannel() # reference to channel necessary on Python side for correct operation
+        self.channel = QWebChannel()  # reference to channel necessary on Python side for correct operation
         self.page().setWebChannel(self.channel)
         self.channel.registerObject("cnapy_bridge", self.cnapy_bridge)
         html_path = resources.files("cnapy") / "data" / "escher_cnapy.html"
         self.load(QUrl.fromLocalFile(str(html_path)))
-        self.name: str = name # map name for self.appdata.project.maps
+        self.name: str = name  # map name for self.appdata.project.maps
         self.editing_enabled = False
 
     def finish_setup(self):
         print("finish_setup")
         self.page().runJavaScript(
-                r"var search_container=document.getElementsByClassName('search-container')[0];var search_field=document.getElementsByClassName('search-field')[0];search_container.style.display='none';document.getElementsByClassName('search-bar-button')[2].hidden=true")
+            r"var search_container=document.getElementsByClassName('search-container')[0];var search_field=document.getElementsByClassName('search-field')[0];search_container.style.display='none';document.getElementsByClassName('search-bar-button')[2].hidden=true"
+        )
         self.show()
         self.initialized = True
-        self.enable_editing(len(self.appdata.project.maps[self.name].get('escher_map_data', "")) == 0)
+        self.enable_editing(len(self.appdata.project.maps[self.name].get("escher_map_data", "")) == 0)
         self.update()
 
     def set_map_data(self) -> bool:
-        map_data = self.appdata.project.maps[self.name].get('escher_map_data', "")
+        map_data = self.appdata.project.maps[self.name].get("escher_map_data", "")
         if len(map_data) > 0:
-            self.page().runJavaScript("builder.load_map("+map_data+")")
+            self.page().runJavaScript("builder.load_map(" + map_data + ")")
             return True
         else:
             return False
 
     def set_geometry(self):
-        self.page().runJavaScript("builder.map.zoomContainer.goTo("+self.appdata.project.maps[self.name]["zoom"]
-        +","+self.appdata.project.maps[self.name]["pos"]+")")
+        self.page().runJavaScript(
+            "builder.map.zoomContainer.goTo("
+            + self.appdata.project.maps[self.name]["zoom"]
+            + ","
+            + self.appdata.project.maps[self.name]["pos"]
+            + ")"
+        )
 
     def set_cobra_model(self):
         self.cnapy_bridge.setCobraModel.emit(cobra.io.to_json(self.appdata.project.cobra_py_model))
@@ -79,11 +88,21 @@ class EscherMapView(QWebEngineView):
         else:
             if self.appdata.project.comp_values_type == 0:
                 self.cnapy_bridge.visualizeCompValues.emit(
-                    {reac_id: val[0] for reac_id, val in self.appdata.project.comp_values.items()}, False)
-            else: # FVA result, display flux range as text only
-                self.cnapy_bridge.visualizeCompValues.emit({reac_id: self.appdata.format_flux_value(val[0])+
-                        ("" if isclose(val[0], val[1], abs_tol=self.appdata.abs_tol) else ", "+self.appdata.format_flux_value(val[1]))
-                        for reac_id, val in self.appdata.project.comp_values.items()}, True)
+                    {reac_id: val[0] for reac_id, val in self.appdata.project.comp_values.items()}, False
+                )
+            else:  # FVA result, display flux range as text only
+                self.cnapy_bridge.visualizeCompValues.emit(
+                    {
+                        reac_id: self.appdata.format_flux_value(val[0])
+                        + (
+                            ""
+                            if isclose(val[0], val[1], abs_tol=self.appdata.abs_tol)
+                            else ", " + self.appdata.format_flux_value(val[1])
+                        )
+                        for reac_id, val in self.appdata.project.comp_values.items()
+                    },
+                    True,
+                )
 
     def enable_editing(self, enable: bool):
         if enable:
@@ -98,7 +117,7 @@ class EscherMapView(QWebEngineView):
                 document.documentElement.style.filter = "invert(1) hue-rotate(180deg)";
                 """)
             if self.editing_enabled:
-                self.set_cobra_model() # TODO: is this still required?
+                self.set_cobra_model()  # TODO: is this still required?
             # currently need to handle the checkbox myself
             self.central_widget.parent.escher_edit_mode_action.setChecked(self.editing_enabled)
             self.visualize_comp_values()
@@ -117,20 +136,31 @@ class EscherMapView(QWebEngineView):
         self.cnapy_bridge.zoomOut.emit()
 
     # should this be regularily called when the map is editable?
-    def retrieve_map_data(self, semaphore = None): # semaphore is a list with one integer to emulate call by reference
+    def retrieve_map_data(self, semaphore=None):  # semaphore is a list with one integer to emulate call by reference
         def set_escher_map_data(new_map_data):
-            self.appdata.project.maps[self.name]['escher_map_data'] = new_map_data
+            self.appdata.project.maps[self.name]["escher_map_data"] = new_map_data
             if semaphore is not None:
                 semaphore[0] += 1
-        self.page().runJavaScript("JSON.stringify(builder.map.map_for_export())", set_escher_map_data) # JSON.stringify not strictly necessary
 
-    def retrieve_pos_and_zoom(self, semaphore = None): # semaphore is a list with one integer to emulate call by reference
+        self.page().runJavaScript(
+            "JSON.stringify(builder.map.map_for_export())", set_escher_map_data
+        )  # JSON.stringify not strictly necessary
+
+    def retrieve_pos_and_zoom(
+        self, semaphore=None
+    ):  # semaphore is a list with one integer to emulate call by reference
         def set_pos(result):
-            self.appdata.project.maps[self.name]['pos'] = result
+            self.appdata.project.maps[self.name]["pos"] = result
+
         def set_zoom(result):
-            self.appdata.project.maps[self.name]['zoom'] = result
-        self.page().runJavaScript("JSON.stringify(builder.map.zoomContainer.windowTranslate)", set_pos) # JSON.stringify not strictly necessary
-        self.page().runJavaScript("JSON.stringify(builder.map.zoomContainer.windowScale)", set_zoom) # JSON.stringify not strictly necessary
+            self.appdata.project.maps[self.name]["zoom"] = result
+
+        self.page().runJavaScript(
+            "JSON.stringify(builder.map.zoomContainer.windowTranslate)", set_pos
+        )  # JSON.stringify not strictly necessary
+        self.page().runJavaScript(
+            "JSON.stringify(builder.map.zoomContainer.windowScale)", set_zoom
+        )  # JSON.stringify not strictly necessary
         if semaphore is not None:
             semaphore[0] += 1
 
@@ -157,8 +187,9 @@ class EscherMapView(QWebEngineView):
 
     def update_reaction_stoichiometry(self, reac_id: str):
         reaction: cobra.Reaction = self.appdata.project.cobra_py_model.reactions.get_by_id(reac_id)
-        self.cnapy_bridge.updateReactionStoichiometry.emit(reac_id,
-                {m.id: round(c, 4) for m,c in reaction.metabolites.items()}, reaction.reversibility)
+        self.cnapy_bridge.updateReactionStoichiometry.emit(
+            reac_id, {m.id: round(c, 4) for m, c in reaction.metabolites.items()}, reaction.reversibility
+        )
 
     def update_selected(self, find):
         if len(find) == 0:
@@ -187,13 +218,13 @@ class CnapyBridge(QObject):
     jumpToMetabolite = Signal(str)
     changeReactionId = Signal(str, str)
     changeMetId = Signal(str, str)
-    updateReactionStoichiometry = Signal(str, 'QVariantMap', bool) # QVariantMap encapsulates a dict
+    updateReactionStoichiometry = Signal(str, "QVariantMap", bool)  # QVariantMap encapsulates a dict
     addMapToJumpListIfReactionPresent = Signal(str, str)
     hideSearchBar = Signal()
     displaySearchBarFor = Signal(str)
-    setCobraModel = Signal(str) # cannot get passing the model dictionary as QVariantMap to work
+    setCobraModel = Signal(str)  # cannot get passing the model dictionary as QVariantMap to work
     enableEditing = Signal(bool)
-    visualizeCompValues = Signal('QVariantMap', bool)
+    visualizeCompValues = Signal("QVariantMap", bool)
     clearReactionData = Signal()
 
     def __init__(self, escher_map: EscherMapView, central_widget):
@@ -207,29 +238,39 @@ class CnapyBridge(QObject):
     def value_changed(self, reac_id: str, value: str, accept_if_valid: bool):
         if reac_id in self.appdata.project.cobra_py_model.reactions:
             if validate_value(value):
-                self.escher_map.page().runJavaScript('document.getElementById("reaction-box-input").setAttribute("style", "color: black")')
-                if accept_if_valid and self.last_accepted_value != value: # avoid redundant calls
+                self.escher_map.page().runJavaScript(
+                    'document.getElementById("reaction-box-input").setAttribute("style", "color: black")'
+                )
+                if accept_if_valid and self.last_accepted_value != value:  # avoid redundant calls
                     self.last_accepted_value = value
                     self.reactionValueChanged.emit(reac_id, value)
                     if self.appdata.auto_fba:
                         self.central_widget.parent.run_auto_analysis()
             else:
-                self.escher_map.page().runJavaScript('document.getElementById("reaction-box-input").setAttribute("style", "color: red")')
+                self.escher_map.page().runJavaScript(
+                    'document.getElementById("reaction-box-input").setAttribute("style", "color: red")'
+                )
         else:
             if value in self.appdata.project.cobra_py_model.reactions:
-                self.escher_map.page().runJavaScript('document.getElementById("reaction-box-input").setAttribute("style", "color: black")')
-                if accept_if_valid and self.last_accepted_value != value: # avoid redundant calls
+                self.escher_map.page().runJavaScript(
+                    'document.getElementById("reaction-box-input").setAttribute("style", "color: black")'
+                )
+                if accept_if_valid and self.last_accepted_value != value:  # avoid redundant calls
                     self.last_accepted_value = value
-                    ret = QMessageBox.question(self.escher_map, f"Change reaction ID on map to {value}?",
-                            "This is only useful if this is the same reaction as in the model but with a different ID on the map because the metabolites displayed on the map will not change!",
-                            QMessageBox.Ok | QMessageBox.Cancel)
+                    ret = QMessageBox.question(
+                        self.escher_map,
+                        f"Change reaction ID on map to {value}?",
+                        "This is only useful if this is the same reaction as in the model but with a different ID on the map because the metabolites displayed on the map will not change!",
+                        QMessageBox.Ok | QMessageBox.Cancel,
+                    )
                     if ret == QMessageBox.Ok:
                         self.escher_map.change_reaction_id(reac_id, value)
                         self.escher_map.update_reaction_stoichiometry(value)
                         self.central_widget.unsaved_changes()
             else:
-                self.escher_map.page().runJavaScript('document.getElementById("reaction-box-input").setAttribute("style", "color: red")')
-
+                self.escher_map.page().runJavaScript(
+                    'document.getElementById("reaction-box-input").setAttribute("style", "color: red")'
+                )
 
     @Slot(str, str)
     def clicked_on_id(self, id_type: str, identifier: str):
@@ -246,25 +287,29 @@ class CnapyBridge(QObject):
     def set_reaction_box_scenario_value(self, reac_id: str):
         if reac_id in self.appdata.project.scen_values:
             (lb, ub) = self.appdata.project.scen_values[reac_id]
-            attr_val = "value='"+self.appdata.format_flux_value(lb)
+            attr_val = "value='" + self.appdata.format_flux_value(lb)
             if lb != ub:
-                attr_val += ", "+self.appdata.format_flux_value(ub)
+                attr_val += ", " + self.appdata.format_flux_value(ub)
             attr_val += "'"
             self.last_accepted_value = attr_val
         else:
             if reac_id in self.appdata.project.cobra_py_model.reactions:
                 self.escher_map.page().runJavaScript(
-                    "document.getElementById('reaction-box-input').placeholder='enter scenario value'")
-                attr_val = "value=''" # to clear the input field
+                    "document.getElementById('reaction-box-input').placeholder='enter scenario value'"
+                )
+                attr_val = "value=''"  # to clear the input field
                 self.last_accepted_value = attr_val
             else:
                 attr_val = "placeholder='map to reaction ID...'"
-        self.escher_map.page().runJavaScript("document.getElementById('reaction-box-input')."+attr_val)
+        self.escher_map.page().runJavaScript("document.getElementById('reaction-box-input')." + attr_val)
 
     @Slot(result=list)
-    def get_map_and_geometry(self) -> list: # list of strings
-        return [self.appdata.project.maps[self.escher_map.name].get('escher_map_data', ""),
-                self.appdata.project.maps[self.escher_map.name]["zoom"], self.appdata.project.maps[self.escher_map.name]["pos"]]
+    def get_map_and_geometry(self) -> list:  # list of strings
+        return [
+            self.appdata.project.maps[self.escher_map.name].get("escher_map_data", ""),
+            self.appdata.project.maps[self.escher_map.name]["zoom"],
+            self.appdata.project.maps[self.escher_map.name]["pos"],
+        ]
 
     @Slot(str)
     def add_map_to_jump_list(self, map_name: str):

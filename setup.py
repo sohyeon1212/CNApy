@@ -14,16 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # -*- coding: utf-8 -*-
-from setuptools import setup
+from setuptools import find_packages, setup
 
 setup(
     name="cnapy",
     description="An integrated environment for metabolic network analysis.",
     long_description=open("README.md", encoding="utf8").read(),
     long_description_content_type="text/markdown",
-    packages=["cnapy", "cnapy.gui_elements"],
+    packages=find_packages(include=["cnapy", "cnapy.*"]),
     package_dir={"cnapy": "cnapy"},
     package_data={
-        "cnapy": ["data/*.svg", "data/escher_cnapy.html", "data/escher.min.js"]
+        "cnapy": [
+            "data/*.svg",
+            "data/escher_cnapy.html",
+            "data/escher.min.js",
+        ],
+        "cnapy.agents": [
+            "config/*.yaml",
+        ],
     },
+    include_package_data=True,
 )

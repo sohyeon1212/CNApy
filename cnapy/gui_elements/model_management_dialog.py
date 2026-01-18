@@ -8,16 +8,28 @@ This module provides model management utilities including:
 - Model validation
 """
 
-from qtpy.QtCore import Qt, Slot
-from qtpy.QtWidgets import (QDialog, QHBoxLayout, QLabel, QVBoxLayout,
-                            QPushButton, QGroupBox, QTextEdit, QTabWidget,
-                            QWidget, QMessageBox, QCheckBox, QListWidget,
-                            QListWidgetItem, QAbstractItemView, QProgressBar,
-                            QSplitter)
-from qtpy.QtGui import QFont
-import cobra
 import re
-from typing import List, Set, Dict, Tuple, Optional
+
+import cobra
+from qtpy.QtCore import Qt, Slot
+from qtpy.QtGui import QFont
+from qtpy.QtWidgets import (
+    QAbstractItemView,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QSplitter,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
 from cnapy.appdata import AppData
 
 
@@ -39,9 +51,9 @@ def simplify_gpr(gpr_rule: str) -> str:
         content = match.group(1) if match.lastindex else match.group(0)
 
         # Check if this is an 'or' group or 'and' group
-        if ' or ' in content and ' and ' not in content:
+        if " or " in content and " and " not in content:
             # Split by 'or', remove duplicates while preserving order
-            parts = [p.strip() for p in content.split(' or ')]
+            parts = [p.strip() for p in content.split(" or ")]
             seen = set()
             unique_parts = []
             for part in parts:
@@ -50,10 +62,10 @@ def simplify_gpr(gpr_rule: str) -> str:
                     unique_parts.append(part)
             if len(unique_parts) == 1:
                 return unique_parts[0]
-            return '(' + ' or '.join(unique_parts) + ')'
-        elif ' and ' in content and ' or ' not in content:
+            return "(" + " or ".join(unique_parts) + ")"
+        elif " and " in content and " or " not in content:
             # Split by 'and', remove duplicates while preserving order
-            parts = [p.strip() for p in content.split(' and ')]
+            parts = [p.strip() for p in content.split(" and ")]
             seen = set()
             unique_parts = []
             for part in parts:
@@ -62,8 +74,8 @@ def simplify_gpr(gpr_rule: str) -> str:
                     unique_parts.append(part)
             if len(unique_parts) == 1:
                 return unique_parts[0]
-            return '(' + ' and '.join(unique_parts) + ')'
-        return '(' + content + ')'
+            return "(" + " and ".join(unique_parts) + ")"
+        return "(" + content + ")"
 
     # Process from innermost parentheses outward
     result = gpr_rule
@@ -72,27 +84,27 @@ def simplify_gpr(gpr_rule: str) -> str:
     while prev_result != result:
         prev_result = result
         # Match innermost parentheses containing only genes and operators (no nested parens)
-        result = re.sub(r'\(([^()]+)\)', simplify_group, result)
+        result = re.sub(r"\(([^()]+)\)", simplify_group, result)
 
     # Handle the case where there are no parentheses
-    if '(' not in result:
-        result = simplify_group(type('Match', (), {'group': lambda self, x=0: result, 'lastindex': 0})())
+    if "(" not in result:
+        result = simplify_group(type("Match", (), {"group": lambda self, x=0: result, "lastindex": 0})())
         # Remove outer parentheses if they were added
-        if result.startswith('(') and result.endswith(')'):
+        if result.startswith("(") and result.endswith(")"):
             inner = result[1:-1]
-            if inner.count('(') == inner.count(')'):
+            if inner.count("(") == inner.count(")"):
                 result = inner
 
     # Clean up: remove redundant outer parentheses
-    while result.startswith('(') and result.endswith(')'):
+    while result.startswith("(") and result.endswith(")"):
         inner = result[1:-1]
         # Check if the parentheses are matching and redundant
         depth = 0
         is_redundant = True
         for i, c in enumerate(inner):
-            if c == '(':
+            if c == "(":
                 depth += 1
-            elif c == ')':
+            elif c == ")":
                 depth -= 1
             if depth < 0:
                 is_redundant = False
@@ -105,7 +117,7 @@ def simplify_gpr(gpr_rule: str) -> str:
     return result.strip()
 
 
-def find_dead_end_metabolites(model: cobra.Model) -> List[cobra.Metabolite]:
+def find_dead_end_metabolites(model: cobra.Model) -> list[cobra.Metabolite]:
     """
     Find dead-end metabolites (metabolites that can only be produced or only consumed).
 
@@ -145,7 +157,7 @@ def find_dead_end_metabolites(model: cobra.Model) -> List[cobra.Metabolite]:
     return dead_ends
 
 
-def find_blocked_reactions(model: cobra.Model, tolerance: float = 1e-9) -> List[cobra.Reaction]:
+def find_blocked_reactions(model: cobra.Model, tolerance: float = 1e-9) -> list[cobra.Reaction]:
     """
     Find blocked reactions (reactions that cannot carry flux).
     Uses Flux Variability Analysis approach.
@@ -154,15 +166,16 @@ def find_blocked_reactions(model: cobra.Model, tolerance: float = 1e-9) -> List[
 
     try:
         from cobra.flux_analysis import flux_variability_analysis
+
         fva_result = flux_variability_analysis(model, fraction_of_optimum=0.0)
 
         for rxn_id in fva_result.index:
-            min_flux = fva_result.loc[rxn_id, 'minimum']
-            max_flux = fva_result.loc[rxn_id, 'maximum']
+            min_flux = fva_result.loc[rxn_id, "minimum"]
+            max_flux = fva_result.loc[rxn_id, "maximum"]
 
             if abs(min_flux) < tolerance and abs(max_flux) < tolerance:
                 blocked.append(model.reactions.get_by_id(rxn_id))
-    except Exception as e:
+    except Exception:
         # Fallback: check if bounds are both zero
         for rxn in model.reactions:
             if rxn.lower_bound == 0 and rxn.upper_bound == 0:
@@ -171,7 +184,7 @@ def find_blocked_reactions(model: cobra.Model, tolerance: float = 1e-9) -> List[
     return blocked
 
 
-def find_orphan_reactions(model: cobra.Model) -> List[cobra.Reaction]:
+def find_orphan_reactions(model: cobra.Model) -> list[cobra.Reaction]:
     """
     Find orphan reactions (reactions with metabolites that don't appear in any other reaction).
     """
@@ -189,7 +202,7 @@ def find_orphan_reactions(model: cobra.Model) -> List[cobra.Reaction]:
     return orphans
 
 
-def find_unbalanced_reactions(model: cobra.Model) -> List[Tuple[cobra.Reaction, Dict[str, float]]]:
+def find_unbalanced_reactions(model: cobra.Model) -> list[tuple[cobra.Reaction, dict[str, float]]]:
     """
     Find reactions with unbalanced mass/charge.
     Returns list of (reaction, imbalance_dict) tuples.
@@ -219,7 +232,7 @@ def find_unbalanced_reactions(model: cobra.Model) -> List[Tuple[cobra.Reaction, 
                     charge_balance += coef * met.charge
 
             if abs(charge_balance) > 1e-6:
-                imbalance['charge'] = charge_balance
+                imbalance["charge"] = charge_balance
 
             # Remove balanced elements
             imbalance = {k: v for k, v in imbalance.items() if abs(v) > 1e-6}
@@ -232,7 +245,7 @@ def find_unbalanced_reactions(model: cobra.Model) -> List[Tuple[cobra.Reaction, 
     return unbalanced
 
 
-def find_duplicate_gpr_genes(model: cobra.Model) -> Dict[str, List[str]]:
+def find_duplicate_gpr_genes(model: cobra.Model) -> dict[str, list[str]]:
     """
     Find reactions with duplicate genes in their GPR rules.
     Returns dict mapping reaction_id to list of duplicate genes.
@@ -244,9 +257,9 @@ def find_duplicate_gpr_genes(model: cobra.Model) -> Dict[str, List[str]]:
             continue
 
         # Extract all gene mentions
-        genes = re.findall(r'\b(\w+)\b', rxn.gene_reaction_rule)
+        genes = re.findall(r"\b(\w+)\b", rxn.gene_reaction_rule)
         # Filter out operators
-        genes = [g for g in genes if g not in ('and', 'or')]
+        genes = [g for g in genes if g not in ("and", "or")]
 
         # Find duplicates
         seen = set()
@@ -485,7 +498,7 @@ class ModelManagementDialog(QDialog):
         return widget
 
     # Store duplicates data for fixing
-    _gpr_duplicates_data: Dict[str, Tuple[str, str]] = {}  # rxn_id -> (original, simplified)
+    _gpr_duplicates_data: dict[str, tuple[str, str]] = {}  # rxn_id -> (original, simplified)
 
     @Slot()
     def _scan_gpr_duplicates(self):
@@ -528,9 +541,7 @@ class ModelManagementDialog(QDialog):
             if rxn_id in self._gpr_duplicates_data:
                 original, simplified = self._gpr_duplicates_data[rxn_id]
                 self.gpr_details.setText(
-                    f"Reaction: {rxn_id}\n\n"
-                    f"Original GPR:\n{original}\n\n"
-                    f"Simplified GPR:\n{simplified}"
+                    f"Reaction: {rxn_id}\n\nOriginal GPR:\n{original}\n\nSimplified GPR:\n{simplified}"
                 )
 
     @Slot()
@@ -551,10 +562,7 @@ class ModelManagementDialog(QDialog):
                 rxn.gene_reaction_rule = simplified
                 fixed_count += 1
 
-        QMessageBox.information(
-            self, "GPR Fixed",
-            f"Fixed GPR rules for {fixed_count} reaction(s)."
-        )
+        QMessageBox.information(self, "GPR Fixed", f"Fixed GPR rules for {fixed_count} reaction(s).")
 
         self.appdata.unsaved = True
         self._scan_gpr_duplicates()  # Refresh list
@@ -566,9 +574,10 @@ class ModelManagementDialog(QDialog):
             return
 
         reply = QMessageBox.question(
-            self, "Confirm Fix All",
+            self,
+            "Confirm Fix All",
             f"This will fix GPR rules for {len(self._gpr_duplicates_data)} reaction(s). Continue?",
-            QMessageBox.Yes | QMessageBox.No
+            QMessageBox.Yes | QMessageBox.No,
         )
 
         if reply == QMessageBox.Yes:
@@ -579,8 +588,7 @@ class ModelManagementDialog(QDialog):
                 rxn.gene_reaction_rule = simplified
 
             QMessageBox.information(
-                self, "GPR Fixed",
-                f"Fixed GPR rules for {len(self._gpr_duplicates_data)} reaction(s)."
+                self, "GPR Fixed", f"Fixed GPR rules for {len(self._gpr_duplicates_data)} reaction(s)."
             )
 
             self.appdata.unsaved = True

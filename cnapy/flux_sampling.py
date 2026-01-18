@@ -19,7 +19,7 @@
 
 This module provides two sampling methods:
 
-1. Random Sampling: 
+1. Random Sampling:
    - Standard flux sampling using hit-and-run algorithm
    - Samples uniformly from the feasible flux space
 
@@ -30,23 +30,17 @@ This module provides two sampling methods:
 """
 
 import cobra
-from cobra.sampling import sample, OptGPSampler, ACHRSampler
-from typing import Dict, Tuple, Optional
-import pandas as pd
 import numpy as np
+import pandas as pd
+from cobra.sampling import sample
 
 
-def perform_sampling(
-    model: cobra.Model, 
-    n: int, 
-    thinning: int, 
-    processes: int
-) -> pd.DataFrame:
+def perform_sampling(model: cobra.Model, n: int, thinning: int, processes: int) -> pd.DataFrame:
     """
     Perform standard random flux sampling.
-    
+
     Uses the OptGP (Optim-GP) sampler by default for efficient sampling.
-    
+
     Parameters:
     -----------
     model : cobra.Model
@@ -57,7 +51,7 @@ def perform_sampling(
         Thinning factor (keep every nth sample)
     processes : int
         Number of parallel processes
-        
+
     Returns:
     --------
     pd.DataFrame
@@ -70,21 +64,21 @@ def perform_sampling(
 
 def perform_predicted_flux_sampling(
     model: cobra.Model,
-    reference_fluxes: Dict[str, float],
+    reference_fluxes: dict[str, float],
     n: int,
     std_fraction: float = 0.1,
     constraint_mode: str = "bounds",
     min_fraction: float = 0.8,
     max_fraction: float = 1.2,
     thinning: int = 100,
-    processes: int = 4
-) -> Tuple[pd.DataFrame, Dict[str, Tuple[float, float]]]:
+    processes: int = 4,
+) -> tuple[pd.DataFrame, dict[str, tuple[float, float]]]:
     """
     Perform flux sampling centered around predicted flux values.
-    
+
     This method constrains the flux space around a reference solution
     (e.g., from FBA, MOMA, LAD) and samples within that constrained space.
-    
+
     Parameters:
     -----------
     model : cobra.Model
@@ -109,21 +103,21 @@ def perform_predicted_flux_sampling(
         Thinning factor
     processes : int
         Number of parallel processes
-        
+
     Returns:
     --------
     Tuple[pd.DataFrame, Dict[str, Tuple[float, float]]]
         (samples DataFrame, applied bounds for each reaction)
     """
     applied_bounds = {}
-    
+
     with model as m:
         if constraint_mode == "bounds":
             # Constrain each reaction to a range around the reference flux
             for rid, flux in reference_fluxes.items():
                 if rid in m.reactions:
                     rxn = m.reactions.get_by_id(rid)
-                    
+
                     if abs(flux) < 1e-6:
                         # Near-zero flux: constrain to small range around zero
                         new_lb = max(rxn.lower_bound, -0.1)
@@ -136,15 +130,15 @@ def perform_predicted_flux_sampling(
                         else:
                             new_lb = max(rxn.lower_bound, flux * max_fraction)  # Note: reversed for negative
                             new_ub = min(rxn.upper_bound, flux * min_fraction)
-                    
+
                     # Ensure valid bounds
                     if new_lb > new_ub:
                         new_lb, new_ub = new_ub, new_lb
-                    
+
                     rxn.lower_bound = new_lb
                     rxn.upper_bound = new_ub
                     applied_bounds[rid] = (new_lb, new_ub)
-        
+
         elif constraint_mode == "fixed":
             # Fix all reference fluxes
             for rid, flux in reference_fluxes.items():
@@ -153,7 +147,7 @@ def perform_predicted_flux_sampling(
                     rxn.lower_bound = flux
                     rxn.upper_bound = flux
                     applied_bounds[rid] = (flux, flux)
-        
+
         # Perform sampling
         try:
             samples = sample(m, n, thinning=thinning, processes=processes)
@@ -163,21 +157,19 @@ def perform_predicted_flux_sampling(
                 samples = sample(m, min(n, 100), thinning=thinning, processes=1)
             except Exception:
                 raise RuntimeError(f"Sampling failed: {str(e)}")
-    
+
     return samples, applied_bounds
 
 
-def compute_sampling_statistics(
-    samples: pd.DataFrame
-) -> Tuple[pd.Series, pd.Series, pd.DataFrame]:
+def compute_sampling_statistics(samples: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.DataFrame]:
     """
     Compute statistics from sampling results.
-    
+
     Parameters:
     -----------
     samples : pd.DataFrame
         Samples from flux sampling
-        
+
     Returns:
     --------
     Tuple[pd.Series, pd.Series, pd.DataFrame]
@@ -185,28 +177,26 @@ def compute_sampling_statistics(
     """
     mean = samples.mean()
     std = samples.std()
-    
+
     # Compute correlation for reactions with variance
     high_var_cols = std[std > 1e-6].index
     if len(high_var_cols) > 0:
         corr = samples[high_var_cols].corr()
     else:
         corr = pd.DataFrame()
-    
+
     return mean, std, corr
 
 
 def add_gaussian_noise_to_samples(
-    samples: pd.DataFrame,
-    reference_fluxes: Dict[str, float],
-    std_fraction: float = 0.1
+    samples: pd.DataFrame, reference_fluxes: dict[str, float], std_fraction: float = 0.1
 ) -> pd.DataFrame:
     """
     Add Gaussian noise to samples centered around reference fluxes.
-    
+
     This post-processing step can be used to add uncertainty
     to a deterministic solution.
-    
+
     Parameters:
     -----------
     samples : pd.DataFrame
@@ -215,18 +205,18 @@ def add_gaussian_noise_to_samples(
         Reference flux values
     std_fraction : float
         Standard deviation as fraction of absolute flux value
-        
+
     Returns:
     --------
     pd.DataFrame
         Samples with added Gaussian noise
     """
     noisy_samples = samples.copy()
-    
+
     for rid, flux in reference_fluxes.items():
         if rid in noisy_samples.columns:
             std = abs(flux) * std_fraction if abs(flux) > 1e-6 else std_fraction
             noise = np.random.normal(0, std, len(noisy_samples))
             noisy_samples[rid] = noisy_samples[rid] + noise
-    
+
     return noisy_samples

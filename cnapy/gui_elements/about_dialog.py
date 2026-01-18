@@ -1,6 +1,8 @@
 """The cnapy about dialog"""
+
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QDialog, QLabel, QPushButton, QVBoxLayout
+
 from cnapy.appdata import AppData
 
 
@@ -13,7 +15,7 @@ class AboutDialog(QDialog):
         self.setWindowTitle("About CNApy")
 
         self.text1 = QLabel(
-            "Version: {version}\
+            f"Version: {appdata.version}\
             \n\nCNApy is an integrated environment for metabolic modeling.\
             \n\nRecent additions:\
             \n• ROOM (Regulatory On/Off Minimization) analysis\
@@ -21,11 +23,11 @@ class AboutDialog(QDialog):
             \n• Omics Integration (LAD flux prediction)\
             \n• Enhanced map features (PNG-only maps, custom reaction boxes)\
             \n• Improved OptKnock documentation\
-            \n\nFor more information visit us at:".format(version=appdata.version))
+            \n\nFor more information visit us at:"
+        )
         self.text1.setAlignment(Qt.AlignCenter)
 
-        self.url1 = QLabel(
-            "<a href=\"https://github.com/cnapy-org/CNApy\"> https://github.com/cnapy-org/CNApy </a>")
+        self.url1 = QLabel('<a href="https://github.com/cnapy-org/CNApy"> https://github.com/cnapy-org/CNApy </a>')
         self.url1.setOpenExternalLinks(True)
         self.url1.setAlignment(Qt.AlignCenter)
 
@@ -37,10 +39,10 @@ class AboutDialog(QDialog):
         self.text2.setAlignment(Qt.AlignCenter)
 
         self.url2 = QLabel(
-            "<a href=\"https://doi.org/10.1093/bioinformatics/btab828\"> https://doi.org/10.1093/bioinformatics/btab828 </a>")
+            '<a href="https://doi.org/10.1093/bioinformatics/btab828"> https://doi.org/10.1093/bioinformatics/btab828 </a>'
+        )
         self.url2.setOpenExternalLinks(True)
         self.url2.setAlignment(Qt.AlignCenter)
-
 
         self.button = QPushButton("Close")
 
