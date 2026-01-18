@@ -2079,15 +2079,12 @@ class MainWindow(QMainWindow):
 
     def execute_print_model_stats(self):
         if len(self.appdata.project.cobra_py_model.reactions) > 0:
-            self.centralWidget().kernel_client.execute("cna.print_model_stats()")
+            self.print_model_stats()
         else:
-            self.centralWidget().kernel_client.execute("print('\\nEmpty matrix!')")
-
-        self.centralWidget().show_bottom_of_console()
+            print("\nEmpty matrix!")
 
     def show_net_conversion(self):
-        self.centralWidget().kernel_client.execute("cna.net_conversion()")
-        self.centralWidget().show_bottom_of_console()
+        self.net_conversion()
 
     def net_conversion(self):
         with self.appdata.project.cobra_py_model as model:

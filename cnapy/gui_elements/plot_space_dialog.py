@@ -192,7 +192,6 @@ class PlotSpaceDialog(QDialog):
                     "Error in plot calculation",
                     f"Plot space could not be calculated due to the following error:\n{e}",
                 )
-        self.appdata.window.centralWidget().show_bottom_of_console()
         self.setCursor(Qt.ArrowCursor)
 
     def box_3d_clicked(self):

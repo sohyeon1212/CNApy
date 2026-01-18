@@ -156,6 +156,4 @@ class YieldSpaceDialog(QDialog):
             plt.fill(x, y)
             plt.show()
 
-        self.appdata.window.centralWidget().show_bottom_of_console()
-
         self.setCursor(Qt.ArrowCursor)

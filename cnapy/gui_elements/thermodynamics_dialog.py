@@ -363,20 +363,18 @@ class ThermodynamicDialog(QDialog):
         self.central_widget.update()
 
         # Show OptMDF
-        console_text = "print('\\n"
+        result_text = ""
         if self.analysis_type == ThermodynamicAnalysisTypes.OPTMDFPATHWAY:
-            console_text += f"OptMDF: {solution[MDF_VAR_ID]} kJ/mol"
+            result_text = f"OptMDF: {solution[MDF_VAR_ID]} kJ/mol"
         elif self.analysis_type == ThermodynamicAnalysisTypes.THERMODYNAMIC_FBA:
-            console_text += f"Reached objective value: {solution[OBJECTIVE_VAR_NAME]}"
-            console_text += f"\\nReached MDF @ optimum of objective: {solution[MDF_VAR_ID]} kJ/mol"
+            result_text = f"Reached objective value: {solution[OBJECTIVE_VAR_NAME]}"
+            result_text += f"\nReached MDF @ optimum of objective: {solution[MDF_VAR_ID]} kJ/mol"
         elif self.analysis_type == ThermodynamicAnalysisTypes.BOTTLENECK_ANALYSIS:
             combined_bottleneck_sum = 0
             for key in combined_solution.keys():
                 if key.startswith("zb_var_"):
                     if combined_solution[key] > 0.1:
-                        console_text += f"\\n* {key.replace('zb_var_', '')}"
+                        result_text += f"\n* {key.replace('zb_var_', '')}"
                         combined_bottleneck_sum += 1
-            console_text += f"\\n↳Total number of thermodynamically deactivated bottlenecks to reach minimal MDF: {combined_bottleneck_sum}"
-        console_text += "')"
-        self.central_widget.kernel_client.execute(console_text)
-        self.central_widget.show_bottom_of_console()
+            result_text += f"\nTotal number of thermodynamically deactivated bottlenecks to reach minimal MDF: {combined_bottleneck_sum}"
+        print(result_text)

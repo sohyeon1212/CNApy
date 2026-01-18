@@ -24,14 +24,9 @@ from configparser import NoOptionError, NoSectionError
 from pathlib import Path
 
 import cobra
-
-# Necessary on some systems so that, e.g., the in/put metabolite flux visualization in the ipython console can run
-import nest_asyncio
 from qtpy.QtCore import QLocale, Qt
 from qtpy.QtGui import QColor, QPalette
 from qtpy.QtWidgets import QApplication, QMessageBox
-
-nest_asyncio.apply()
 
 # ensuring compatibility with high resolution displays
 if hasattr(Qt, "AA_EnableHighDpiScaling"):
@@ -179,7 +174,6 @@ class Application:
         self.read_cobrapy_config()
 
         # Execute application
-        self.qapp.aboutToQuit.connect(self.window.centralWidget().shutdown_kernel)
         sys.exit(self.qapp.exec_())
 
     def first_start_up_message(self):

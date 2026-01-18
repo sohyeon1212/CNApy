@@ -6,8 +6,6 @@ from enum import IntEnum
 
 import cobra
 import numpy
-from qtconsole.inprocess import QtInProcessKernelManager
-from qtconsole.rich_jupyter_widget import RichJupyterWidget
 from qtpy.QtCore import QSignalBlocker, Qt, Signal, Slot
 from qtpy.QtGui import QBrush, QColor
 from qtpy.QtWidgets import (
@@ -104,6 +102,8 @@ class CentralWidget(QWidget):
         self.map_tabs = QTabWidget()
         self.map_tabs.setTabsClosable(True)
         self.map_tabs.setMovable(True)
+        # Set white background for empty map area
+        self.map_tabs.setStyleSheet("QTabWidget::pane { background-color: white; }")
 
         # Map toolbar (add reaction, save map, load map)
         map_toolbar = QHBoxLayout()
@@ -135,45 +135,15 @@ class CentralWidget(QWidget):
         map_container_layout.addWidget(self.map_tabs)
         map_container.setLayout(map_container_layout)
 
-        # Create an in-process kernel
-        kernel_manager = QtInProcessKernelManager()
-        kernel_manager.start_kernel(show_banner=False)
-        kernel = kernel_manager.kernel
-        kernel.gui = "qt"
-
-        myglobals = globals()
-        myglobals["cna"] = self.parent
-        self.kernel_shell = kernel_manager.kernel.shell
-        self.kernel_shell.push(myglobals)
-        self.kernel_client = kernel_manager.client()
-        self.kernel_client.start_channels()
-
-        # Check if client is working
-        self.kernel_client.execute("import matplotlib.pyplot as plt", store_history=False)
-        # Maybe add selection for inline or separate Qt window plotting in configure menu:
-        # "Show plots in separate window" - Checkbox
-        # self.kernel_client.execute('%matplotlib inline')
-        self.kernel_client.execute("%matplotlib qt", store_history=False)
-        self.kernel_client.execute("%config InlineBackend.figure_format = 'svg'", store_history=False)
-        self.console = RichJupyterWidget()
-
-        if parent.appdata.is_in_dark_mode:
-            self.console.set_default_style("linux")  # A more 'classic' dark theme :3
-        else:
-            self.console.set_default_style("lightbg")
-        self.console.kernel_manager = kernel_manager
-        self.console.kernel_client = self.kernel_client
-
         self.splitter = QSplitter()
         self.splitter2 = QSplitter()
         self.splitter2.addWidget(map_container)
         self.mode_navigator = ModeNavigator(self.appdata, self)
+        self.mode_navigator.setVisible(False)  # Hidden by default until modes are loaded
         self.splitter2.addWidget(self.mode_navigator)
-        self.splitter2.addWidget(self.console)
         self.splitter2.setOrientation(Qt.Vertical)
         self.splitter.addWidget(self.splitter2)
         self.splitter.addWidget(self.tabs)
-        self.console.show()
 
         layout = QVBoxLayout()
         layout.addItem(searchbar_layout)
@@ -190,7 +160,6 @@ class CentralWidget(QWidget):
         self.reaction_list.reactionDeleted.connect(self.handle_deleted_reaction)
         self.metabolite_list.metaboliteChanged.connect(self.handle_changed_metabolite)
         self.metabolite_list.jumpToReaction.connect(self.jump_to_reaction)
-        self.metabolite_list.computeInOutFlux.connect(self.in_out_fluxes)
         self.metabolite_list.metabolite_mask.metaboliteChanged.connect(
             self.reaction_list.reaction_mask.update_reaction_string
         )
@@ -202,7 +171,6 @@ class CentralWidget(QWidget):
         self.gene_list.geneChanged.connect(self.handle_changed_gene)
         self.gene_list.jumpToReaction.connect(self.jump_to_reaction)
         self.gene_list.jumpToMetabolite.connect(self.jump_to_metabolite)
-        self.gene_list.computeInOutFlux.connect(self.in_out_fluxes)
         self.model_info.globalObjectiveChanged.connect(self.handle_changed_global_objective)
         self.scenario_tab.objectiveSetupChanged.connect(self.handle_changed_objective_setup)
         self.scenario_tab.scenarioChanged.connect(self.parent.update_scenario_file_name)
@@ -218,14 +186,6 @@ class CentralWidget(QWidget):
     def fit_mapview(self):
         if isinstance(self.map_tabs.currentWidget(), MapView):
             self.map_tabs.currentWidget().fit()
-
-    def show_bottom_of_console(self):
-        (_, r) = self.splitter2.getRange(1)
-        self.splitter2.moveSplitter(r // 2, 1)
-
-        vSB = self.console.children()[2].verticalScrollBar()
-        max_scroll = vSB.maximum()
-        vSB.setValue(max_scroll - 100)
 
     def handle_changed_reaction(self, previous_id: str, reaction: cobra.Reaction):
         self.parent.unsaved_changes()
@@ -288,10 +248,6 @@ class CentralWidget(QWidget):
     def handle_changed_objective_setup(self):
         if self.appdata.auto_fba:
             self.parent.run_auto_analysis()
-
-    def shutdown_kernel(self):
-        self.console.kernel_client.stop_channels()
-        self.console.kernel_manager.shutdown_kernel()
 
     def switch_to_reaction(self, reaction: str):
         with QSignalBlocker(self.tabs):  # set_current_item will update
@@ -1224,10 +1180,6 @@ class CentralWidget(QWidget):
     def clear_model_item_history(self):
         with QSignalBlocker(self.model_item_history):
             self.model_item_history.clear()
-
-    def in_out_fluxes(self, metabolite):
-        self.kernel_client.execute("cna.print_in_out_fluxes('" + metabolite + "')")
-        self.show_bottom_of_console()
 
     broadcastReactionID = Signal(str)
 
