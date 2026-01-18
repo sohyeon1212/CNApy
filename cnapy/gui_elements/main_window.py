@@ -16,6 +16,7 @@ from cnapy.core_gui import (
     model_optimization_with_exceptions,
 )
 from cnapy.flux_vector_container import FluxVectorContainer
+import cnapy.resources  # noqa: F401 - Required to load menu/toolbar icons
 from cnapy.moma import has_milp_solver, linear_moma, room
 
 try:
