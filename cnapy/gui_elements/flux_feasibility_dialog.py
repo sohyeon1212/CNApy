@@ -321,22 +321,17 @@ class FluxFeasibilityDialog(QDialog):
             if self.appdata.project.solution.status == "optimal":
                 bm_is_modified = len(bm_mod) > 0 or gam_adjust != 0
                 if len(reactions_in_objective) > 0:
-                    self.main_window.centralWidget().console._append_plain_text(
-                        "\nThe fluxes of the following reactions were changed to make the scenario feasible:\n",
-                        before_prompt=True,
-                    )
+                    print("\nThe fluxes of the following reactions were changed to make the scenario feasible:")
                     for r in reactions_in_objective:
                         given_value = self.appdata.project.scen_values[r][0]
                         computed_value = self.appdata.project.comp_values[r][0]
                         if abs(given_value - computed_value) > self.appdata.project.cobra_py_model.tolerance:
-                            self.main_window.centralWidget().console._append_plain_text(
+                            print(
                                 r
                                 + ": "
                                 + self.appdata.format_flux_value(given_value)
                                 + " --> "
                                 + self.appdata.format_flux_value(computed_value)
-                                + "\n",
-                                before_prompt=True,
                             )
                     scenario_fluxes = [self.appdata.project.comp_values[r] for r in reactions_in_objective]
                     if bm_is_modified and self.bm_mod_scenario.isChecked():
@@ -369,9 +364,7 @@ class FluxFeasibilityDialog(QDialog):
                     bm_reac_mod.add_metabolites(
                         {met: sign * gam_adjust for met, sign in zip(gam_mets, gam_mets_sign, strict=False)}
                     )
-                    self.main_window.centralWidget().console._append_plain_text(
-                        "\nModified biomass reaction:\n" + bm_reac_mod.build_reaction_string(), before_prompt=True
-                    )
+                    print("\nModified biomass reaction:\n" + bm_reac_mod.build_reaction_string())
                     if self.bm_mod_scenario.isChecked():
                         self.bm_mod_reac_id = "adjusted_" + bm_reac_id
                         self.appdata.project.scen_values.reactions[self.bm_mod_reac_id] = [
@@ -611,7 +604,7 @@ class FluxFeasibilityDialog(QDialog):
             biomass_text = " including biomass reaction " + self.bm_reac_id
 
         def print_to_console(*txt):
-            self.main_window.centralWidget().console._append_plain_text(" ".join(list(txt)) + "\n", before_prompt=True)
+            print(" ".join(list(txt)))
 
         print_to_console("\nScenario fluxes" + biomass_text + ":")
         element_exchange_balance(

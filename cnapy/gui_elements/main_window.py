@@ -2014,7 +2014,7 @@ class MainWindow(QMainWindow):
                     self.appdata.project.comp_values.clear()
 
         if not general_solution_error:
-            self.centralWidget().console._append_plain_text("\n" + display_text, before_prompt=True)
+            print(display_text)
             self.solver_status_display.setText(display_text)
             self.appdata.project.comp_values_type = 0
         if update:
@@ -2072,7 +2072,7 @@ class MainWindow(QMainWindow):
                     self.set_status_unknown()
                     self.appdata.project.comp_values.clear()
             finally:
-                self.centralWidget().console._append_plain_text("\n" + display_text, before_prompt=True)
+                print(display_text)
                 self.solver_status_display.setText(display_text)
                 self.appdata.project.comp_values_type = 0
                 self.centralWidget().update()
