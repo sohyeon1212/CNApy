@@ -77,6 +77,7 @@ from cnapy.gui_elements.flux_feasibility_dialog import FluxFeasibilityDialog
 from cnapy.gui_elements.flux_optimization_dialog import FluxOptimizationDialog
 from cnapy.gui_elements.flux_response_dialog import FluxResponseDialog
 from cnapy.gui_elements.flux_sampling_dialog import FluxSamplingDialog
+from cnapy.gui_elements.gene_essentiality_dialog import GeneEssentialityDialog
 from cnapy.gui_elements.in_out_flux_dialog import InOutFluxDialog
 from cnapy.gui_elements.map_view import MapView
 from cnapy.gui_elements.mcs_dialog import MCSDialog
@@ -85,6 +86,7 @@ from cnapy.gui_elements.model_management_dialog import ModelManagementDialog
 from cnapy.gui_elements.omics_integration_dialog import OmicsIntegrationDialog
 from cnapy.gui_elements.plot_space_dialog import PlotSpaceDialog
 from cnapy.gui_elements.rename_map_dialog import RenameMapDialog
+from cnapy.gui_elements.robustness_analysis_dialog import RobustnessAnalysisDialog
 from cnapy.gui_elements.scenario_templates_dialog import ScenarioTemplatesDialog
 from cnapy.gui_elements.strain_design_dialog import SDComputationThread, SDComputationViewer, SDDialog, SDViewer
 from cnapy.gui_elements.thermodynamics_dialog import ThermodynamicAnalysisTypes, ThermodynamicDialog
@@ -491,6 +493,14 @@ class MainWindow(QMainWindow):
         flux_response_action.triggered.connect(self.perform_flux_response_analysis)
         self.analysis_menu.addAction(flux_response_action)
 
+        gene_essentiality_action = QAction("Gene Essentiality Analysis...", self)
+        gene_essentiality_action.triggered.connect(self.show_gene_essentiality)
+        self.analysis_menu.addAction(gene_essentiality_action)
+
+        robustness_analysis_action = QAction("Robustness Analysis...", self)
+        robustness_analysis_action.triggered.connect(self.show_robustness_analysis)
+        self.analysis_menu.addAction(robustness_analysis_action)
+
         self.analysis_menu.addSeparator()
 
         # Omics integration menu
@@ -787,6 +797,21 @@ class MainWindow(QMainWindow):
     def perform_flux_response_analysis(self):
         """Open the Flux Response Analysis dialog."""
         dialog = FluxResponseDialog(self.appdata, self)
+        dialog.exec()
+
+    @Slot()
+    def show_gene_essentiality(self):
+        """Open the Gene Essentiality Analysis dialog."""
+        if len(self.appdata.project.cobra_py_model.genes) == 0:
+            QMessageBox.warning(self, "No Genes", "The model has no gene annotations.")
+            return
+        dialog = GeneEssentialityDialog(self.appdata, self.centralWidget())
+        dialog.exec()
+
+    @Slot()
+    def show_robustness_analysis(self):
+        """Open the Robustness Analysis dialog."""
+        dialog = RobustnessAnalysisDialog(self.appdata, self.centralWidget())
         dialog.exec()
 
     @Slot()
