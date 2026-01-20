@@ -445,6 +445,7 @@ class ProjectData:
 
     def __init__(self):
         self.name = "Unnamed project"
+        self.original_bounds: dict[str, tuple[float, float]] = {}
 
         try:
             cobra.Model(id_or_model="empty", name="empty")
@@ -554,6 +555,31 @@ class ProjectData:
 
     def update_reaction_id_lists(self):
         self.reaction_ids.set_ids(self.cobra_py_model.reactions.list_attr("id"), self.scen_values.reactions.keys())
+
+    def store_original_bounds(self):
+        """Store the original bounds of all reactions in the model.
+
+        Call this after loading a model to preserve original bounds for later reset.
+        """
+        self.original_bounds.clear()
+        for reaction in self.cobra_py_model.reactions:
+            self.original_bounds[reaction.id] = (reaction.lower_bound, reaction.upper_bound)
+
+    def reset_to_original_bounds(self) -> int:
+        """Reset all reaction bounds to their original values.
+
+        Returns:
+            Number of reactions whose bounds were reset.
+        """
+        count = 0
+        for reaction in self.cobra_py_model.reactions:
+            if reaction.id in self.original_bounds:
+                original = self.original_bounds[reaction.id]
+                if reaction.bounds != original:
+                    reaction.bounds = original
+                    reaction.set_hash_value()
+                    count += 1
+        return count
 
     # currently unused
     # def scenario_hash_value(self):

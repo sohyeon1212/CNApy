@@ -58,7 +58,7 @@ class FluxSamplingDialog(QDialog):
 
         self.mode_group = QButtonGroup(self)
 
-        self.random_mode = QRadioButton("Random Sampling (표준 무작위 샘플링)")
+        self.random_mode = QRadioButton("Random Sampling")
         self.random_mode.setToolTip(
             "Standard flux sampling using hit-and-run algorithm.\nSamples uniformly from the feasible flux space."
         )
@@ -66,7 +66,7 @@ class FluxSamplingDialog(QDialog):
         self.mode_group.addButton(self.random_mode, 0)
         mode_layout.addWidget(self.random_mode)
 
-        self.predicted_mode = QRadioButton("Predicted Flux-Based Sampling (예측 플럭스 기반)")
+        self.predicted_mode = QRadioButton("Predicted Flux-Based Sampling")
         self.predicted_mode.setToolTip(
             "Sample around a reference flux distribution.\n"
             "Uses computed values (from FBA, MOMA, etc.) as the center.\n"

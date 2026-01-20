@@ -64,9 +64,9 @@ class ScenarioTemplate:
 
 # Default templates for common culture conditions
 DEFAULT_TEMPLATES = [
-    # ==================== 배양 조건 (Culture Conditions) ====================
+    # ==================== Culture Conditions ====================
     ScenarioTemplate(
-        name="Aerobic (호기성)",
+        name="Aerobic",
         description="Standard aerobic growth conditions with unlimited oxygen uptake.",
         category="Culture Conditions",
         reactions={},
@@ -77,7 +77,7 @@ DEFAULT_TEMPLATES = [
         },
     ),
     ScenarioTemplate(
-        name="Anaerobic (혐기성)",
+        name="Anaerobic",
         description="Anaerobic conditions with no oxygen uptake.",
         category="Culture Conditions",
         reactions={},
@@ -88,7 +88,7 @@ DEFAULT_TEMPLATES = [
         },
     ),
     ScenarioTemplate(
-        name="Microaerobic (미세호기성)",
+        name="Microaerobic",
         description="Limited oxygen uptake (microaerobic conditions).",
         category="Culture Conditions",
         reactions={},
@@ -98,9 +98,9 @@ DEFAULT_TEMPLATES = [
             "O2t": (-2, 1000),
         },
     ),
-    # ==================== 탄소원 (Carbon Sources) ====================
+    # ==================== Carbon Sources ====================
     ScenarioTemplate(
-        name="Glucose (포도당)",
+        name="Glucose",
         description="Glucose as primary carbon source (10 mmol/gDW/h uptake).",
         category="Carbon Sources",
         reactions={},
@@ -124,7 +124,7 @@ DEFAULT_TEMPLATES = [
         },
     ),
     ScenarioTemplate(
-        name="Xylose (자일로스)",
+        name="Xylose",
         description="Xylose as primary carbon source.",
         category="Carbon Sources",
         reactions={},
@@ -138,7 +138,7 @@ DEFAULT_TEMPLATES = [
         },
     ),
     ScenarioTemplate(
-        name="Glycerol (글리세롤)",
+        name="Glycerol",
         description="Glycerol as primary carbon source.",
         category="Carbon Sources",
         reactions={},
@@ -151,7 +151,7 @@ DEFAULT_TEMPLATES = [
         },
     ),
     ScenarioTemplate(
-        name="Acetate (아세테이트)",
+        name="Acetate",
         description="Acetate as primary carbon source.",
         category="Carbon Sources",
         reactions={},
@@ -164,7 +164,7 @@ DEFAULT_TEMPLATES = [
         },
     ),
     ScenarioTemplate(
-        name="Succinate (숙신산)",
+        name="Succinate",
         description="Succinate as primary carbon source.",
         category="Carbon Sources",
         reactions={},
@@ -175,7 +175,7 @@ DEFAULT_TEMPLATES = [
             "EX_glc_D_e": (0, 0),
         },
     ),
-    # ==================== 생산 시나리오 (Production Scenarios) ====================
+    # ==================== Production Scenarios ====================
     ScenarioTemplate(
         name="Ethanol Production",
         description="Optimize for ethanol production.",

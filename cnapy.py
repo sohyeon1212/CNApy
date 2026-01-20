@@ -14,12 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Qt 플러그인 경로 설정 (Qt 초기화 전에 실행되어야 함)
+# Qt plugin path setup (must run before Qt initialization)
 import os
 
 
 def setup_qt_plugin_path():
-    """Qt 플러그인 경로를 설정합니다 (PyQt5 사용 시 필요)."""
+    """Set up Qt plugin paths (required for PyQt5)."""
     try:
         import PyQt5
 
@@ -28,13 +28,13 @@ def setup_qt_plugin_path():
         qt_plugins = os.path.join(qt5_path, "plugins")
         qt_platforms = os.path.join(qt_plugins, "platforms")
 
-        # 환경변수 설정
+        # Set environment variables
         if os.path.exists(qt_plugins):
             os.environ["QT_PLUGIN_PATH"] = qt_plugins
         if os.path.exists(qt_platforms):
             os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = qt_platforms
 
-        # QtCore를 먼저 임포트하고 라이브러리 경로를 명시적으로 추가
+        # Import QtCore first and explicitly add library paths
         from PyQt5 import QtCore
 
         if os.path.exists(qt_plugins):
@@ -51,7 +51,8 @@ from sys import argv
 
 from cnapy.__main__ import main_cnapy
 
-main_cnapy(
-    project_path=None if len(argv) < 2 else argv[1],
-    scenario_path=None if len(argv) < 3 else argv[2],
-)
+if __name__ == "__main__":
+    main_cnapy(
+        project_path=None if len(argv) < 2 else argv[1],
+        scenario_path=None if len(argv) < 3 else argv[2],
+    )

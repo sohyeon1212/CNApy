@@ -62,6 +62,7 @@ import cnapy.utils as utils
 from cnapy.appdata import AppData, CnaMap
 from cnapy.flux_sampling import perform_sampling
 from cnapy.gui_elements.about_dialog import AboutDialog
+from cnapy.gui_elements.batch_moma_room_dialog import BatchMomaRoomDialog
 from cnapy.gui_elements.central_widget import CentralWidget, ModelTabIndex
 from cnapy.gui_elements.clipboard_calculator import ClipboardCalculator
 from cnapy.gui_elements.config_cobrapy_dialog import ConfigCobrapyDialog
@@ -166,8 +167,8 @@ class MainWindow(QMainWindow):
         self.scenario_menu.addAction(scenario_templates_action)
         scenario_templates_action.triggered.connect(self.show_scenario_templates)
 
-        # Media Management (배지 관리)
-        media_management_action = QAction("🧪 Media Management (배지 관리)...", self)
+        # Media Management
+        media_management_action = QAction("🧪 Media Management...", self)
         media_management_action.setShortcut("Ctrl+M")
         self.scenario_menu.addAction(media_management_action)
         media_management_action.triggered.connect(self.show_media_management)
@@ -223,6 +224,14 @@ class MainWindow(QMainWindow):
         clear_all_action.setIcon(QIcon(":/icons/clear.png"))
         self.scenario_menu.addAction(clear_all_action)
         clear_all_action.triggered.connect(self.clear_all)
+
+        self.reset_constraints_action = QAction("Reset model bounds to original", self)
+        self.reset_constraints_action.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
+        self.reset_constraints_action.setToolTip(
+            "Reset all reaction bounds to their original values from when the model was loaded"
+        )
+        self.scenario_menu.addAction(self.reset_constraints_action)
+        self.reset_constraints_action.triggered.connect(self.reset_constraints)
 
         add_values_to_scenario_action = QAction("Add all flux values to scenario", self)
         self.scenario_menu.addAction(add_values_to_scenario_action)
@@ -501,6 +510,10 @@ class MainWindow(QMainWindow):
         robustness_analysis_action.triggered.connect(self.show_robustness_analysis)
         self.analysis_menu.addAction(robustness_analysis_action)
 
+        batch_moma_room_action = QAction("Batch MOMA/ROOM Analysis...", self)
+        batch_moma_room_action.triggered.connect(self.show_batch_moma_room)
+        self.analysis_menu.addAction(batch_moma_room_action)
+
         self.analysis_menu.addSeparator()
 
         # Omics integration menu
@@ -677,6 +690,7 @@ class MainWindow(QMainWindow):
         self.tool_bar.addAction(save_scenario_as_action)
         self.tool_bar.addSeparator()
         self.tool_bar.addAction(clear_all_action)
+        self.tool_bar.addAction(self.reset_constraints_action)
         self.tool_bar.addAction(undo_scenario_action)
         self.tool_bar.addAction(redo_scenario_action)
         self.tool_bar.addSeparator()
@@ -812,6 +826,12 @@ class MainWindow(QMainWindow):
     def show_robustness_analysis(self):
         """Open the Robustness Analysis dialog."""
         dialog = RobustnessAnalysisDialog(self.appdata, self.centralWidget())
+        dialog.exec()
+
+    @Slot()
+    def show_batch_moma_room(self):
+        """Open the Batch MOMA/ROOM Analysis dialog."""
+        dialog = BatchMomaRoomDialog(self.appdata, self.centralWidget())
         dialog.exec()
 
     @Slot()
@@ -1377,6 +1397,44 @@ class MainWindow(QMainWindow):
         self.centralWidget().update()
         self.clear_status_bar()
 
+    def reset_constraints(self):
+        """Reset all reaction bounds to their original values from when the model was loaded."""
+        if not self.appdata.project.original_bounds:
+            QMessageBox.information(
+                self,
+                "No Original Bounds",
+                "No original bounds stored. Load a model first.",
+            )
+            return
+
+        count = self.appdata.project.reset_to_original_bounds()
+
+        # Clear scenario values that are now redundant
+        self.appdata.project.scen_values.clear_flux_values()
+        self.appdata.scenario_past.clear()
+        self.appdata.scenario_future.clear()
+        self.update_scenario_file_name()
+
+        # Clear computed values and update display
+        self.appdata.project.comp_values.clear()
+        self.appdata.project.comp_values_type = 0
+        self.appdata.project.fva_values.clear()
+        self.centralWidget().update()
+        self.clear_status_bar()
+
+        if count > 0:
+            QMessageBox.information(
+                self,
+                "Constraints Reset",
+                f"Reset {count} reaction(s) to their original bounds.",
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Constraints Reset",
+                "All reaction bounds were already at their original values.",
+            )
+
     def load_default_scenario(self):
         self.appdata.project.comp_values.clear()
         self.appdata.project.fva_values.clear()
@@ -1434,6 +1492,7 @@ class MainWindow(QMainWindow):
                 return
             self.new_project_unchecked()
             self.appdata.project.cobra_py_model = cobra_py_model
+            self.appdata.project.store_original_bounds()
             self.set_current_filename(filename)
 
             default_map = CnaMap("Map")
@@ -1489,6 +1548,7 @@ class MainWindow(QMainWindow):
                 self.appdata.project.maps = maps
                 self.appdata.project.meta_data = meta_data
                 self.appdata.project.cobra_py_model = cobra_py_model
+                self.appdata.project.store_original_bounds()
                 self.set_current_filename(filename)
                 self.recreate_maps()
                 self.centralWidget().mode_navigator.clear()

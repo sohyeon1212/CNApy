@@ -492,7 +492,7 @@ class MediaManagementDialog(QDialog):
 
     def __init__(self, appdata: AppData, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Media Management (배지 관리)")
+        self.setWindowTitle("Media Management")
         self.setMinimumSize(1000, 700)
         self.appdata = appdata
         self.custom_media_manager = CustomMediaManager()
@@ -506,7 +506,7 @@ class MediaManagementDialog(QDialog):
         main_layout = QVBoxLayout()
 
         # Current media display at top
-        current_group = QGroupBox("Current Media Status (현재 배지 상태)")
+        current_group = QGroupBox("Current Media Status")
         current_layout = QVBoxLayout()
 
         self.current_media_label = QLabel("No media information available.")
@@ -533,19 +533,19 @@ class MediaManagementDialog(QDialog):
 
         # Tab 1: Bacteria
         self.bacteria_tab = self._create_category_tab("Bacteria", BACTERIA_TEMPLATES)
-        self.tabs.addTab(self.bacteria_tab, "🦠 Bacteria (박테리아)")
+        self.tabs.addTab(self.bacteria_tab, "🦠 Bacteria")
 
         # Tab 2: Plant
         self.plant_tab = self._create_category_tab("Plant", PLANT_TEMPLATES)
-        self.tabs.addTab(self.plant_tab, "🌱 Plant (식물)")
+        self.tabs.addTab(self.plant_tab, "🌱 Plant")
 
         # Tab 3: Animal
         self.animal_tab = self._create_category_tab("Animal", ANIMAL_TEMPLATES)
-        self.tabs.addTab(self.animal_tab, "🐁 Animal (동물)")
+        self.tabs.addTab(self.animal_tab, "🐁 Animal")
 
         # Tab 4: Custom
         self.custom_tab = self._create_custom_tab()
-        self.tabs.addTab(self.custom_tab, "⚙️ Custom (사용자 정의)")
+        self.tabs.addTab(self.custom_tab, "⚙️ Custom")
 
         main_layout.addWidget(self.tabs)
 

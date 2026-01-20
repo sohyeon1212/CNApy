@@ -18,10 +18,10 @@ import site
 
 
 # ============================================================================
-# Qt 플러그인 경로 설정 (모든 Qt 관련 import 전에 실행되어야 함)
+# Qt plugin path setup (must run before any Qt-related imports)
 # ============================================================================
 def _setup_qt_paths():
-    """PyQt5의 Qt 플러그인 경로를 설정합니다."""
+    """Set up Qt plugin paths for PyQt5."""
     try:
         import PyQt5
 
@@ -34,7 +34,7 @@ def _setup_qt_paths():
         if os.path.exists(qt5_platforms):
             os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = qt5_platforms
 
-        # QCoreApplication이 생성되기 전에 라이브러리 경로 설정
+        # Set library paths before QCoreApplication is created
         from PyQt5.QtCore import QCoreApplication
 
         QCoreApplication.setLibraryPaths([qt5_plugins])
