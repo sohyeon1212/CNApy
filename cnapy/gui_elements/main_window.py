@@ -78,6 +78,8 @@ from cnapy.gui_elements.flux_feasibility_dialog import FluxFeasibilityDialog
 from cnapy.gui_elements.flux_optimization_dialog import FluxOptimizationDialog
 from cnapy.gui_elements.flux_response_dialog import FluxResponseDialog
 from cnapy.gui_elements.flux_sampling_dialog import FluxSamplingDialog
+from cnapy.gui_elements.fseof_dialog import FSEOFDialog
+from cnapy.gui_elements.fvseof_dialog import FVSEOFDialog
 from cnapy.gui_elements.gene_essentiality_dialog import GeneEssentialityDialog
 from cnapy.gui_elements.in_out_flux_dialog import InOutFluxDialog
 from cnapy.gui_elements.map_view import MapView
@@ -86,6 +88,7 @@ from cnapy.gui_elements.media_management_dialog import MediaManagementDialog
 from cnapy.gui_elements.model_management_dialog import ModelManagementDialog
 from cnapy.gui_elements.omics_integration_dialog import OmicsIntegrationDialog
 from cnapy.gui_elements.plot_space_dialog import PlotSpaceDialog
+from cnapy.gui_elements.reactions_list import build_reaction_string_with_names
 from cnapy.gui_elements.rename_map_dialog import RenameMapDialog
 from cnapy.gui_elements.robustness_analysis_dialog import RobustnessAnalysisDialog
 from cnapy.gui_elements.scenario_templates_dialog import ScenarioTemplatesDialog
@@ -149,6 +152,10 @@ class MainWindow(QMainWindow):
         export_sbml_action = QAction("Export SBML...", self)
         self.file_menu.addAction(export_sbml_action)
         export_sbml_action.triggered.connect(self.export_sbml)
+
+        export_excel_action = QAction("Export Excel...", self)
+        self.file_menu.addAction(export_excel_action)
+        export_excel_action.triggered.connect(self.export_excel)
 
         download_examples = QAction("Download CNApy example projects...", self)
         self.file_menu.addAction(download_examples)
@@ -486,6 +493,19 @@ class MainWindow(QMainWindow):
         self.sd_menu.addAction(load_mcs_action)
         load_mcs_action.triggered.connect(self.load_mcs)
 
+        self.sd_menu.addSeparator()
+        batch_moma_room_action = QAction("Batch MOMA/ROOM Analysis...", self)
+        batch_moma_room_action.triggered.connect(self.show_batch_moma_room)
+        self.sd_menu.addAction(batch_moma_room_action)
+
+        fseof_action = QAction("FSEOF Analysis...", self)
+        fseof_action.triggered.connect(self.show_fseof)
+        self.sd_menu.addAction(fseof_action)
+
+        fvseof_action = QAction("FVSEOF Analysis (FVA-based)...", self)
+        fvseof_action.triggered.connect(self.show_fvseof)
+        self.sd_menu.addAction(fvseof_action)
+
         self.flux_optimization_action = QAction("Flux optimization...", self)
         self.flux_optimization_action.triggered.connect(self.optimize_flux)
         self.analysis_menu.addAction(self.flux_optimization_action)
@@ -509,10 +529,6 @@ class MainWindow(QMainWindow):
         robustness_analysis_action = QAction("Robustness Analysis...", self)
         robustness_analysis_action.triggered.connect(self.show_robustness_analysis)
         self.analysis_menu.addAction(robustness_analysis_action)
-
-        batch_moma_room_action = QAction("Batch MOMA/ROOM Analysis...", self)
-        batch_moma_room_action.triggered.connect(self.show_batch_moma_room)
-        self.analysis_menu.addAction(batch_moma_room_action)
 
         self.analysis_menu.addSeparator()
 
@@ -835,6 +851,18 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     @Slot()
+    def show_fseof(self):
+        """Open the FSEOF Analysis dialog."""
+        dialog = FSEOFDialog(self.appdata, self.centralWidget())
+        dialog.exec()
+
+    @Slot()
+    def show_fvseof(self):
+        """Open the FVSEOF Analysis dialog."""
+        dialog = FVSEOFDialog(self.appdata, self.centralWidget())
+        dialog.exec()
+
+    @Slot()
     def perform_omics_integration(self):
         """Open the Omics Integration dialog for LAD flux prediction."""
         dialog = OmicsIntegrationDialog(self.appdata, self)
@@ -988,6 +1016,104 @@ class MainWindow(QMainWindow):
             utils.show_unknown_error_box(exstr)
 
         self.setCursor(Qt.ArrowCursor)
+
+    @Slot()
+    def export_excel(self):
+        """Export model to Excel file with multiple sheets."""
+        dialog = QFileDialog(self)
+        filename: str = dialog.getSaveFileName(directory=self.appdata.work_directory, filter="Excel files (*.xlsx)")[0]
+        if not filename or len(filename) == 0:
+            return
+
+        if not filename.endswith(".xlsx"):
+            filename += ".xlsx"
+
+        self.setCursor(Qt.BusyCursor)
+        try:
+            self._export_model_to_excel(filename)
+            QMessageBox.information(self, "Export Complete", f"Model exported successfully to:\n{filename}")
+        except Exception:
+            exstr = get_last_exception_string()
+            utils.show_unknown_error_box(exstr)
+        self.setCursor(Qt.ArrowCursor)
+
+    def _export_model_to_excel(self, filename: str):
+        """Export the COBRA model to an Excel file with multiple sheets."""
+        model = self.appdata.project.cobra_py_model
+
+        workbook = openpyxl.Workbook()
+        # Remove default sheet
+        workbook.remove(workbook.active)
+
+        # Sheet 1: Reactions
+        ws_reactions = workbook.create_sheet("Reactions")
+        ws_reactions.append(
+            [
+                "ID",
+                "Name",
+                "Equation (IDs)",
+                "Equation (Names)",
+                "Lower Bound",
+                "Upper Bound",
+                "Objective Coefficient",
+                "GPR",
+                "Subsystem",
+            ]
+        )
+        for reaction in model.reactions:
+            ws_reactions.append(
+                [
+                    reaction.id,
+                    reaction.name,
+                    reaction.build_reaction_string(),
+                    build_reaction_string_with_names(reaction),
+                    reaction.lower_bound,
+                    reaction.upper_bound,
+                    reaction.objective_coefficient,
+                    reaction.gene_reaction_rule or "",
+                    reaction.subsystem or "",
+                ]
+            )
+
+        # Sheet 2: Metabolites
+        ws_metabolites = workbook.create_sheet("Metabolites")
+        ws_metabolites.append(["ID", "Name", "Formula", "Charge", "Compartment"])
+        for metabolite in model.metabolites:
+            ws_metabolites.append(
+                [
+                    metabolite.id,
+                    metabolite.name,
+                    metabolite.formula or "",
+                    metabolite.charge if metabolite.charge is not None else "",
+                    metabolite.compartment or "",
+                ]
+            )
+
+        # Sheet 3: Genes
+        ws_genes = workbook.create_sheet("Genes")
+        ws_genes.append(["ID", "Name", "Associated Reactions"])
+        for gene in model.genes:
+            associated_reactions = ", ".join([r.id for r in gene.reactions])
+            ws_genes.append([gene.id, gene.name or "", associated_reactions])
+
+        # Sheet 4: Model Info
+        ws_info = workbook.create_sheet("Model Info")
+        ws_info.append(["Property", "Value"])
+        ws_info.append(["Model ID", model.id])
+        ws_info.append(["Model Name", model.name or ""])
+        ws_info.append(["Number of Reactions", len(model.reactions)])
+        ws_info.append(["Number of Metabolites", len(model.metabolites)])
+        ws_info.append(["Number of Genes", len(model.genes)])
+
+        # Compartments
+        compartments = model.compartments
+        if compartments:
+            ws_info.append([])
+            ws_info.append(["Compartments", ""])
+            for comp_id, comp_name in compartments.items():
+                ws_info.append([comp_id, comp_name])
+
+        workbook.save(filename)
 
     @Slot()
     def download_examples(self):
@@ -1561,6 +1687,15 @@ class MainWindow(QMainWindow):
                 self.appdata.project.fva_values.clear()
                 self.appdata.scenario_past.clear()
                 self.appdata.scenario_future.clear()
+
+                # Load comp_values if present (saved flux values from LAD/E-Flux2/etc.)
+                comp_values_path = temp_dir.name + "/comp_values.json"
+                if os.path.exists(comp_values_path):
+                    with open(comp_values_path) as fp:
+                        comp_data = json.load(fp)
+                        self.appdata.project.comp_values = {k: tuple(v) for k, v in comp_data.get("values", {}).items()}
+                        self.appdata.project.comp_values_type = comp_data.get("type", 0)
+
                 self.clear_status_bar()
                 self.update_scenario_file_name()
                 (reactions, values) = self.appdata.project.collect_default_scenario_values()
@@ -1713,12 +1848,26 @@ class MainWindow(QMainWindow):
         with open(tmp_dir + "meta.json", "w") as fp:
             json.dump(self.appdata.project.meta_data, fp)
 
+        # Save comp_values (computed flux values from Map)
+        comp_values_file = None
+        if self.appdata.project.comp_values:
+            comp_data = {
+                "values": {k: list(v) for k, v in self.appdata.project.comp_values.items()},
+                "type": self.appdata.project.comp_values_type,
+            }
+            comp_values_file = tmp_dir + "comp_values.json"
+            with open(comp_values_file, "w") as fp:
+                json.dump(comp_data, fp)
+
         with ZipFile(filename, "w") as zip_obj:
             zip_obj.write(tmp_dir + "model.sbml", arcname="model.sbml")
             zip_obj.write(tmp_dir + "box_positions.json", arcname="box_positions.json")
             zip_obj.write(tmp_dir + "meta.json", arcname="meta.json")
             for name, m in svg_files.items():
                 zip_obj.write(name, arcname=m)
+            # Save comp_values if present
+            if comp_values_file:
+                zip_obj.write(comp_values_file, arcname="comp_values.json")
 
         # put svgs into temporary directory and update references
         with ZipFile(filename, "r") as zip_ref:
