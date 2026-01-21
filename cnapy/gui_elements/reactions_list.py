@@ -39,6 +39,43 @@ class ReactionListColumn(IntEnum):
     LB = 4
     UB = 5
     DF = 6
+    GPR = 7
+    Equation = 8  # Equation with metabolite IDs
+    EqnNames = 9  # Equation with metabolite names
+
+
+def build_reaction_string_with_names(reaction: cobra.Reaction) -> str:
+    """Build reaction equation string using metabolite names instead of IDs."""
+
+    def format_stoich(coeff: float) -> str:
+        if coeff == 1.0:
+            return ""
+        elif coeff == int(coeff):
+            return f"{int(coeff)} "
+        else:
+            return f"{coeff} "
+
+    reactants = []
+    products = []
+    for metabolite, coeff in reaction.metabolites.items():
+        name = metabolite.name if metabolite.name else metabolite.id
+        # Add compartment info if available
+        if metabolite.compartment:
+            name = f"{name} [{metabolite.compartment}]"
+        if coeff < 0:
+            reactants.append(f"{format_stoich(-coeff)}{name}")
+        else:
+            products.append(f"{format_stoich(coeff)}{name}")
+
+    reactants_str = " + ".join(reactants)
+    products_str = " + ".join(products)
+
+    if reaction.reversibility:
+        arrow = " <=> "
+    else:
+        arrow = " --> "
+
+    return reactants_str + arrow + products_str
 
 
 class DragableTreeWidget(QTreeWidget):
@@ -199,6 +236,13 @@ class ReactionList(QWidget):
         self.add_button.clicked.connect(self.add_new_reaction)
         self.reaction_list.setColumnHidden(ReactionListColumn.DF, True)
         self.visible_column[ReactionListColumn.DF] = False
+        # Show equation column with IDs by default, hide equation with names
+        self.reaction_list.setColumnHidden(ReactionListColumn.Equation, False)
+        self.visible_column[ReactionListColumn.Equation] = True
+        self.reaction_list.setColumnHidden(ReactionListColumn.EqnNames, True)
+        self.visible_column[ReactionListColumn.EqnNames] = False
+        self.reaction_list.header().resizeSection(ReactionListColumn.GPR, 150)
+        self.reaction_list.header().resizeSection(ReactionListColumn.Equation, 250)
 
     def clear(self):
         self.reaction_list.clear()
@@ -211,15 +255,22 @@ class ReactionList(QWidget):
         item.setFlags(item.flags() | Qt.ItemIsEditable)
         item.setText(ReactionListColumn.Id, reaction.id)
         item.setText(ReactionListColumn.Name, reaction.name)
+        item.setText(ReactionListColumn.GPR, reaction.gene_reaction_rule or "")
+        item.setText(ReactionListColumn.Equation, reaction.build_reaction_string())
+        item.setText(ReactionListColumn.EqnNames, build_reaction_string_with_names(reaction))
         item.update_tooltips()
         self.update_item(item)
         return item
 
     def update_item(self, item: ReactionListItem):
-        """update Scenario, Flux, LB, UB columns"""
+        """update Scenario, Flux, LB, UB, GPR, and equation columns"""
         if self.appdata.project.comp_values_type == 0:
             self.set_flux_value(item)
         self.set_bounds_values(item)
+        # Update GPR and equation columns
+        item.setText(ReactionListColumn.GPR, item.reaction.gene_reaction_rule or "")
+        item.setText(ReactionListColumn.Equation, item.reaction.build_reaction_string())
+        item.setText(ReactionListColumn.EqnNames, build_reaction_string_with_names(item.reaction))
         if item.reaction.id in self.appdata.project.scen_values:
             scen_background_color = self.appdata.scen_color
             (vl, vu) = self.appdata.project.scen_values[item.reaction.id]
@@ -302,7 +353,9 @@ class ReactionList(QWidget):
         self.appdata.project.cobra_py_model.add_reactions([reaction])
         self.appdata.project.update_reaction_id_lists()
         reaction.set_hash_value()
-        self.appdata.project.cobra_py_model.set_stoichiometry_hash_object()
+        model = self.appdata.project.cobra_py_model
+        if hasattr(model, "set_stoichiometry_hash_object"):
+            model.set_stoichiometry_hash_object()
         self.reaction_list.blockSignals(True)
         item = self.add_reaction(reaction)
         self.reaction_list.blockSignals(False)
@@ -326,6 +379,7 @@ class ReactionList(QWidget):
             self.reaction_mask.id.setText(reaction.id)
             self.reaction_mask.name.setText(reaction.name)
             self.reaction_mask.equation.setText(reaction.build_reaction_string())
+            self.reaction_mask.equation_names.setText(build_reaction_string_with_names(reaction))
             self.reaction_mask.lower_bound.setText(str(reaction.lower_bound))
             self.reaction_mask.upper_bound.setText(str(reaction.upper_bound))
             self.reaction_mask.coefficent.setText(str(reaction.objective_coefficient))
@@ -360,6 +414,9 @@ class ReactionList(QWidget):
                 old_id = item.text(ReactionListColumn.Id)
                 item.setText(ReactionListColumn.Id, reaction.id)
                 item.setText(ReactionListColumn.Name, reaction.name)
+                item.setText(ReactionListColumn.GPR, reaction.gene_reaction_rule or "")
+                item.setText(ReactionListColumn.Equation, reaction.build_reaction_string())
+                item.setText(ReactionListColumn.EqnNames, build_reaction_string_with_names(reaction))
                 item.update_tooltips()
                 break
 
@@ -651,10 +708,19 @@ class ReactionMask(QWidget):
         layout.addItem(l)
 
         l = QHBoxLayout()
-        label = QLabel("Equation:")
+        label = QLabel("Equation (ID):")
         self.equation = QLineEdit()
         l.addWidget(label)
         l.addWidget(self.equation)
+        layout.addItem(l)
+
+        l = QHBoxLayout()
+        label = QLabel("Equation (Name):")
+        self.equation_names = QLineEdit()
+        self.equation_names.setReadOnly(True)
+        self.equation_names.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
+        l.addWidget(label)
+        l.addWidget(self.equation_names)
         layout.addItem(l)
 
         l = QHBoxLayout()
@@ -672,6 +738,14 @@ class ReactionMask(QWidget):
         self.coefficent = QLineEdit()
         l.addWidget(label)
         l.addWidget(self.coefficent)
+
+        self.reversibility_button = QPushButton("Toggle Reversibility")
+        self.reversibility_button.setToolTip("Toggle between reversible (lb < 0) and irreversible (lb = 0)")
+        l.addWidget(self.reversibility_button)
+
+        self.swap_direction_button = QPushButton("Swap Direction")
+        self.swap_direction_button.setToolTip("Swap reactants and products (reverses the reaction direction)")
+        l.addWidget(self.swap_direction_button)
         layout.addItem(l)
 
         l = QHBoxLayout()
@@ -705,6 +779,8 @@ class ReactionMask(QWidget):
         self.setLayout(layout)
 
         self.delete_button.clicked.connect(self.delete_reaction)
+        self.reversibility_button.clicked.connect(self.toggle_reversibility)
+        self.swap_direction_button.clicked.connect(self.swap_reaction_direction)
 
         self.id.textEdited.connect(self.throttler.throttle)
         self.name.textEdited.connect(self.throttler.throttle)
@@ -770,7 +846,9 @@ class ReactionMask(QWidget):
         ):
             self.fba_relevant_change = True
             self.reaction.set_hash_value()
-            self.parent.appdata.project.cobra_py_model.set_stoichiometry_hash_object()
+            model = self.parent.appdata.project.cobra_py_model
+            if hasattr(model, "set_stoichiometry_hash_object"):
+                model.set_stoichiometry_hash_object()
         if (
             self.fba_relevant_change
             or name != self.reaction.name
@@ -795,6 +873,95 @@ class ReactionMask(QWidget):
     def delete_reaction(self):
         self.hide()
         self.reactionDeleted.emit(self.reaction)
+
+    def toggle_reversibility(self):
+        """Toggle reaction reversibility by changing lower bound."""
+        if self.reaction is None:
+            return
+
+        current_lb = self.reaction.lower_bound
+        current_ub = self.reaction.upper_bound
+
+        if current_lb < 0:
+            # Currently reversible -> make irreversible (set lb to 0)
+            new_lb = 0.0
+        else:
+            # Currently irreversible -> make reversible
+            # Use negative of upper bound, or -1000 as default
+            new_lb = -current_ub if current_ub > 0 else -1000.0
+
+        # Update the model and UI
+        self.reaction.lower_bound = new_lb
+        self.lower_bound.setText(str(new_lb))
+        self.reaction.set_hash_value()
+        model = self.parent.appdata.project.cobra_py_model
+        if hasattr(model, "set_stoichiometry_hash_object"):
+            model.set_stoichiometry_hash_object()
+
+        # Update equation display (arrow direction changes)
+        self.equation.setText(self.reaction.build_reaction_string())
+        self.equation_names.setText(build_reaction_string_with_names(self.reaction))
+
+        # Trigger FBA-relevant change
+        self.fba_relevant_change = True
+        self.reactionChanged.emit(self.reaction)
+
+        # Update the item in the reaction list
+        current_item = self.parent.reaction_list.currentItem()
+        if current_item is not None:
+            self.parent.update_item(current_item)
+            self.parent.central_widget.update()
+
+        self.parent.appdata.window.unsaved_changes()
+
+        if self.parent.appdata.auto_fba:
+            self.parent.central_widget.parent.run_auto_analysis()
+
+    def swap_reaction_direction(self):
+        """Swap reactants and products of the reaction (reverses the reaction direction)."""
+        if self.reaction is None:
+            return
+
+        # 1. Invert stoichiometry coefficients (reactants become products and vice versa)
+        new_metabolites = {}
+        for met, coeff in self.reaction.metabolites.items():
+            new_metabolites[met] = -coeff
+
+        # 2. Update reaction stoichiometry
+        self.reaction.subtract_metabolites(self.reaction.metabolites)
+        self.reaction.add_metabolites(new_metabolites)
+
+        # 3. Swap bounds (negate and swap) - set both at once to avoid validation error
+        old_lb = self.reaction.lower_bound
+        old_ub = self.reaction.upper_bound
+        self.reaction.bounds = (-old_ub, -old_lb)
+
+        # 4. Update UI
+        self.equation.setText(self.reaction.build_reaction_string())
+        self.equation_names.setText(build_reaction_string_with_names(self.reaction))
+        self.lower_bound.setText(str(self.reaction.lower_bound))
+        self.upper_bound.setText(str(self.reaction.upper_bound))
+
+        # 5. Update hash
+        self.reaction.set_hash_value()
+        model = self.parent.appdata.project.cobra_py_model
+        if hasattr(model, "set_stoichiometry_hash_object"):
+            model.set_stoichiometry_hash_object()
+
+        # 6. Emit change signal
+        self.fba_relevant_change = True
+        self.reactionChanged.emit(self.reaction)
+
+        # 7. Update the item in the reaction list
+        current_item = self.parent.reaction_list.currentItem()
+        if current_item is not None:
+            self.parent.update_item(current_item)
+            self.parent.central_widget.update()
+
+        self.parent.appdata.window.unsaved_changes()
+
+        if self.parent.appdata.auto_fba:
+            self.parent.central_widget.parent.run_auto_analysis()
 
     def delete_selected_annotation(self, identifier_key):
         try:
@@ -1032,6 +1199,7 @@ class ReactionMask(QWidget):
     def update_reaction_string(self):
         if self.reaction is not None:
             self.equation.setText(self.reaction.build_reaction_string())
+            self.equation_names.setText(build_reaction_string_with_names(self.reaction))
 
     jumpToMap = Signal(str, str)
     jumpToMetabolite = Signal(str)
