@@ -227,14 +227,17 @@ class GeneEssentialityDialog(QDialog):
         params_group.setLayout(params_layout)
         main_layout.addWidget(params_group)
 
-        # Progress bar
+        # Progress bar - always visible for better UX
         self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("Ready - Click 'Compute' to start")
+        self.progress_bar.setTextVisible(True)
         main_layout.addWidget(self.progress_bar)
 
-        # Status label
-        self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: gray;")
+        # Status label - more visible styling
+        self.status_label = QLabel("Ready for analysis")
+        self.status_label.setStyleSheet("color: #666666;")
         main_layout.addWidget(self.status_label)
 
         # Results splitter
@@ -319,10 +322,11 @@ class GeneEssentialityDialog(QDialog):
         # Disable compute, enable cancel
         self.compute_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
-        self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, len(model.genes))
         self.progress_bar.setValue(0)
-        self.status_label.setText("Starting analysis...")
+        self.progress_bar.setFormat(f"0/{len(model.genes)} genes (0%)")
+        self.status_label.setText("Starting gene essentiality analysis...")
+        self.status_label.setStyleSheet("color: #0066cc; font-weight: bold;")
 
         # Create a copy of the model for the worker thread
         model_copy = model.copy()
@@ -349,7 +353,9 @@ class GeneEssentialityDialog(QDialog):
     def _on_progress(self, current: int, total: int):
         """Update progress bar."""
         self.progress_bar.setValue(current)
-        self.status_label.setText(f"Analyzing gene {current}/{total}...")
+        percent = int(current / total * 100) if total > 0 else 0
+        self.progress_bar.setFormat(f"{current}/{total} genes ({percent}%)")
+        self.status_label.setText(f"Analyzing gene {current} of {total}...")
 
     @Slot(object)
     def _on_results(self, data: dict):
@@ -396,19 +402,23 @@ class GeneEssentialityDialog(QDialog):
             f"(WT growth: {data['wt_growth']:.4f}, threshold: {data['threshold'] * 100:.2f}%)"
         )
         self.status_label.setText("Analysis complete.")
+        self.status_label.setStyleSheet("color: #008000; font-weight: bold;")
+        self.progress_bar.setFormat(f"Complete - {data['n_essential']} essential genes found")
 
     @Slot(str)
     def _on_error(self, error: str):
         """Handle analysis error."""
         QMessageBox.warning(self, "Analysis Error", error)
         self.status_label.setText(f"Error: {error}")
+        self.status_label.setStyleSheet("color: #cc0000; font-weight: bold;")
+        self.progress_bar.setFormat("Error - Analysis failed")
 
     @Slot()
     def _on_finished(self):
         """Handle worker thread completion."""
         self.compute_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
-        self.progress_bar.setVisible(False)
+        # Keep progress bar visible to show completion status
 
     @Slot()
     def _on_selection_changed(self):

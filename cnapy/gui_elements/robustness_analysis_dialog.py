@@ -240,11 +240,8 @@ class RobustnessAnalysisDialog(QDialog):
         left_widget = QWidget()
         left_layout = QVBoxLayout()
 
-        # Description
-        desc_label = QLabel(
-            "Robustness Analysis shows how the objective function changes\n"
-            "when varying the flux of a specific reaction."
-        )
+        # Description - simple and concise
+        desc_label = QLabel("Analyze how the objective changes when varying a reaction's flux.")
         desc_label.setWordWrap(True)
         left_layout.addWidget(desc_label)
 
@@ -255,6 +252,11 @@ class RobustnessAnalysisDialog(QDialog):
         self.rxn_combo = QComboBox()
         self.rxn_combo.setEditable(True)
         self.rxn_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.rxn_combo.setToolTip(
+            "Select a reaction to analyze.\n"
+            "Typically exchange reactions (starting with EX_) are used.\n"
+            "Examples: EX_glc__D_e (glucose uptake), EX_o2_e (oxygen uptake)"
+        )
         self.rxn_combo.currentTextChanged.connect(self._on_reaction_changed)
         rxn_layout.addWidget(self.rxn_combo)
 
@@ -277,6 +279,12 @@ class RobustnessAnalysisDialog(QDialog):
         self.min_spin.setRange(-1000, 1000)
         self.min_spin.setValue(-10)
         self.min_spin.setDecimals(3)
+        self.min_spin.setToolTip(
+            "Minimum value of the flux range to analyze.\n"
+            "For exchange reactions:\n"
+            "• Negative (-): Uptake into the model\n"
+            "• Positive (+): Secretion from the model"
+        )
         min_row.addWidget(self.min_spin)
         range_layout.addLayout(min_row)
 
@@ -286,6 +294,7 @@ class RobustnessAnalysisDialog(QDialog):
         self.max_spin.setRange(-1000, 1000)
         self.max_spin.setValue(0)
         self.max_spin.setDecimals(3)
+        self.max_spin.setToolTip("Maximum value of the flux range to analyze.\n" "Must be greater than Min.")
         max_row.addWidget(self.max_spin)
         range_layout.addLayout(max_row)
 
@@ -294,12 +303,21 @@ class RobustnessAnalysisDialog(QDialog):
         self.steps_spin = QSpinBox()
         self.steps_spin.setRange(5, 500)
         self.steps_spin.setValue(31)
+        self.steps_spin.setToolTip(
+            "Number of points to sample in the flux range.\n"
+            "• Higher values give finer resolution\n"
+            "• Higher values take longer to compute\n"
+            "• Recommended: 20-50 (quick), 100+ (detailed)"
+        )
         steps_row.addWidget(self.steps_spin)
         range_layout.addLayout(steps_row)
 
         # Use scenario bounds checkbox
         self.use_scenario_bounds_cb = QCheckBox("Use scenario bounds as range")
         self.use_scenario_bounds_cb.setChecked(False)
+        self.use_scenario_bounds_cb.setToolTip(
+            "When checked, automatically fills Min/Max\n" "with the bounds from the current scenario."
+        )
         self.use_scenario_bounds_cb.toggled.connect(self._on_use_scenario_bounds)
         range_layout.addWidget(self.use_scenario_bounds_cb)
 
@@ -584,19 +602,28 @@ class RobustnessAnalysisDialog(QDialog):
     def _update_bottleneck_info(self, bottleneck: dict):
         """Update the bottleneck information text."""
         if not bottleneck.get("found", False):
-            self.bottleneck_text.setText(bottleneck.get("message", "No bottleneck found."))
+            info_html = (
+                "<b>Bottleneck Analysis Results</b><br><br>"
+                "<b>Bottleneck Found:</b> No<br><br>"
+                f"{bottleneck.get('message', 'No sharp change point was found in the analyzed range.')}<br><br>"
+                "The objective function may change linearly with flux,<br>"
+                "or the changes may be minimal."
+            )
+            self.bottleneck_text.setHtml(info_html)
             return
 
-        text = (
-            f"Bottleneck Found:\n"
-            f"  Location: flux = {bottleneck['bottleneck_flux']:.4f}\n"
-            f"  Objective at bottleneck: {bottleneck['bottleneck_objective']:.4f}\n"
-            f"  Steepest decline gradient: {bottleneck['steepest_decline_gradient']:.4f}\n"
-            f"  Sensitivity: {bottleneck['sensitivity']:.4f}\n\n"
-            f"Maximum objective: {bottleneck['max_objective']:.4f}\n"
-            f"  at flux = {bottleneck['max_objective_flux']:.4f}"
+        info_html = (
+            f"<b>Bottleneck Analysis Results</b><br><br>"
+            f"<b>Bottleneck Found:</b> Yes<br>"
+            f"<b>Location:</b> flux = {bottleneck['bottleneck_flux']:.4f}<br>"
+            f"&nbsp;&nbsp;→ The objective function changes sharply at this point.<br><br>"
+            f"<b>Objective at Bottleneck:</b> {bottleneck['bottleneck_objective']:.4f}<br>"
+            f"<b>Maximum Objective:</b> {bottleneck['max_objective']:.4f} "
+            f"(at flux = {bottleneck['max_objective_flux']:.4f})<br><br>"
+            f"<b>Sensitivity:</b> {bottleneck['sensitivity']:.4f}<br>"
+            f"&nbsp;&nbsp;→ Higher values indicate greater sensitivity to flux changes."
         )
-        self.bottleneck_text.setText(text)
+        self.bottleneck_text.setHtml(info_html)
 
     def _setup_slider(self, data: dict):
         """Setup the flux slider based on results."""

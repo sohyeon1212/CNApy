@@ -469,6 +469,36 @@ class OmicsIntegrationDialog(QDialog):
         info_row.addStretch()
         file_layout.addLayout(info_row)
 
+        # Example file format display
+        example_label = QLabel(
+            "<b>Expected File Format:</b><br>"
+            "<pre style='background-color: #f0f0f0; padding: 8px; font-family: monospace;'>"
+            "gene_id,expression\n"
+            "b0001,5.23\n"
+            "b0002,8.45\n"
+            "b0003,3.12\n"
+            "...</pre>"
+            "<b>Requirements:</b><br>"
+            "• <b>Column 1</b>: Gene ID (must match model gene IDs)<br>"
+            "• <b>Column 2</b>: Expression value (numeric)<br>"
+            "• <b>Format</b>: CSV, TSV, or Excel file<br>"
+            "• First row is treated as header"
+        )
+        example_label.setWordWrap(True)
+        example_label.setStyleSheet(
+            "QLabel { background-color: #fafafa; padding: 10px; " "border: 1px solid #ddd; border-radius: 4px; }"
+        )
+        file_layout.addWidget(example_label)
+
+        # Data preview label (shown after loading)
+        self.data_preview_label = QLabel("")
+        self.data_preview_label.setWordWrap(True)
+        self.data_preview_label.setVisible(False)
+        self.data_preview_label.setStyleSheet(
+            "QLabel { background-color: #e8f5e9; padding: 10px; " "border: 1px solid #c8e6c9; border-radius: 4px; }"
+        )
+        file_layout.addWidget(self.data_preview_label)
+
         file_group.setLayout(file_layout)
         layout.addWidget(file_group)
 
@@ -663,6 +693,26 @@ class OmicsIntegrationDialog(QDialog):
             matched = sum(1 for g in self.expression_data if g in model_genes)
             self.matched_count_label.setText(f"Matched to model: {matched}")
 
+            # Show data preview
+            if len(self.expression_data) > 0:
+                preview_html = (
+                    f"<b>Data Preview:</b><br>"
+                    f"Total genes loaded: {len(self.expression_data)}<br>"
+                    f"Matched to model: {matched}<br><br>"
+                    f"<b>First 5 genes:</b><br>"
+                )
+                for i, (gene_id, value) in enumerate(list(self.expression_data.items())[:5]):
+                    match_status = "✓" if gene_id in model_genes else "✗"
+                    preview_html += f"&nbsp;&nbsp;{match_status} {gene_id}: {value:.4f}<br>"
+
+                if len(self.expression_data) > 5:
+                    preview_html += f"&nbsp;&nbsp;... and {len(self.expression_data) - 5} more genes"
+
+                self.data_preview_label.setText(preview_html)
+                self.data_preview_label.setVisible(True)
+            else:
+                self.data_preview_label.setVisible(False)
+
             if len(self.expression_data) == 0:
                 QMessageBox.warning(self, "No data", "No expression data could be loaded from the file.")
             elif matched == 0:
@@ -678,6 +728,7 @@ class OmicsIntegrationDialog(QDialog):
             self.expression_data = {}
             self.gene_count_label.setText("Genes loaded: 0")
             self.matched_count_label.setText("Matched to model: 0")
+            self.data_preview_label.setVisible(False)
 
     def _compute_weights(self):
         """Compute reaction weights from gene expression data."""
