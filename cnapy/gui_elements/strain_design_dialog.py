@@ -741,6 +741,11 @@ class SDDialog(QDialog):
 
     @Slot(QAbstractButton)
     def configure_solver_options(self, button: QAbstractButton):  # called when switching solver
+        if button is None:
+            # No MILP solver available - disable solution options
+            self.solution_buttons[POPULATE].setEnabled(False)
+            self.solution_buttons["CONT_SEARCH"].setEnabled(False)
+            return
         selected_solver = button.property("name")
         if selected_solver == "OPTLANG":
             if self.optlang_solver_name != "cplex" and self.optlang_solver_name != "gurobi":
@@ -1372,7 +1377,14 @@ class SDDialog(QDialog):
         sd_setup.update({MAX_COST: self.max_cost.text()})
         sd_setup.update({TIME_LIMIT: self.time_limit.text()})
         sd_setup.update({"advanced": self.advanced.isChecked()})
-        sd_setup.update({SOLVER: self.solver_buttons["group"].checkedButton().property("name")})
+        solver_button = self.solver_buttons["group"].checkedButton()
+        if solver_button is None:
+            self.setCursor(Qt.ArrowCursor)
+            QMessageBox.warning(
+                self, "No MILP Solver", "No MILP solver is available. Please install CPLEX, Gurobi, GLPK, or SCIP."
+            )
+            return None
+        sd_setup.update({SOLVER: solver_button.property("name")})
         sd_setup.update({SOLUTION_APPROACH: self.solution_buttons["group"].checkedButton().property("name")})
         sd_setup.update({"M": 1_000 if self.enforce_bigm.isChecked() else None})
 
@@ -1424,6 +1436,8 @@ class SDDialog(QDialog):
             filename += ".sdc"
         # readout strain design setup from dialog
         sd_setup = self.parse_dialog_inputs()
+        if sd_setup is None:
+            return
         # dump dictionary into json-file
         with open(filename, "w") as fp:
             json.dump(sd_setup, fp)
@@ -1571,6 +1585,8 @@ class SDDialog(QDialog):
             return
         bilvl_modules = [i for i, m in enumerate(self.modules) if m[MODULE_TYPE] in [OPTKNOCK, ROBUSTKNOCK, OPTCOUPLE]]
         sd_setup = self.parse_dialog_inputs()
+        if sd_setup is None:
+            return
 
         if self.solver_buttons["OPTLANG"].isChecked():
             if len(bilvl_modules) > 0:
