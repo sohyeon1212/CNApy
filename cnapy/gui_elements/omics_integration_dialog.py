@@ -34,7 +34,8 @@ This module was added/modified as part of CNApy enhancements.
 import cobra
 import numpy as np
 import pandas as pd
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, Slot
+from qtpy.QtGui import QColor
 from qtpy.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -61,6 +62,25 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+
+
+class NumericTableWidgetItem(QTableWidgetItem):
+    """QTableWidgetItem that sorts by absolute value (flux magnitude matters more than sign)."""
+
+    def __init__(self, text: str, value: float):
+        super().__init__(text)
+        self._value = value
+
+    def __lt__(self, other):
+        if isinstance(other, NumericTableWidgetItem):
+            # Handle NaN values - put them at the end
+            if np.isnan(self._value):
+                return False
+            if np.isnan(other._value):
+                return True
+            # Sort by absolute value (magnitude)
+            return abs(self._value) < abs(other._value)
+        return super().__lt__(other)
 
 
 def read_expression_data(filename: str) -> dict[str, float]:
@@ -505,6 +525,7 @@ class OmicsIntegrationDialog(QDialog):
         self.file_edit.setReadOnly(True)
         file_row.addWidget(self.file_edit)
         self.browse_btn = QPushButton("Browse...")
+        self.browse_btn.setAutoDefault(False)
         self.browse_btn.clicked.connect(self._browse_file)
         file_row.addWidget(self.browse_btn)
         file_layout.addLayout(file_row)
@@ -569,8 +590,10 @@ class OmicsIntegrationDialog(QDialog):
 
         cond_btn_row = QHBoxLayout()
         self.select_all_btn = QPushButton("Select All")
+        self.select_all_btn.setAutoDefault(False)
         self.select_all_btn.clicked.connect(self._select_all_conditions)
         self.deselect_all_btn = QPushButton("Deselect All")
+        self.deselect_all_btn.setAutoDefault(False)
         self.deselect_all_btn.clicked.connect(self._deselect_all_conditions)
         cond_btn_row.addWidget(self.select_all_btn)
         cond_btn_row.addWidget(self.deselect_all_btn)
@@ -673,11 +696,25 @@ class OmicsIntegrationDialog(QDialog):
         results_group = QGroupBox("Analysis Results")
         results_layout = QVBoxLayout()
 
+        # FC (Fold Change) reference condition selector
+        fc_row = QHBoxLayout()
+        fc_row.addWidget(QLabel("FC Reference:"))
+        self.fc_reference_combo = QComboBox()
+        self.fc_reference_combo.setToolTip(
+            "Select reference condition for Fold Change calculation.\n"
+            "FC = log2(condition / reference)"
+        )
+        self.fc_reference_combo.currentTextChanged.connect(self._on_fc_reference_changed)
+        fc_row.addWidget(self.fc_reference_combo)
+        fc_row.addStretch()
+        results_layout.addLayout(fc_row)
+
         self.results_tabs = QTabWidget()
 
         # Comparison table tab
         self.comparison_table = QTableWidget()
         self.comparison_table.setAlternatingRowColors(True)
+        self.comparison_table.setSortingEnabled(True)  # Enable column sorting
         self.results_tabs.addTab(self.comparison_table, "Comparison")
 
         results_layout.addWidget(self.results_tabs)
@@ -685,12 +722,14 @@ class OmicsIntegrationDialog(QDialog):
         # Result actions
         result_actions = QHBoxLayout()
         self.apply_btn = QPushButton("Apply Selected to Main View")
+        self.apply_btn.setAutoDefault(False)
         self.apply_btn.setToolTip("Apply the selected condition's flux values to the main view")
         self.apply_btn.clicked.connect(self._apply_selected_to_main)
         self.apply_btn.setEnabled(False)
         result_actions.addWidget(self.apply_btn)
 
         self.export_btn = QPushButton("Export Results...")
+        self.export_btn.setAutoDefault(False)
         self.export_btn.setToolTip("Export all results to CSV file")
         self.export_btn.clicked.connect(self._export_results)
         self.export_btn.setEnabled(False)
@@ -715,11 +754,13 @@ class OmicsIntegrationDialog(QDialog):
         btn_layout = QHBoxLayout()
 
         self.run_btn = QPushButton("Run Analysis")
+        self.run_btn.setAutoDefault(False)
         self.run_btn.clicked.connect(self._run_multi_analysis)
         self.run_btn.setEnabled(False)
         btn_layout.addWidget(self.run_btn)
 
         self.close_btn = QPushButton("Close")
+        self.close_btn.setAutoDefault(False)
         self.close_btn.clicked.connect(self.reject)
         btn_layout.addWidget(self.close_btn)
 
@@ -994,11 +1035,25 @@ class OmicsIntegrationDialog(QDialog):
         if not self.multi_results:
             self.comparison_table.setRowCount(0)
             self.comparison_table.setColumnCount(0)
+            self.fc_reference_combo.clear()
             self.apply_btn.setEnabled(False)
             self.export_btn.setEnabled(False)
             return
 
         conditions = list(self.multi_results.keys())
+
+        # Update FC reference combo
+        current_ref = self.fc_reference_combo.currentText()
+        self.fc_reference_combo.blockSignals(True)
+        self.fc_reference_combo.clear()
+        self.fc_reference_combo.addItem("(None)")
+        self.fc_reference_combo.addItems(conditions)
+        # Restore previous selection if still valid
+        if current_ref and current_ref in conditions:
+            self.fc_reference_combo.setCurrentText(current_ref)
+        elif conditions:
+            self.fc_reference_combo.setCurrentIndex(1)  # Select first condition as default
+        self.fc_reference_combo.blockSignals(False)
 
         # Collect all reactions
         all_reactions = set()
@@ -1006,10 +1061,27 @@ class OmicsIntegrationDialog(QDialog):
             all_reactions.update(flux_dist.keys())
         reactions = sorted(all_reactions)
 
+        # Determine FC reference condition
+        fc_ref = self.fc_reference_combo.currentText()
+        show_fc = fc_ref and fc_ref != "(None)" and fc_ref in self.multi_results
+        other_conditions = [c for c in conditions if c != fc_ref] if show_fc else []
+
+        # Calculate column count: Reaction + conditions + FC columns
+        num_fc_cols = len(other_conditions) if show_fc else 0
+        total_cols = 1 + len(conditions) + num_fc_cols
+
+        # Build header labels
+        headers = ["Reaction"] + conditions
+        if show_fc:
+            headers += [f"FC({c}/{fc_ref})" for c in other_conditions]
+
+        # Disable sorting while updating to prevent issues
+        self.comparison_table.setSortingEnabled(False)
+
         # Setup table
         self.comparison_table.setRowCount(len(reactions))
-        self.comparison_table.setColumnCount(len(conditions) + 1)
-        self.comparison_table.setHorizontalHeaderLabels(["Reaction"] + conditions)
+        self.comparison_table.setColumnCount(total_cols)
+        self.comparison_table.setHorizontalHeaderLabels(headers)
 
         # Fill table
         for row, rxn_id in enumerate(reactions):
@@ -1021,10 +1093,35 @@ class OmicsIntegrationDialog(QDialog):
             # Flux values for each condition
             for col, cond in enumerate(conditions, 1):
                 flux = self.multi_results[cond].get(rxn_id, 0.0)
-                item = QTableWidgetItem(f"{flux:.4f}")
+                item = NumericTableWidgetItem(f"{flux:.4f}", flux)
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.comparison_table.setItem(row, col, item)
+
+            # FC columns
+            if show_fc:
+                ref_flux = self.multi_results[fc_ref].get(rxn_id, 0.0)
+                for fc_col, cond in enumerate(other_conditions):
+                    cond_flux = self.multi_results[cond].get(rxn_id, 0.0)
+                    fc_value = self._calculate_fc(cond_flux, ref_flux)
+                    col_idx = 1 + len(conditions) + fc_col
+
+                    if fc_value is not None and not np.isinf(fc_value):
+                        item = NumericTableWidgetItem(f"{fc_value:.3f}", fc_value)
+                        # Color code: red for down, green for up
+                        if fc_value < -1:
+                            item.setBackground(QColor(255, 200, 200))  # Light red
+                        elif fc_value > 1:
+                            item.setBackground(QColor(200, 255, 200))  # Light green
+                    else:
+                        item = NumericTableWidgetItem("N/A", float('nan'))
+
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    self.comparison_table.setItem(row, col_idx, item)
+
+        # Re-enable sorting
+        self.comparison_table.setSortingEnabled(True)
 
         # Resize columns
         self.comparison_table.resizeColumnsToContents()
@@ -1032,6 +1129,29 @@ class OmicsIntegrationDialog(QDialog):
         # Enable action buttons
         self.apply_btn.setEnabled(True)
         self.export_btn.setEnabled(True)
+
+    def _calculate_fc(self, value: float, reference: float) -> float | None:
+        """Calculate log2 fold change.
+
+        Returns None if calculation is not possible (division by zero or negative values).
+        """
+        # Handle edge cases
+        if reference == 0 or value < 0 or reference < 0:
+            return None
+        if value == 0:
+            return float('-inf') if reference > 0 else None
+
+        try:
+            fc = np.log2(value / reference)
+            return fc
+        except (ValueError, ZeroDivisionError):
+            return None
+
+    @Slot(str)
+    def _on_fc_reference_changed(self, _reference: str):
+        """Handle FC reference condition change."""
+        if self.multi_results:
+            self._update_results_display()
 
     def _apply_selected_to_main(self):
         """Apply the first selected condition's results to the main view."""
