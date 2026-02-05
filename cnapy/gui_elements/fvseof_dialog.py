@@ -26,7 +26,6 @@ import time
 import numpy as np
 from qtpy.QtCore import Qt, QThread, Signal, Slot
 from qtpy.QtWidgets import (
-    QComboBox,
     QDialog,
     QDoubleSpinBox,
     QFileDialog,
@@ -47,6 +46,7 @@ from qtpy.QtWidgets import (
 from scipy import stats
 
 from cnapy.appdata import AppData
+from cnapy.gui_elements.filterable_combobox import FilterableComboBox
 
 # Check for openpyxl availability for XLSX export
 try:
@@ -411,7 +411,7 @@ class FVSEOFDialog(QDialog):
         # Target reaction selector
         target_layout = QHBoxLayout()
         target_layout.addWidget(QLabel("Target Reaction:"))
-        self.target_selector = QComboBox()
+        self.target_selector = FilterableComboBox()
         self.target_selector.setMinimumWidth(400)
         self.target_selector.setToolTip(
             "Select the target production reaction to scan (typically an exchange reaction)"
@@ -424,7 +424,7 @@ class FVSEOFDialog(QDialog):
         # Biomass reaction selector
         biomass_layout = QHBoxLayout()
         biomass_layout.addWidget(QLabel("Biomass Reaction:"))
-        self.biomass_selector = QComboBox()
+        self.biomass_selector = FilterableComboBox()
         self.biomass_selector.setMinimumWidth(400)
         self.biomass_selector.setToolTip("Select the biomass/objective reaction to constrain during analysis")
         self._populate_biomass_selector()

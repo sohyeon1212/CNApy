@@ -35,6 +35,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.gui_elements.filterable_combobox import FilterableComboBox
 from cnapy.moma import has_milp_solver, linear_moma, room
 
 # Check for openpyxl availability for XLSX export
@@ -397,7 +398,7 @@ class BatchMomaRoomDialog(QDialog):
         # Biomass reaction selector
         biomass_layout = QHBoxLayout()
         biomass_layout.addWidget(QLabel("Biomass Reaction:"))
-        self.biomass_selector = QComboBox()
+        self.biomass_selector = FilterableComboBox()
         self.biomass_selector.setMinimumWidth(300)
         self.biomass_selector.setToolTip("Select the reaction to use as biomass/growth indicator")
         self._populate_biomass_selector()
@@ -426,7 +427,7 @@ class BatchMomaRoomDialog(QDialog):
         # Target product selector (optional)
         target_prod_layout = QHBoxLayout()
         target_prod_layout.addWidget(QLabel("Target Product (optional):"))
-        self.target_selector = QComboBox()
+        self.target_selector = FilterableComboBox()
         self.target_selector.setMinimumWidth(300)
         self.target_selector.setToolTip("Select a target product reaction to track (optional)")
         self._populate_target_selector()
