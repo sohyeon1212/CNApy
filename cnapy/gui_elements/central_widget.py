@@ -206,6 +206,7 @@ class CentralWidget(QWidget):
         self.mode_navigator.changedCurrentMode.connect(self.update_mode)
         self.mode_navigator.modeNavigatorClosed.connect(self.update)
         self.mode_navigator.reaction_participation_button.clicked.connect(self.reaction_participation)
+        self.broadcastReactionID.connect(self.switch_to_reaction)
 
         self.mode_normalization_reaction = ""
 
