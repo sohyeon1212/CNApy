@@ -487,6 +487,10 @@ class ProjectData:
         self.df_values: dict[str, float] = {}  # Driving forces
         self.modes = []
         self.meta_data = {}
+        # Multi-condition omics analysis results
+        # Format: {condition_name: {reaction_id: flux_value, ...}, ...}
+        self.omics_results: dict[str, dict[str, float]] = {}
+        self.omics_conditions: list[str] = []  # Ordered list of condition names
 
     def load_scenario_into_model(self, model: cobra.Model):
         for x in self.scen_values:

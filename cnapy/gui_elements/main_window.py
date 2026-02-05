@@ -534,6 +534,7 @@ class MainWindow(QMainWindow):
 
         # Omics integration menu
         self.omics_menu = self.analysis_menu.addMenu("Omics Integration")
+        self.omics_dialog = None  # Singleton for non-modal dialog
 
         omics_dialog_action = QAction("Transcriptome-based Flux Prediction (LAD/E-Flux2)...", self)
         omics_dialog_action.triggered.connect(self.perform_omics_integration)
@@ -864,9 +865,28 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def perform_omics_integration(self):
-        """Open the Omics Integration dialog for LAD flux prediction."""
-        dialog = OmicsIntegrationDialog(self.appdata, self)
-        dialog.exec()
+        """Open the Omics Integration dialog for LAD flux prediction.
+
+        Uses non-modal dialog so user can interact with main window while viewing results.
+        Implements singleton pattern to prevent multiple dialog instances.
+        """
+        # If dialog already exists and is visible, just bring it to front
+        if self.omics_dialog is not None and self.omics_dialog.isVisible():
+            self.omics_dialog.raise_()
+            self.omics_dialog.activateWindow()
+            return
+
+        # Create new dialog as non-modal
+        self.omics_dialog = OmicsIntegrationDialog(self.appdata, self)
+        self.omics_dialog.setModal(False)
+        self.omics_dialog.setAttribute(Qt.WA_DeleteOnClose)
+        self.omics_dialog.destroyed.connect(self._on_omics_dialog_closed)
+        self.omics_dialog.show()
+
+    @Slot()
+    def _on_omics_dialog_closed(self):
+        """Handle omics dialog closure."""
+        self.omics_dialog = None
 
     # Strain design computation and viewing functions
     def strain_design(self):

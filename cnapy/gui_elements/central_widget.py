@@ -65,6 +65,34 @@ class CentralWidget(QWidget):
         self.search_annotations = QCheckBox("+Annotations")
         self.search_annotations.setChecked(False)
         searchbar_layout.addWidget(self.search_annotations)
+
+        # Omics condition selector
+        line_omics = QFrame()
+        line_omics.setFrameShape(QFrame.VLine)
+        line_omics.setFrameShadow(QFrame.Sunken)
+        searchbar_layout.addWidget(line_omics)
+        searchbar_layout.addSpacing(5)
+
+        self.omics_label = QLabel("Omics:")
+        self.omics_label.setToolTip("Select omics analysis condition to display")
+        self.omics_label.setVisible(False)
+        searchbar_layout.addWidget(self.omics_label)
+
+        self.omics_condition_combo = QComboBox()
+        self.omics_condition_combo.setToolTip("Select which omics condition's flux values to display")
+        self.omics_condition_combo.setMinimumContentsLength(12)
+        self.omics_condition_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.omics_condition_combo.currentTextChanged.connect(self._on_omics_condition_changed)
+        self.omics_condition_combo.setVisible(False)
+        searchbar_layout.addWidget(self.omics_condition_combo)
+
+        self.clear_omics_btn = QPushButton("Clear")
+        self.clear_omics_btn.setToolTip("Clear omics analysis results")
+        self.clear_omics_btn.setFixedWidth(self.clear_omics_btn.fontMetrics().horizontalAdvance("Clear") + 10)
+        self.clear_omics_btn.clicked.connect(self._clear_omics_results)
+        self.clear_omics_btn.setVisible(False)
+        searchbar_layout.addWidget(self.clear_omics_btn)
+
         line = QFrame()
         line.setFrameShape(QFrame.VLine)
         line.setFrameShadow(QFrame.Sunken)
@@ -1182,6 +1210,57 @@ class CentralWidget(QWidget):
             self.model_item_history.clear()
 
     broadcastReactionID = Signal(str)
+
+    # Omics integration methods
+    def update_omics_selector(self):
+        """Update the omics condition selector with available conditions."""
+        conditions = getattr(self.appdata.project, "omics_conditions", [])
+
+        with QSignalBlocker(self.omics_condition_combo):
+            self.omics_condition_combo.clear()
+            if conditions:
+                self.omics_condition_combo.addItems(conditions)
+                self.omics_label.setVisible(True)
+                self.omics_condition_combo.setVisible(True)
+                self.clear_omics_btn.setVisible(True)
+            else:
+                self.omics_label.setVisible(False)
+                self.omics_condition_combo.setVisible(False)
+                self.clear_omics_btn.setVisible(False)
+
+    def set_current_omics_condition(self, condition: str):
+        """Set the currently selected omics condition."""
+        index = self.omics_condition_combo.findText(condition)
+        if index >= 0:
+            self.omics_condition_combo.setCurrentIndex(index)
+
+    @Slot(str)
+    def _on_omics_condition_changed(self, condition: str):
+        """Handle omics condition selection change."""
+        omics_results = getattr(self.appdata.project, "omics_results", {})
+        if condition and condition in omics_results:
+            # Apply selected condition's flux values to comp_values
+            self.appdata.project.comp_values.clear()
+            for rxn_id, flux in omics_results[condition].items():
+                self.appdata.project.comp_values[rxn_id] = (flux, flux)
+            self.appdata.project.comp_values_type = 0
+            self.update()
+
+    @Slot()
+    def _clear_omics_results(self):
+        """Clear all omics analysis results."""
+        self.appdata.project.omics_results = {}
+        self.appdata.project.omics_conditions = []
+        self.appdata.project.comp_values.clear()
+
+        with QSignalBlocker(self.omics_condition_combo):
+            self.omics_condition_combo.clear()
+
+        self.omics_label.setVisible(False)
+        self.omics_condition_combo.setVisible(False)
+        self.clear_omics_btn.setVisible(False)
+
+        self.update()
 
 
 class EscherMapFileDialog(QDialog):
