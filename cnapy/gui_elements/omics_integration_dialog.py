@@ -265,43 +265,24 @@ def run_lad_fitting(
                     rxn.bounds = (lb, ub)
 
         # Create deviation variables for target reactions
-        deviation_vars = {}
         vars_to_add = []
         cons_to_add = []
+
+        # Store deviation variables for later access
+        delta_pos_vars = {}
+        delta_neg_vars = {}
 
         for rid, weight in target_reactions.items():
             rxn = m.reactions.get_by_id(rid)
             target_flux = abs(weight) * scaling_factor
 
-            # Create positive deviation variable
-            delta = m.problem.Variable(f"delta_{rid}", lb=0)
-            deviation_vars[rid] = delta
-            vars_to_add.append(delta)
-
-            # Use absolute flux value for comparison
-            # |v| = f + b where v = f - b, f >= 0, b >= 0
-            # For simplicity, we'll use flux_expression and add constraints
-
-            # Constraint: delta >= flux - target
-            cons1 = m.problem.Constraint(rxn.flux_expression - delta, ub=target_flux, name=f"lad_upper_{rid}")
-
-            # Constraint: delta >= target - flux
-            cons2 = m.problem.Constraint(
-                rxn.flux_expression + delta,
-                lb=target_flux - 2 * abs(rxn.upper_bound if rxn.upper_bound else 1000),
-                name=f"lad_lower_{rid}",
-            )
-
-            # Actually we need: delta >= |flux - target|
-            # This requires: delta >= flux - target AND delta >= -(flux - target)
-            # Which is: delta >= flux - target AND delta >= target - flux
-
-            # Reformulating:
-            # flux - target <= delta
-            # target - flux <= delta
-
+            # Create positive and negative deviation variables
+            # flux = target + delta_pos - delta_neg
+            # Total deviation = delta_pos + delta_neg
             delta_pos = m.problem.Variable(f"delta_pos_{rid}", lb=0)
             delta_neg = m.problem.Variable(f"delta_neg_{rid}", lb=0)
+            delta_pos_vars[rid] = delta_pos
+            delta_neg_vars[rid] = delta_neg
             vars_to_add.extend([delta_pos, delta_neg])
 
             # flux = target + delta_pos - delta_neg
@@ -316,9 +297,7 @@ def run_lad_fitting(
         # Objective: minimize sum of deviations
         objective_terms = []
         for rid in target_reactions:
-            delta_pos = m.problem.variables[f"delta_pos_{rid}"]
-            delta_neg = m.problem.variables[f"delta_neg_{rid}"]
-            objective_terms.extend([delta_pos, delta_neg])
+            objective_terms.extend([delta_pos_vars[rid], delta_neg_vars[rid]])
 
         m.objective = m.problem.Objective(Add(*objective_terms), direction="min")
 
