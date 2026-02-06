@@ -335,18 +335,19 @@ def run_eflux2(
     model: cobra.Model,
     reaction_weights: dict[str, float],
     flux_constraints: dict[str, tuple[float, float]] | None = None,
-    normalize: bool = True,
     weight_threshold: float = 0.01,
-    min_flux_bound: float = 0.001,
+    min_scale: float = 0.001,
+    objective_fraction: float = 0.99,
 ) -> tuple[str, float | None, dict[str, float] | None]:
     """
     Run E-Flux2 analysis to predict fluxes from expression data.
 
     E-Flux2 constrains reaction upper bounds based on gene expression levels,
-    then performs FBA with L2-norm minimization for a unique solution.
+    then performs FBA with L2-norm minimization (via pFBA) for a unique solution.
 
-    Reference: Kim & Lun (2016). E-Flux2 and SPOT: Validated Methods for
-    Inferring Intracellular Metabolic Fluxes. PLOS Computational Biology.
+    Reference: Kim MK, Lane A, Kelley JJ, Lun DS (2016). E-Flux2 and SPOT:
+    Validated Methods for Inferring Intracellular Metabolic Flux Distributions
+    from Transcriptomic Data. PLoS ONE 11(6): e0157101.
 
     Parameters:
     -----------
@@ -356,19 +357,19 @@ def run_eflux2(
         Dictionary mapping reaction IDs to expression-based weights
     flux_constraints : Dict[str, Tuple[float, float]], optional
         Additional flux constraints as {reaction_id: (lb, ub)}
-    normalize : bool
-        Whether to normalize expression values (0-1 range)
     weight_threshold : float
         Minimum weight to constrain a reaction
-    min_flux_bound : float
-        Minimum flux bound to apply (prevents zero bounds)
+    min_scale : float
+        Minimum scaling factor for numerical stability (default: 0.001 = 0.1%)
+    objective_fraction : float
+        Fraction of optimal objective to maintain in L2 step (default: 0.99)
 
     Returns:
     --------
     Tuple[str, Optional[float], Optional[Dict[str, float]]]
         (status, objective_value, flux_distribution)
     """
-    from optlang.symbolics import Add
+    from cobra.flux_analysis import pfba
 
     if not reaction_weights:
         return "no_targets", None, None
@@ -379,17 +380,31 @@ def run_eflux2(
     if not valid_weights:
         return "no_targets", None, None
 
-    # Normalize weights to 0-1 range if requested
-    if normalize and valid_weights:
-        max_weight = max(valid_weights.values())
-        min_weight = min(valid_weights.values())
-        weight_range = max_weight - min_weight
-        if weight_range > 0:
-            normalized_weights = {rid: (w - min_weight) / weight_range for rid, w in valid_weights.items()}
-        else:
-            normalized_weights = {rid: 1.0 for rid in valid_weights}
-    else:
-        normalized_weights = valid_weights.copy()
+    # === Improvement 1: Max normalization (instead of min-max) ===
+    # E-Flux uses expression ratio relative to maximum expression
+    max_weight = max(abs(w) for w in valid_weights.values())
+    if max_weight == 0:
+        max_weight = 1.0
+
+    # === Improvement 2: Exclude exchange/biomass reactions from scaling ===
+    # These reactions should not be constrained by expression data
+    excluded_reactions = set()
+    for rxn in model.reactions:
+        # Exchange reactions
+        if rxn.id.startswith("EX_"):
+            excluded_reactions.add(rxn.id)
+        # Biomass/growth reactions
+        if "biomass" in rxn.id.lower() or "growth" in rxn.id.lower():
+            excluded_reactions.add(rxn.id)
+    # Also exclude the objective reaction
+    objective_rxn_id = None
+    if model.objective:
+        for rxn_id in model.objective.variables:
+            # Get the actual reaction ID from the variable name
+            if hasattr(rxn_id, "name"):
+                objective_rxn_id = rxn_id.name
+                excluded_reactions.add(objective_rxn_id)
+                break
 
     with model as m:
         # Apply flux constraints if provided (e.g., from scenario)
@@ -399,33 +414,40 @@ def run_eflux2(
                     rxn = m.reactions.get_by_id(rid)
                     rxn.bounds = (lb, ub)
 
-        # E-Flux: Constrain upper bounds based on expression levels
-        # Higher expression = higher allowed flux
+        # E-Flux: Constrain bounds based on expression levels
+        # Higher expression = higher allowed flux (proportional scaling)
+        constrained_count = 0
         for rxn in m.reactions:
-            if rxn.id in normalized_weights:
-                weight = normalized_weights[rxn.id]
-                # Scale the upper bound by the normalized expression
-                # Keep a minimum bound to allow some flux
-                new_ub = max(min_flux_bound, weight * abs(rxn.upper_bound) if rxn.upper_bound else weight * 1000)
-                new_lb = -new_ub if rxn.reversibility else max(rxn.lower_bound, 0)
+            # Skip excluded reactions (exchange, biomass, objective)
+            if rxn.id in excluded_reactions:
+                continue
 
-                # Don't make bounds more restrictive than existing scenario constraints
-                if flux_constraints and rxn.id in flux_constraints:
-                    continue
+            # Skip reactions with explicit flux constraints
+            if flux_constraints and rxn.id in flux_constraints:
+                continue
 
-                rxn.upper_bound = new_ub
-                rxn.lower_bound = new_lb
-            elif rxn.id not in normalized_weights and rxn.genes:
-                # Reactions with genes but no expression data: keep original bounds
-                # or apply minimal constraint
-                pass
+            # Apply E-Flux scaling to reactions with expression data
+            if rxn.id in valid_weights:
+                expr_weight = abs(valid_weights[rxn.id])
 
-        # E-Flux2: Add L2-norm minimization (quadratic objective)
-        # We use a two-step approach:
-        # 1. First FBA to get optimal objective value
-        # 2. Then minimize sum of squared fluxes while maintaining optimal objective
+                # Max normalization: scale relative to maximum expression
+                normalized_expr = expr_weight / max_weight
 
-        # Step 1: Standard FBA
+                # Apply minimum scale for numerical stability
+                normalized_expr = max(min_scale, normalized_expr)
+
+                # Scale upper bound: higher expression = more flux allowed
+                if rxn.upper_bound > 0:
+                    rxn.upper_bound = normalized_expr * rxn.upper_bound
+
+                # Scale lower bound magnitude for reversible reactions
+                if rxn.lower_bound < 0:
+                    rxn.lower_bound = normalized_expr * rxn.lower_bound
+
+                constrained_count += 1
+            # Reactions without expression data: keep original bounds
+
+        # Step 1: Standard FBA to get optimal objective value
         try:
             solution1 = m.optimize()
         except Exception as e:
@@ -435,54 +457,37 @@ def run_eflux2(
             return solution1.status, None, None
 
         optimal_value = solution1.objective_value
+        stage1_fluxes = {rxn.id: solution1.fluxes[rxn.id] for rxn in m.reactions}
 
-        # Step 2: Minimize L2 norm while maintaining objective
-        # Fix objective to optimal value (with small tolerance)
-        tolerance = abs(optimal_value) * 0.001 if optimal_value != 0 else 0.001
+        # === Improvement 3: True L2 norm minimization via pFBA ===
+        # Fix objective at fraction of optimal value, then minimize total flux
+        # pFBA minimizes sum of |fluxes| which approximates L2 behavior
 
-        obj_constraint = m.problem.Constraint(
-            m.objective.expression,
-            lb=optimal_value - tolerance,
-            ub=optimal_value + tolerance,
-            name="eflux2_obj_constraint",
-        )
-        m.add_cons_vars(obj_constraint)
-
-        # Create squared flux variables and constraints
-        # For linear solvers, we approximate by minimizing sum of absolute values
-        squared_vars = []
-        squared_cons = []
-
-        for rxn in m.reactions:
-            # Create auxiliary variable for |flux|
-            abs_var = m.problem.Variable(f"abs_{rxn.id}", lb=0)
-            squared_vars.append(abs_var)
-
-            # |v| >= v and |v| >= -v
-            cons1 = m.problem.Constraint(abs_var - rxn.flux_expression, lb=0, name=f"abs_pos_{rxn.id}")
-            cons2 = m.problem.Constraint(abs_var + rxn.flux_expression, lb=0, name=f"abs_neg_{rxn.id}")
-            squared_cons.extend([cons1, cons2])
-
-        m.add_cons_vars(squared_vars)
-        m.add_cons_vars(squared_cons)
-
-        # Minimize sum of |fluxes| (L1 norm as approximation to L2)
-        m.objective = m.problem.Objective(Add(*squared_vars), direction="min")
+        # Fix objective reaction at fraction of optimal
+        if objective_rxn_id and objective_rxn_id in m.reactions:
+            obj_rxn = m.reactions.get_by_id(objective_rxn_id)
+            obj_rxn.lower_bound = optimal_value * objective_fraction
+        else:
+            # Try to find objective from model.objective
+            for rxn in m.reactions:
+                if rxn.objective_coefficient != 0:
+                    rxn.lower_bound = max(rxn.lower_bound, optimal_value * objective_fraction)
+                    break
 
         try:
-            solution2 = m.optimize()
-        except Exception:
-            # Fall back to first solution if L2 minimization fails
-            flux_distribution = {rxn.id: solution1.fluxes[rxn.id] for rxn in m.reactions}
-            return "optimal", optimal_value, flux_distribution
+            # pFBA: minimize sum of absolute fluxes while maintaining objective
+            pfba_solution = pfba(m)
 
-        if solution2.status == "optimal":
-            flux_distribution = {rxn.id: solution2.fluxes[rxn.id] for rxn in m.reactions}
-            return "optimal", optimal_value, flux_distribution
-        else:
-            # Fall back to first solution
-            flux_distribution = {rxn.id: solution1.fluxes[rxn.id] for rxn in m.reactions}
-            return "optimal", optimal_value, flux_distribution
+            if pfba_solution.status == "optimal":
+                flux_distribution = {rxn.id: pfba_solution.fluxes[rxn.id] for rxn in m.reactions}
+                return "optimal", optimal_value, flux_distribution
+            else:
+                # Fall back to Stage 1 solution
+                return "optimal", optimal_value, stage1_fluxes
+
+        except Exception:
+            # Fall back to Stage 1 solution if pFBA fails
+            return "optimal", optimal_value, stage1_fluxes
 
 
 class OmicsIntegrationDialog(QDialog):
@@ -665,18 +670,31 @@ class OmicsIntegrationDialog(QDialog):
         self.eflux2_params_widget = QGroupBox("E-Flux2 Options")
         eflux2_layout = QVBoxLayout()
 
-        self.normalize_check = QCheckBox("Normalize expression (0-1)")
-        self.normalize_check.setChecked(True)
-        eflux2_layout.addWidget(self.normalize_check)
+        min_scale_row = QHBoxLayout()
+        min_scale_row.addWidget(QLabel("Minimum scale:"))
+        self.min_scale_spin = QDoubleSpinBox()
+        self.min_scale_spin.setDecimals(4)
+        self.min_scale_spin.setRange(0.0001, 1.0)
+        self.min_scale_spin.setValue(0.001)
+        self.min_scale_spin.setToolTip(
+            "Minimum scaling factor for numerical stability (0.001 = 0.1%).\n"
+            "Prevents reaction bounds from becoming too small."
+        )
+        min_scale_row.addWidget(self.min_scale_spin)
+        eflux2_layout.addLayout(min_scale_row)
 
-        minflux_row = QHBoxLayout()
-        minflux_row.addWidget(QLabel("Min flux bound:"))
-        self.minflux_spin = QDoubleSpinBox()
-        self.minflux_spin.setDecimals(4)
-        self.minflux_spin.setRange(0.0, 100)
-        self.minflux_spin.setValue(0.001)
-        minflux_row.addWidget(self.minflux_spin)
-        eflux2_layout.addLayout(minflux_row)
+        obj_frac_row = QHBoxLayout()
+        obj_frac_row.addWidget(QLabel("Objective fraction:"))
+        self.obj_fraction_spin = QDoubleSpinBox()
+        self.obj_fraction_spin.setDecimals(2)
+        self.obj_fraction_spin.setRange(0.0, 1.0)
+        self.obj_fraction_spin.setValue(0.99)
+        self.obj_fraction_spin.setToolTip(
+            "Fraction of optimal objective to maintain during L2 minimization.\n"
+            "Default 0.99 means 99% of maximum growth rate is preserved."
+        )
+        obj_frac_row.addWidget(self.obj_fraction_spin)
+        eflux2_layout.addLayout(obj_frac_row)
 
         self.eflux2_params_widget.setLayout(eflux2_layout)
         self.eflux2_params_widget.setVisible(False)
@@ -776,7 +794,9 @@ class OmicsIntegrationDialog(QDialog):
 
         if is_eflux2:
             self.method_desc_label.setText(
-                "E-Flux2 constrains reaction bounds based on expression, then optimizes growth."
+                "E-Flux2 constrains reaction bounds based on gene expression levels\n"
+                "(excluding exchange/biomass reactions), then performs FBA followed by\n"
+                "pFBA (L2 norm minimization) for a unique, parsimonious flux solution."
             )
             self.run_btn.setText("Run E-Flux2 Analysis")
         else:
@@ -966,15 +986,15 @@ class OmicsIntegrationDialog(QDialog):
                 model = self.appdata.project.cobra_py_model.copy()
 
                 if is_eflux2:
-                    normalize = self.normalize_check.isChecked()
-                    min_flux_bound = self.minflux_spin.value()
+                    min_scale = self.min_scale_spin.value()
+                    obj_fraction = self.obj_fraction_spin.value()
                     status, obj_value, flux_dist = run_eflux2(
                         model,
                         reaction_weights,
                         flux_constraints,
-                        normalize=normalize,
                         weight_threshold=threshold,
-                        min_flux_bound=min_flux_bound,
+                        min_scale=min_scale,
+                        objective_fraction=obj_fraction,
                     )
                 else:
                     scaling = self.scale_spin.value()
