@@ -31,6 +31,8 @@ This module provides two methods for integrating gene expression data:
 This module was added/modified as part of CNApy enhancements.
 """
 
+import ast
+
 import cobra
 import numpy as np
 import pandas as pd
@@ -175,65 +177,99 @@ def read_multi_condition_expression_data(filename: str) -> tuple[list[str], dict
     return conditions, data
 
 
+def evaluate_gpr_expression(
+    gpr_node: ast.AST, gene_expression: dict[str, float]
+) -> float | None:
+    """Recursively evaluate a GPR AST node with continuous expression values.
+
+    AND (enzyme complex) → min of subunits
+    OR  (isozymes)       → max of alternatives
+    Gene leaf            → expression value (None if missing)
+
+    Missing gene handling:
+    - AND with any None → None (complex cannot form)
+    - OR with some None → max of available values; all None → None
+
+    Parameters
+    ----------
+    gpr_node : ast.AST
+        A node from cobra's GPR AST (reaction.gpr.body).
+    gene_expression : dict[str, float]
+        Case-insensitive lookup dict mapping gene IDs to expression values.
+
+    Returns
+    -------
+    float | None
+        Evaluated expression level, or None if not evaluable.
+    """
+    if isinstance(gpr_node, ast.BoolOp):
+        child_values = [
+            evaluate_gpr_expression(child, gene_expression)
+            for child in gpr_node.values
+        ]
+
+        if isinstance(gpr_node.op, ast.And):
+            # Enzyme complex: all subunits required → min
+            if any(v is None for v in child_values):
+                return None
+            return min(child_values)
+        else:
+            # Isozymes: any alternative suffices → max
+            valid = [v for v in child_values if v is not None]
+            if not valid:
+                return None
+            return max(valid)
+
+    elif isinstance(gpr_node, ast.Name):
+        return gene_expression.get(gpr_node.id)
+
+    return None
+
+
 def gene_expression_to_reaction_weights(
-    model: cobra.Model, gene_expression: dict[str, float], aggregation_method: str = "min"
+    model: cobra.Model, gene_expression: dict[str, float]
 ) -> dict[str, float]:
-    """
-    Convert gene expression values to reaction weights using GPR rules.
+    """Convert gene expression values to reaction weights using GPR rules.
 
-    Parameters:
-    -----------
+    Evaluates GPR boolean rules recursively:
+    AND (enzyme complex) → min, OR (isozymes) → max.
+
+    Parameters
+    ----------
     model : cobra.Model
-        The metabolic model
-    gene_expression : Dict[str, float]
-        Dictionary mapping gene IDs to expression values
-    aggregation_method : str
-        How to aggregate gene expression for reactions with multiple genes:
-        - 'min': Use minimum expression (AND logic)
-        - 'max': Use maximum expression (OR logic)
-        - 'mean': Use average expression
-        - 'sum': Use sum of expression
+        The metabolic model.
+    gene_expression : dict[str, float]
+        Dictionary mapping gene IDs to expression values.
 
-    Returns:
-    --------
-    Dict[str, float]
-        Dictionary mapping reaction IDs to weights
+    Returns
+    -------
+    dict[str, float]
+        Dictionary mapping reaction IDs to weights.
     """
+    # Build case-insensitive lookup for gene expression
+    expr_lookup: dict[str, float] = {}
+    for gene in model.genes:
+        gene_id = gene.id
+        if gene_id in gene_expression:
+            expr_lookup[gene_id] = gene_expression[gene_id]
+        elif gene_id.upper() in gene_expression:
+            expr_lookup[gene_id] = gene_expression[gene_id.upper()]
+        elif gene_id.lower() in gene_expression:
+            expr_lookup[gene_id] = gene_expression[gene_id.lower()]
+
     reaction_weights = {}
 
     for reaction in model.reactions:
         if not reaction.genes:
-            # No genes associated, skip
             continue
 
-        # Collect expression values for genes in this reaction
-        gene_values = []
-        for gene in reaction.genes:
-            gene_id = gene.id
-            # Try different ID formats
-            if gene_id in gene_expression:
-                gene_values.append(gene_expression[gene_id])
-            elif gene_id.upper() in gene_expression:
-                gene_values.append(gene_expression[gene_id.upper()])
-            elif gene_id.lower() in gene_expression:
-                gene_values.append(gene_expression[gene_id.lower()])
-
-        if not gene_values:
+        gpr = reaction.gpr
+        if gpr is None or gpr.body is None:
             continue
 
-        # Aggregate gene expression values
-        if aggregation_method == "min":
-            weight = min(gene_values)
-        elif aggregation_method == "max":
-            weight = max(gene_values)
-        elif aggregation_method == "mean":
-            weight = np.mean(gene_values)
-        elif aggregation_method == "sum":
-            weight = sum(gene_values)
-        else:
-            weight = min(gene_values)  # default to min
-
-        reaction_weights[reaction.id] = weight
+        weight = evaluate_gpr_expression(gpr.body, expr_lookup)
+        if weight is not None:
+            reaction_weights[reaction.id] = weight
 
     return reaction_weights
 
@@ -639,9 +675,14 @@ class OmicsIntegrationDialog(QDialog):
 
         agg_row = QHBoxLayout()
         agg_row.addWidget(QLabel("Gene aggregation:"))
-        self.agg_combo = QComboBox()
-        self.agg_combo.addItems(["min (AND logic)", "max (OR logic)", "mean", "sum"])
-        agg_row.addWidget(self.agg_combo)
+        agg_label = QLabel("GPR-based (AND→min, OR→max)")
+        agg_label.setToolTip(
+            "Gene-Protein-Reaction rules are evaluated recursively:\n"
+            "AND (enzyme complex) → min of subunit expression\n"
+            "OR (isozymes) → max of alternative expression"
+        )
+        agg_label.setStyleSheet("font-weight: bold;")
+        agg_row.addWidget(agg_label)
         params_layout.addLayout(agg_row)
 
         threshold_row = QHBoxLayout()
@@ -910,18 +951,6 @@ class OmicsIntegrationDialog(QDialog):
         for i in range(self.condition_list.count()):
             self.condition_list.item(i).setSelected(False)
 
-    def _get_aggregation_method(self) -> str:
-        """Get the selected aggregation method."""
-        agg_text = self.agg_combo.currentText()
-        if "min" in agg_text:
-            return "min"
-        elif "max" in agg_text:
-            return "max"
-        elif "mean" in agg_text:
-            return "mean"
-        else:
-            return "sum"
-
     def _is_eflux2(self) -> bool:
         """Check if E-Flux2 method is selected."""
         return "E-Flux2" in self.method_combo.currentText()
@@ -948,7 +977,6 @@ class OmicsIntegrationDialog(QDialog):
 
         is_eflux2 = self._is_eflux2()
         method_name = "E-Flux2" if is_eflux2 else "LAD"
-        agg_method = self._get_aggregation_method()
         threshold = self.threshold_spin.value()
 
         # Get scenario constraints if enabled
@@ -975,7 +1003,7 @@ class OmicsIntegrationDialog(QDialog):
 
                 # Compute reaction weights
                 reaction_weights = gene_expression_to_reaction_weights(
-                    self.appdata.project.cobra_py_model, condition_expression, agg_method
+                    self.appdata.project.cobra_py_model, condition_expression
                 )
 
                 if not reaction_weights:
