@@ -25,7 +25,9 @@ This module provides two methods for integrating gene expression data:
 
 2. E-Flux2 method:
    - Constrains reaction upper bounds based on gene expression levels.
-   - Performs FBA with minimization of L2 norm for unique flux solution.
+   - Performs FBA followed by L2-norm minimization (QP, min Σv²) for a
+     unique flux solution.  Falls back to pFBA (L1) if the solver does
+     not support quadratic objectives.
    - Reference: Kim & Lun (2016), PLOS Computational Biology.
 
 This module was added/modified as part of CNApy enhancements.
@@ -374,12 +376,14 @@ def run_eflux2(
     weight_threshold: float = 0.01,
     min_scale: float = 0.001,
     objective_fraction: float = 0.99,
-) -> tuple[str, float | None, dict[str, float] | None]:
+) -> tuple[str, float | None, dict[str, float] | None, str]:
     """
     Run E-Flux2 analysis to predict fluxes from expression data.
 
     E-Flux2 constrains reaction upper bounds based on gene expression levels,
-    then performs FBA with L2-norm minimization (via pFBA) for a unique solution.
+    then performs FBA followed by L2-norm minimization (QP, min Σv²) for a
+    unique flux solution.  If the solver does not support QP, falls back to
+    pFBA (L1 norm) and finally to plain FBA.
 
     Reference: Kim MK, Lane A, Kelley JJ, Lun DS (2016). E-Flux2 and SPOT:
     Validated Methods for Inferring Intracellular Metabolic Flux Distributions
@@ -402,19 +406,20 @@ def run_eflux2(
 
     Returns:
     --------
-    Tuple[str, Optional[float], Optional[Dict[str, float]]]
-        (status, objective_value, flux_distribution)
+    Tuple[str, Optional[float], Optional[Dict[str, float]], str]
+        (status, objective_value, flux_distribution, l2_method)
+        l2_method is "qp", "pfba", "fba", or "" (on failure)
     """
     from cobra.flux_analysis import pfba
 
     if not reaction_weights:
-        return "no_targets", None, None
+        return "no_targets", None, None, ""
 
     # Filter reactions by weight threshold
     valid_weights = {rid: w for rid, w in reaction_weights.items() if rid in model.reactions and w > weight_threshold}
 
     if not valid_weights:
-        return "no_targets", None, None
+        return "no_targets", None, None, ""
 
     # === Improvement 1: Max normalization (instead of min-max) ===
     # E-Flux uses expression ratio relative to maximum expression
@@ -487,17 +492,18 @@ def run_eflux2(
         try:
             solution1 = m.optimize()
         except Exception as e:
-            return f"optimization_error: {str(e)}", None, None
+            return f"optimization_error: {str(e)}", None, None, ""
 
         if solution1.status != "optimal":
-            return solution1.status, None, None
+            return solution1.status, None, None, ""
 
         optimal_value = solution1.objective_value
         stage1_fluxes = {rxn.id: solution1.fluxes[rxn.id] for rxn in m.reactions}
 
-        # === Improvement 3: True L2 norm minimization via pFBA ===
-        # Fix objective at fraction of optimal value, then minimize total flux
-        # pFBA minimizes sum of |fluxes| which approximates L2 behavior
+        # === Step 2: L2-norm minimization (QP) with pFBA / FBA fallback ===
+        # Fix objective at fraction of optimal value, then minimize Σv²
+        # QP (L2) gives a unique solution; pFBA (L1) is a fallback if the
+        # solver does not support quadratic objectives.
 
         # Fix objective reaction at fraction of optimal
         if objective_rxn_id and objective_rxn_id in m.reactions:
@@ -510,20 +516,40 @@ def run_eflux2(
                     rxn.lower_bound = max(rxn.lower_bound, optimal_value * objective_fraction)
                     break
 
+        # --- Try QP (true L2 norm: min Σ vᵢ²) ---
         try:
-            # pFBA: minimize sum of absolute fluxes while maintaining objective
+            from optlang.symbolics import Add
+
+            quadratic_terms = Add(
+                *[rxn.flux_expression ** 2 for rxn in m.reactions]
+            )
+            m.objective = m.problem.Objective(quadratic_terms, direction="min")
+            qp_solution = m.optimize()
+
+            if qp_solution.status == "optimal":
+                flux_distribution = {
+                    rxn.id: qp_solution.fluxes[rxn.id] for rxn in m.reactions
+                }
+                return "optimal", optimal_value, flux_distribution, "qp"
+
+            # QP solved but not optimal – try pFBA below
+        except Exception:
+            pass  # QP not supported by solver – fall through to pFBA
+
+        # --- Fallback: pFBA (L1 norm: min Σ|v|) ---
+        try:
             pfba_solution = pfba(m)
 
             if pfba_solution.status == "optimal":
-                flux_distribution = {rxn.id: pfba_solution.fluxes[rxn.id] for rxn in m.reactions}
-                return "optimal", optimal_value, flux_distribution
-            else:
-                # Fall back to Stage 1 solution
-                return "optimal", optimal_value, stage1_fluxes
-
+                flux_distribution = {
+                    rxn.id: pfba_solution.fluxes[rxn.id] for rxn in m.reactions
+                }
+                return "optimal", optimal_value, flux_distribution, "pfba"
         except Exception:
-            # Fall back to Stage 1 solution if pFBA fails
-            return "optimal", optimal_value, stage1_fluxes
+            pass  # pFBA also failed – fall through to FBA fallback
+
+        # --- Fallback: plain FBA (Stage 1 result) ---
+        return "optimal", optimal_value, stage1_fluxes, "fba"
 
 
 class OmicsIntegrationDialog(QDialog):
@@ -837,7 +863,8 @@ class OmicsIntegrationDialog(QDialog):
             self.method_desc_label.setText(
                 "E-Flux2 constrains reaction bounds based on gene expression levels\n"
                 "(excluding exchange/biomass reactions), then performs FBA followed by\n"
-                "pFBA (L2 norm minimization) for a unique, parsimonious flux solution."
+                "L2-norm minimization (QP) for a unique flux solution.\n"
+                "Falls back to pFBA (L1) if QP is unavailable."
             )
             self.run_btn.setText("Run E-Flux2 Analysis")
         else:
@@ -988,6 +1015,8 @@ class OmicsIntegrationDialog(QDialog):
         self.multi_results.clear()
         failed_conditions = []
         successful_conditions = []
+        pfba_fallback_conditions: list[str] = []  # conditions where pFBA was used instead of QP
+        fba_fallback_conditions: list[str] = []   # conditions where plain FBA was used
 
         for i, condition in enumerate(selected_conditions):
             self.progress_bar.setValue(i)
@@ -1016,7 +1045,7 @@ class OmicsIntegrationDialog(QDialog):
                 if is_eflux2:
                     min_scale = self.min_scale_spin.value()
                     obj_fraction = self.obj_fraction_spin.value()
-                    status, obj_value, flux_dist = run_eflux2(
+                    status, obj_value, flux_dist, l2_method = run_eflux2(
                         model,
                         reaction_weights,
                         flux_constraints,
@@ -1024,6 +1053,10 @@ class OmicsIntegrationDialog(QDialog):
                         min_scale=min_scale,
                         objective_fraction=obj_fraction,
                     )
+                    if l2_method == "pfba":
+                        pfba_fallback_conditions.append(condition)
+                    elif l2_method == "fba":
+                        fba_fallback_conditions.append(condition)
                 else:
                     scaling = self.scale_spin.value()
                     status, obj_value, flux_dist = run_lad_fitting(
@@ -1071,6 +1104,18 @@ class OmicsIntegrationDialog(QDialog):
                 msg += f"  - {cond}: {reason}\n"
             if len(failed_conditions) > 3:
                 msg += f"  ... and {len(failed_conditions)-3} more\n"
+
+        # Warn about L2 fallback methods
+        if pfba_fallback_conditions:
+            msg += (
+                f"\nWarning: {len(pfba_fallback_conditions)} condition(s) used pFBA (L1) "
+                f"instead of QP (L2) — solver does not support quadratic objectives.\n"
+            )
+        if fba_fallback_conditions:
+            msg += (
+                f"\nWarning: {len(fba_fallback_conditions)} condition(s) fell back to "
+                f"plain FBA (no L2/L1 minimization).\n"
+            )
 
         if successful_conditions:
             msg += "\nResults are available in the comparison table."
