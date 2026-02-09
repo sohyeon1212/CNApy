@@ -25,11 +25,15 @@ This module provides two methods for integrating gene expression data:
 
 2. E-Flux2 method:
    - Constrains reaction upper bounds based on gene expression levels.
-   - Performs FBA with minimization of L2 norm for unique flux solution.
+   - Performs FBA followed by L2-norm minimization (QP, min Σv²) for a
+     unique flux solution.  Falls back to pFBA (L1) if the solver does
+     not support quadratic objectives.
    - Reference: Kim & Lun (2016), PLOS Computational Biology.
 
 This module was added/modified as part of CNApy enhancements.
 """
+
+import ast
 
 import cobra
 import numpy as np
@@ -175,65 +179,99 @@ def read_multi_condition_expression_data(filename: str) -> tuple[list[str], dict
     return conditions, data
 
 
+def evaluate_gpr_expression(
+    gpr_node: ast.AST, gene_expression: dict[str, float]
+) -> float | None:
+    """Recursively evaluate a GPR AST node with continuous expression values.
+
+    AND (enzyme complex) → min of subunits
+    OR  (isozymes)       → max of alternatives
+    Gene leaf            → expression value (None if missing)
+
+    Missing gene handling:
+    - AND with any None → None (complex cannot form)
+    - OR with some None → max of available values; all None → None
+
+    Parameters
+    ----------
+    gpr_node : ast.AST
+        A node from cobra's GPR AST (reaction.gpr.body).
+    gene_expression : dict[str, float]
+        Case-insensitive lookup dict mapping gene IDs to expression values.
+
+    Returns
+    -------
+    float | None
+        Evaluated expression level, or None if not evaluable.
+    """
+    if isinstance(gpr_node, ast.BoolOp):
+        child_values = [
+            evaluate_gpr_expression(child, gene_expression)
+            for child in gpr_node.values
+        ]
+
+        if isinstance(gpr_node.op, ast.And):
+            # Enzyme complex: all subunits required → min
+            if any(v is None for v in child_values):
+                return None
+            return min(child_values)
+        else:
+            # Isozymes: any alternative suffices → max
+            valid = [v for v in child_values if v is not None]
+            if not valid:
+                return None
+            return max(valid)
+
+    elif isinstance(gpr_node, ast.Name):
+        return gene_expression.get(gpr_node.id)
+
+    return None
+
+
 def gene_expression_to_reaction_weights(
-    model: cobra.Model, gene_expression: dict[str, float], aggregation_method: str = "min"
+    model: cobra.Model, gene_expression: dict[str, float]
 ) -> dict[str, float]:
-    """
-    Convert gene expression values to reaction weights using GPR rules.
+    """Convert gene expression values to reaction weights using GPR rules.
 
-    Parameters:
-    -----------
+    Evaluates GPR boolean rules recursively:
+    AND (enzyme complex) → min, OR (isozymes) → max.
+
+    Parameters
+    ----------
     model : cobra.Model
-        The metabolic model
-    gene_expression : Dict[str, float]
-        Dictionary mapping gene IDs to expression values
-    aggregation_method : str
-        How to aggregate gene expression for reactions with multiple genes:
-        - 'min': Use minimum expression (AND logic)
-        - 'max': Use maximum expression (OR logic)
-        - 'mean': Use average expression
-        - 'sum': Use sum of expression
+        The metabolic model.
+    gene_expression : dict[str, float]
+        Dictionary mapping gene IDs to expression values.
 
-    Returns:
-    --------
-    Dict[str, float]
-        Dictionary mapping reaction IDs to weights
+    Returns
+    -------
+    dict[str, float]
+        Dictionary mapping reaction IDs to weights.
     """
+    # Build case-insensitive lookup for gene expression
+    expr_lookup: dict[str, float] = {}
+    for gene in model.genes:
+        gene_id = gene.id
+        if gene_id in gene_expression:
+            expr_lookup[gene_id] = gene_expression[gene_id]
+        elif gene_id.upper() in gene_expression:
+            expr_lookup[gene_id] = gene_expression[gene_id.upper()]
+        elif gene_id.lower() in gene_expression:
+            expr_lookup[gene_id] = gene_expression[gene_id.lower()]
+
     reaction_weights = {}
 
     for reaction in model.reactions:
         if not reaction.genes:
-            # No genes associated, skip
             continue
 
-        # Collect expression values for genes in this reaction
-        gene_values = []
-        for gene in reaction.genes:
-            gene_id = gene.id
-            # Try different ID formats
-            if gene_id in gene_expression:
-                gene_values.append(gene_expression[gene_id])
-            elif gene_id.upper() in gene_expression:
-                gene_values.append(gene_expression[gene_id.upper()])
-            elif gene_id.lower() in gene_expression:
-                gene_values.append(gene_expression[gene_id.lower()])
-
-        if not gene_values:
+        gpr = reaction.gpr
+        if gpr is None or gpr.body is None:
             continue
 
-        # Aggregate gene expression values
-        if aggregation_method == "min":
-            weight = min(gene_values)
-        elif aggregation_method == "max":
-            weight = max(gene_values)
-        elif aggregation_method == "mean":
-            weight = np.mean(gene_values)
-        elif aggregation_method == "sum":
-            weight = sum(gene_values)
-        else:
-            weight = min(gene_values)  # default to min
-
-        reaction_weights[reaction.id] = weight
+        weight = evaluate_gpr_expression(gpr.body, expr_lookup)
+        if weight is not None:
+            reaction_weights[reaction.id] = weight
 
     return reaction_weights
 
@@ -335,18 +373,21 @@ def run_eflux2(
     model: cobra.Model,
     reaction_weights: dict[str, float],
     flux_constraints: dict[str, tuple[float, float]] | None = None,
-    normalize: bool = True,
     weight_threshold: float = 0.01,
-    min_flux_bound: float = 0.001,
-) -> tuple[str, float | None, dict[str, float] | None]:
+    min_scale: float = 0.001,
+    objective_fraction: float = 0.99,
+) -> tuple[str, float | None, dict[str, float] | None, str]:
     """
     Run E-Flux2 analysis to predict fluxes from expression data.
 
     E-Flux2 constrains reaction upper bounds based on gene expression levels,
-    then performs FBA with L2-norm minimization for a unique solution.
+    then performs FBA followed by L2-norm minimization (QP, min Σv²) for a
+    unique flux solution.  If the solver does not support QP, falls back to
+    pFBA (L1 norm) and finally to plain FBA.
 
-    Reference: Kim & Lun (2016). E-Flux2 and SPOT: Validated Methods for
-    Inferring Intracellular Metabolic Fluxes. PLOS Computational Biology.
+    Reference: Kim MK, Lane A, Kelley JJ, Lun DS (2016). E-Flux2 and SPOT:
+    Validated Methods for Inferring Intracellular Metabolic Flux Distributions
+    from Transcriptomic Data. PLoS ONE 11(6): e0157101.
 
     Parameters:
     -----------
@@ -356,40 +397,55 @@ def run_eflux2(
         Dictionary mapping reaction IDs to expression-based weights
     flux_constraints : Dict[str, Tuple[float, float]], optional
         Additional flux constraints as {reaction_id: (lb, ub)}
-    normalize : bool
-        Whether to normalize expression values (0-1 range)
     weight_threshold : float
         Minimum weight to constrain a reaction
-    min_flux_bound : float
-        Minimum flux bound to apply (prevents zero bounds)
+    min_scale : float
+        Minimum scaling factor for numerical stability (default: 0.001 = 0.1%)
+    objective_fraction : float
+        Fraction of optimal objective to maintain in L2 step (default: 0.99)
 
     Returns:
     --------
-    Tuple[str, Optional[float], Optional[Dict[str, float]]]
-        (status, objective_value, flux_distribution)
+    Tuple[str, Optional[float], Optional[Dict[str, float]], str]
+        (status, objective_value, flux_distribution, l2_method)
+        l2_method is "qp", "pfba", "fba", or "" (on failure)
     """
-    from optlang.symbolics import Add
+    from cobra.flux_analysis import pfba
 
     if not reaction_weights:
-        return "no_targets", None, None
+        return "no_targets", None, None, ""
 
     # Filter reactions by weight threshold
     valid_weights = {rid: w for rid, w in reaction_weights.items() if rid in model.reactions and w > weight_threshold}
 
     if not valid_weights:
-        return "no_targets", None, None
+        return "no_targets", None, None, ""
 
-    # Normalize weights to 0-1 range if requested
-    if normalize and valid_weights:
-        max_weight = max(valid_weights.values())
-        min_weight = min(valid_weights.values())
-        weight_range = max_weight - min_weight
-        if weight_range > 0:
-            normalized_weights = {rid: (w - min_weight) / weight_range for rid, w in valid_weights.items()}
-        else:
-            normalized_weights = {rid: 1.0 for rid in valid_weights}
-    else:
-        normalized_weights = valid_weights.copy()
+    # === Improvement 1: Max normalization (instead of min-max) ===
+    # E-Flux uses expression ratio relative to maximum expression
+    max_weight = max(abs(w) for w in valid_weights.values())
+    if max_weight == 0:
+        max_weight = 1.0
+
+    # === Improvement 2: Exclude exchange/biomass reactions from scaling ===
+    # These reactions should not be constrained by expression data
+    excluded_reactions = set()
+    for rxn in model.reactions:
+        # Exchange reactions
+        if rxn.id.startswith("EX_"):
+            excluded_reactions.add(rxn.id)
+        # Biomass/growth reactions
+        if "biomass" in rxn.id.lower() or "growth" in rxn.id.lower():
+            excluded_reactions.add(rxn.id)
+    # Also exclude the objective reaction
+    objective_rxn_id = None
+    if model.objective:
+        for rxn_id in model.objective.variables:
+            # Get the actual reaction ID from the variable name
+            if hasattr(rxn_id, "name"):
+                objective_rxn_id = rxn_id.name
+                excluded_reactions.add(objective_rxn_id)
+                break
 
     with model as m:
         # Apply flux constraints if provided (e.g., from scenario)
@@ -399,90 +455,101 @@ def run_eflux2(
                     rxn = m.reactions.get_by_id(rid)
                     rxn.bounds = (lb, ub)
 
-        # E-Flux: Constrain upper bounds based on expression levels
-        # Higher expression = higher allowed flux
+        # E-Flux: Constrain bounds based on expression levels
+        # Higher expression = higher allowed flux (proportional scaling)
+        constrained_count = 0
         for rxn in m.reactions:
-            if rxn.id in normalized_weights:
-                weight = normalized_weights[rxn.id]
-                # Scale the upper bound by the normalized expression
-                # Keep a minimum bound to allow some flux
-                new_ub = max(min_flux_bound, weight * abs(rxn.upper_bound) if rxn.upper_bound else weight * 1000)
-                new_lb = -new_ub if rxn.reversibility else max(rxn.lower_bound, 0)
+            # Skip excluded reactions (exchange, biomass, objective)
+            if rxn.id in excluded_reactions:
+                continue
 
-                # Don't make bounds more restrictive than existing scenario constraints
-                if flux_constraints and rxn.id in flux_constraints:
-                    continue
+            # Skip reactions with explicit flux constraints
+            if flux_constraints and rxn.id in flux_constraints:
+                continue
 
-                rxn.upper_bound = new_ub
-                rxn.lower_bound = new_lb
-            elif rxn.id not in normalized_weights and rxn.genes:
-                # Reactions with genes but no expression data: keep original bounds
-                # or apply minimal constraint
-                pass
+            # Apply E-Flux scaling to reactions with expression data
+            if rxn.id in valid_weights:
+                expr_weight = abs(valid_weights[rxn.id])
 
-        # E-Flux2: Add L2-norm minimization (quadratic objective)
-        # We use a two-step approach:
-        # 1. First FBA to get optimal objective value
-        # 2. Then minimize sum of squared fluxes while maintaining optimal objective
+                # Max normalization: scale relative to maximum expression
+                normalized_expr = expr_weight / max_weight
 
-        # Step 1: Standard FBA
+                # Apply minimum scale for numerical stability
+                normalized_expr = max(min_scale, normalized_expr)
+
+                # Scale upper bound: higher expression = more flux allowed
+                if rxn.upper_bound > 0:
+                    rxn.upper_bound = normalized_expr * rxn.upper_bound
+
+                # Scale lower bound magnitude for reversible reactions
+                if rxn.lower_bound < 0:
+                    rxn.lower_bound = normalized_expr * rxn.lower_bound
+
+                constrained_count += 1
+            # Reactions without expression data: keep original bounds
+
+        # Step 1: Standard FBA to get optimal objective value
         try:
             solution1 = m.optimize()
         except Exception as e:
-            return f"optimization_error: {str(e)}", None, None
+            return f"optimization_error: {str(e)}", None, None, ""
 
         if solution1.status != "optimal":
-            return solution1.status, None, None
+            return solution1.status, None, None, ""
 
         optimal_value = solution1.objective_value
+        stage1_fluxes = {rxn.id: solution1.fluxes[rxn.id] for rxn in m.reactions}
 
-        # Step 2: Minimize L2 norm while maintaining objective
-        # Fix objective to optimal value (with small tolerance)
-        tolerance = abs(optimal_value) * 0.001 if optimal_value != 0 else 0.001
+        # === Step 2: L2-norm minimization (QP) with pFBA / FBA fallback ===
+        # Fix objective at fraction of optimal value, then minimize Σv²
+        # QP (L2) gives a unique solution; pFBA (L1) is a fallback if the
+        # solver does not support quadratic objectives.
 
-        obj_constraint = m.problem.Constraint(
-            m.objective.expression,
-            lb=optimal_value - tolerance,
-            ub=optimal_value + tolerance,
-            name="eflux2_obj_constraint",
-        )
-        m.add_cons_vars(obj_constraint)
-
-        # Create squared flux variables and constraints
-        # For linear solvers, we approximate by minimizing sum of absolute values
-        squared_vars = []
-        squared_cons = []
-
-        for rxn in m.reactions:
-            # Create auxiliary variable for |flux|
-            abs_var = m.problem.Variable(f"abs_{rxn.id}", lb=0)
-            squared_vars.append(abs_var)
-
-            # |v| >= v and |v| >= -v
-            cons1 = m.problem.Constraint(abs_var - rxn.flux_expression, lb=0, name=f"abs_pos_{rxn.id}")
-            cons2 = m.problem.Constraint(abs_var + rxn.flux_expression, lb=0, name=f"abs_neg_{rxn.id}")
-            squared_cons.extend([cons1, cons2])
-
-        m.add_cons_vars(squared_vars)
-        m.add_cons_vars(squared_cons)
-
-        # Minimize sum of |fluxes| (L1 norm as approximation to L2)
-        m.objective = m.problem.Objective(Add(*squared_vars), direction="min")
-
-        try:
-            solution2 = m.optimize()
-        except Exception:
-            # Fall back to first solution if L2 minimization fails
-            flux_distribution = {rxn.id: solution1.fluxes[rxn.id] for rxn in m.reactions}
-            return "optimal", optimal_value, flux_distribution
-
-        if solution2.status == "optimal":
-            flux_distribution = {rxn.id: solution2.fluxes[rxn.id] for rxn in m.reactions}
-            return "optimal", optimal_value, flux_distribution
+        # Fix objective reaction at fraction of optimal
+        if objective_rxn_id and objective_rxn_id in m.reactions:
+            obj_rxn = m.reactions.get_by_id(objective_rxn_id)
+            obj_rxn.lower_bound = optimal_value * objective_fraction
         else:
-            # Fall back to first solution
-            flux_distribution = {rxn.id: solution1.fluxes[rxn.id] for rxn in m.reactions}
-            return "optimal", optimal_value, flux_distribution
+            # Try to find objective from model.objective
+            for rxn in m.reactions:
+                if rxn.objective_coefficient != 0:
+                    rxn.lower_bound = max(rxn.lower_bound, optimal_value * objective_fraction)
+                    break
+
+        # --- Try QP (true L2 norm: min Σ vᵢ²) ---
+        try:
+            from optlang.symbolics import Add
+
+            quadratic_terms = Add(
+                *[rxn.flux_expression ** 2 for rxn in m.reactions]
+            )
+            m.objective = m.problem.Objective(quadratic_terms, direction="min")
+            qp_solution = m.optimize()
+
+            if qp_solution.status == "optimal":
+                flux_distribution = {
+                    rxn.id: qp_solution.fluxes[rxn.id] for rxn in m.reactions
+                }
+                return "optimal", optimal_value, flux_distribution, "qp"
+
+            # QP solved but not optimal – try pFBA below
+        except Exception:
+            pass  # QP not supported by solver – fall through to pFBA
+
+        # --- Fallback: pFBA (L1 norm: min Σ|v|) ---
+        try:
+            pfba_solution = pfba(m)
+
+            if pfba_solution.status == "optimal":
+                flux_distribution = {
+                    rxn.id: pfba_solution.fluxes[rxn.id] for rxn in m.reactions
+                }
+                return "optimal", optimal_value, flux_distribution, "pfba"
+        except Exception:
+            pass  # pFBA also failed – fall through to FBA fallback
+
+        # --- Fallback: plain FBA (Stage 1 result) ---
+        return "optimal", optimal_value, stage1_fluxes, "fba"
 
 
 class OmicsIntegrationDialog(QDialog):
@@ -634,9 +701,14 @@ class OmicsIntegrationDialog(QDialog):
 
         agg_row = QHBoxLayout()
         agg_row.addWidget(QLabel("Gene aggregation:"))
-        self.agg_combo = QComboBox()
-        self.agg_combo.addItems(["min (AND logic)", "max (OR logic)", "mean", "sum"])
-        agg_row.addWidget(self.agg_combo)
+        agg_label = QLabel("GPR-based (AND→min, OR→max)")
+        agg_label.setToolTip(
+            "Gene-Protein-Reaction rules are evaluated recursively:\n"
+            "AND (enzyme complex) → min of subunit expression\n"
+            "OR (isozymes) → max of alternative expression"
+        )
+        agg_label.setStyleSheet("font-weight: bold;")
+        agg_row.addWidget(agg_label)
         params_layout.addLayout(agg_row)
 
         threshold_row = QHBoxLayout()
@@ -665,18 +737,31 @@ class OmicsIntegrationDialog(QDialog):
         self.eflux2_params_widget = QGroupBox("E-Flux2 Options")
         eflux2_layout = QVBoxLayout()
 
-        self.normalize_check = QCheckBox("Normalize expression (0-1)")
-        self.normalize_check.setChecked(True)
-        eflux2_layout.addWidget(self.normalize_check)
+        min_scale_row = QHBoxLayout()
+        min_scale_row.addWidget(QLabel("Minimum scale:"))
+        self.min_scale_spin = QDoubleSpinBox()
+        self.min_scale_spin.setDecimals(4)
+        self.min_scale_spin.setRange(0.0001, 1.0)
+        self.min_scale_spin.setValue(0.001)
+        self.min_scale_spin.setToolTip(
+            "Minimum scaling factor for numerical stability (0.001 = 0.1%).\n"
+            "Prevents reaction bounds from becoming too small."
+        )
+        min_scale_row.addWidget(self.min_scale_spin)
+        eflux2_layout.addLayout(min_scale_row)
 
-        minflux_row = QHBoxLayout()
-        minflux_row.addWidget(QLabel("Min flux bound:"))
-        self.minflux_spin = QDoubleSpinBox()
-        self.minflux_spin.setDecimals(4)
-        self.minflux_spin.setRange(0.0, 100)
-        self.minflux_spin.setValue(0.001)
-        minflux_row.addWidget(self.minflux_spin)
-        eflux2_layout.addLayout(minflux_row)
+        obj_frac_row = QHBoxLayout()
+        obj_frac_row.addWidget(QLabel("Objective fraction:"))
+        self.obj_fraction_spin = QDoubleSpinBox()
+        self.obj_fraction_spin.setDecimals(2)
+        self.obj_fraction_spin.setRange(0.0, 1.0)
+        self.obj_fraction_spin.setValue(0.99)
+        self.obj_fraction_spin.setToolTip(
+            "Fraction of optimal objective to maintain during L2 minimization.\n"
+            "Default 0.99 means 99% of maximum growth rate is preserved."
+        )
+        obj_frac_row.addWidget(self.obj_fraction_spin)
+        eflux2_layout.addLayout(obj_frac_row)
 
         self.eflux2_params_widget.setLayout(eflux2_layout)
         self.eflux2_params_widget.setVisible(False)
@@ -776,7 +861,10 @@ class OmicsIntegrationDialog(QDialog):
 
         if is_eflux2:
             self.method_desc_label.setText(
-                "E-Flux2 constrains reaction bounds based on expression, then optimizes growth."
+                "E-Flux2 constrains reaction bounds based on gene expression levels\n"
+                "(excluding exchange/biomass reactions), then performs FBA followed by\n"
+                "L2-norm minimization (QP) for a unique flux solution.\n"
+                "Falls back to pFBA (L1) if QP is unavailable."
             )
             self.run_btn.setText("Run E-Flux2 Analysis")
         else:
@@ -890,18 +978,6 @@ class OmicsIntegrationDialog(QDialog):
         for i in range(self.condition_list.count()):
             self.condition_list.item(i).setSelected(False)
 
-    def _get_aggregation_method(self) -> str:
-        """Get the selected aggregation method."""
-        agg_text = self.agg_combo.currentText()
-        if "min" in agg_text:
-            return "min"
-        elif "max" in agg_text:
-            return "max"
-        elif "mean" in agg_text:
-            return "mean"
-        else:
-            return "sum"
-
     def _is_eflux2(self) -> bool:
         """Check if E-Flux2 method is selected."""
         return "E-Flux2" in self.method_combo.currentText()
@@ -928,7 +1004,6 @@ class OmicsIntegrationDialog(QDialog):
 
         is_eflux2 = self._is_eflux2()
         method_name = "E-Flux2" if is_eflux2 else "LAD"
-        agg_method = self._get_aggregation_method()
         threshold = self.threshold_spin.value()
 
         # Get scenario constraints if enabled
@@ -940,6 +1015,8 @@ class OmicsIntegrationDialog(QDialog):
         self.multi_results.clear()
         failed_conditions = []
         successful_conditions = []
+        pfba_fallback_conditions: list[str] = []  # conditions where pFBA was used instead of QP
+        fba_fallback_conditions: list[str] = []   # conditions where plain FBA was used
 
         for i, condition in enumerate(selected_conditions):
             self.progress_bar.setValue(i)
@@ -955,7 +1032,7 @@ class OmicsIntegrationDialog(QDialog):
 
                 # Compute reaction weights
                 reaction_weights = gene_expression_to_reaction_weights(
-                    self.appdata.project.cobra_py_model, condition_expression, agg_method
+                    self.appdata.project.cobra_py_model, condition_expression
                 )
 
                 if not reaction_weights:
@@ -966,16 +1043,20 @@ class OmicsIntegrationDialog(QDialog):
                 model = self.appdata.project.cobra_py_model.copy()
 
                 if is_eflux2:
-                    normalize = self.normalize_check.isChecked()
-                    min_flux_bound = self.minflux_spin.value()
-                    status, obj_value, flux_dist = run_eflux2(
+                    min_scale = self.min_scale_spin.value()
+                    obj_fraction = self.obj_fraction_spin.value()
+                    status, obj_value, flux_dist, l2_method = run_eflux2(
                         model,
                         reaction_weights,
                         flux_constraints,
-                        normalize=normalize,
                         weight_threshold=threshold,
-                        min_flux_bound=min_flux_bound,
+                        min_scale=min_scale,
+                        objective_fraction=obj_fraction,
                     )
+                    if l2_method == "pfba":
+                        pfba_fallback_conditions.append(condition)
+                    elif l2_method == "fba":
+                        fba_fallback_conditions.append(condition)
                 else:
                     scaling = self.scale_spin.value()
                     status, obj_value, flux_dist = run_lad_fitting(
@@ -1023,6 +1104,18 @@ class OmicsIntegrationDialog(QDialog):
                 msg += f"  - {cond}: {reason}\n"
             if len(failed_conditions) > 3:
                 msg += f"  ... and {len(failed_conditions)-3} more\n"
+
+        # Warn about L2 fallback methods
+        if pfba_fallback_conditions:
+            msg += (
+                f"\nWarning: {len(pfba_fallback_conditions)} condition(s) used pFBA (L1) "
+                f"instead of QP (L2) — solver does not support quadratic objectives.\n"
+            )
+        if fba_fallback_conditions:
+            msg += (
+                f"\nWarning: {len(fba_fallback_conditions)} condition(s) fell back to "
+                f"plain FBA (no L2/L1 minimization).\n"
+            )
 
         if successful_conditions:
             msg += "\nResults are available in the comparison table."
