@@ -34,6 +34,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
 
 # Check for matplotlib availability
 try:
@@ -407,6 +408,10 @@ class RobustnessAnalysisDialog(QDialog):
 
             # Plot controls
             plot_controls = QHBoxLayout()
+            self.customize_btn = QPushButton("Customize Plot")
+            self.customize_btn.setEnabled(False)
+            self.customize_btn.clicked.connect(self._customize_plot)
+            plot_controls.addWidget(self.customize_btn)
             save_plot_btn = QPushButton("Save Plot...")
             save_plot_btn.clicked.connect(self._save_plot)
             plot_controls.addWidget(save_plot_btn)
@@ -598,6 +603,7 @@ class RobustnessAnalysisDialog(QDialog):
 
         self.figure.tight_layout()
         self.canvas.draw()
+        self.customize_btn.setEnabled(True)
 
     def _update_bottleneck_info(self, bottleneck: dict):
         """Update the bottleneck information text."""
@@ -691,6 +697,12 @@ class RobustnessAnalysisDialog(QDialog):
         self.run_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
         self.progress_bar.setVisible(False)
+
+    @Slot()
+    def _customize_plot(self):
+        """Open the plot customization dialog."""
+        dialog = PlotCustomizationDialog(self, self.figure, self.canvas)
+        dialog.exec()
 
     @Slot()
     def _save_plot(self):

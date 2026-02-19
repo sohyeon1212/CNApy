@@ -62,6 +62,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
 
 # Check for scipy availability
 try:
@@ -545,6 +546,10 @@ class DynamicFBADialog(QDialog):
             plot_layout.addWidget(self.canvas)
 
             plot_btn_layout = QHBoxLayout()
+            self.customize_btn = QPushButton("Customize Plot")
+            self.customize_btn.setEnabled(False)
+            self.customize_btn.clicked.connect(self._customize_plot)
+            plot_btn_layout.addWidget(self.customize_btn)
             save_plot_btn = QPushButton("Save Plot...")
             save_plot_btn.clicked.connect(self._save_plot)
             plot_btn_layout.addWidget(save_plot_btn)
@@ -831,6 +836,7 @@ class DynamicFBADialog(QDialog):
 
         self.figure.tight_layout()
         self.canvas.draw()
+        self.customize_btn.setEnabled(True)
 
     def _update_data_table(self, result: DFBAResult):
         """Update the data table with simulation results."""
@@ -852,6 +858,12 @@ class DynamicFBADialog(QDialog):
                 self.data_table.setItem(row, 2 + col, QTableWidgetItem(f"{result.metabolites[mid][row]:.6f}"))
 
         self.data_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+    @Slot()
+    def _customize_plot(self):
+        """Open the plot customization dialog."""
+        dialog = PlotCustomizationDialog(self, self.figure, self.canvas)
+        dialog.exec()
 
     @Slot()
     def _save_plot(self):

@@ -47,6 +47,7 @@ from scipy import stats
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.filterable_combobox import FilterableComboBox
+from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
 
 # Check for openpyxl availability for XLSX export
 try:
@@ -574,9 +575,15 @@ class FVSEOFDialog(QDialog):
             self.canvas = FigureCanvas(self.figure)
             plot_layout.addWidget(self.canvas)
 
+            plot_btn_row = QHBoxLayout()
+            self.customize_btn = QPushButton("Customize Plot")
+            self.customize_btn.setEnabled(False)
+            self.customize_btn.clicked.connect(self._customize_plot)
+            plot_btn_row.addWidget(self.customize_btn)
             export_plot_btn = QPushButton("Export Plot...")
             export_plot_btn.clicked.connect(self._export_plot)
-            plot_layout.addWidget(export_plot_btn)
+            plot_btn_row.addWidget(export_plot_btn)
+            plot_layout.addLayout(plot_btn_row)
 
             plot_widget.setLayout(plot_layout)
             splitter.addWidget(plot_widget)
@@ -872,29 +879,30 @@ class FVSEOFDialog(QDialog):
         target_fluxes = [d["target_flux"] for d in feasible_data]
         biomass_values = [d["biomass"] for d in feasible_data]
 
-        ax.plot(target_fluxes, biomass_values, "b-o", markersize=5, linewidth=2, label="Max Biomass")
+        ax.plot(biomass_values, target_fluxes, "b-o", markersize=5, linewidth=2, label="Max Biomass")
 
         # Add constrained biomass line
         constrained_biomass = [
             d.get("constrained_biomass", d["biomass"] * data["biomass_fraction"]) for d in feasible_data
         ]
         ax.plot(
-            target_fluxes,
             constrained_biomass,
+            target_fluxes,
             "g--",
             linewidth=1.5,
             alpha=0.7,
             label=f"Constrained ({data['biomass_fraction']*100:.0f}%)",
         )
 
-        ax.set_xlabel(f"Target: {data['target_reaction']}")
-        ax.set_ylabel(f"Biomass: {data['biomass_reaction']}")
+        ax.set_xlabel(f"Biomass: {data['biomass_reaction']}")
+        ax.set_ylabel(f"Target: {data['target_reaction']}")
         ax.set_title("FVSEOF Production Envelope")
         ax.legend(fontsize=8)
         ax.grid(True, alpha=0.3)
 
         self.figure.tight_layout()
         self.canvas.draw()
+        self.customize_btn.setEnabled(True)
 
     @Slot(str)
     def _on_error(self, error: str):
@@ -1103,6 +1111,12 @@ class FVSEOFDialog(QDialog):
             QMessageBox.information(self, "Exported", f"Results exported to {filename}")
         except Exception as e:
             QMessageBox.warning(self, "Export Error", f"Failed to export: {str(e)}")
+
+    @Slot()
+    def _customize_plot(self):
+        """Open the plot customization dialog."""
+        dialog = PlotCustomizationDialog(self, self.figure, self.canvas)
+        dialog.exec()
 
     @Slot()
     def _export_plot(self):

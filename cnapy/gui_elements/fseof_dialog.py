@@ -42,6 +42,7 @@ from qtpy.QtWidgets import (
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.filterable_combobox import FilterableComboBox
+from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
 
 # Check for openpyxl availability for XLSX export
 try:
@@ -390,10 +391,15 @@ class FSEOFDialog(QDialog):
             self.canvas = FigureCanvas(self.figure)
             plot_layout.addWidget(self.canvas)
 
-            # Export plot button
+            plot_btn_row = QHBoxLayout()
+            self.customize_btn = QPushButton("Customize Plot")
+            self.customize_btn.setEnabled(False)
+            self.customize_btn.clicked.connect(self._customize_plot)
+            plot_btn_row.addWidget(self.customize_btn)
             export_plot_btn = QPushButton("Export Plot...")
             export_plot_btn.clicked.connect(self._export_plot)
-            plot_layout.addWidget(export_plot_btn)
+            plot_btn_row.addWidget(export_plot_btn)
+            plot_layout.addLayout(plot_btn_row)
 
             plot_widget.setLayout(plot_layout)
             splitter.addWidget(plot_widget)
@@ -619,20 +625,20 @@ class FSEOFDialog(QDialog):
         if not flux_data:
             return
 
-        # Plot 1: Production Envelope (Target vs Objective)
+        # Plot 1: Production Envelope (Objective vs Target)
         ax1 = self.figure.add_subplot(121)
         target_fluxes = [r["target_flux"] for r in flux_data]
         obj_fluxes = [r["objective_flux"] for r in flux_data]
 
-        ax1.plot(target_fluxes, obj_fluxes, "b-o", markersize=4, linewidth=1.5)
-        ax1.set_xlabel(f"Target: {data['target_reaction']}")
-        ax1.set_ylabel(f"Objective: {data['objective_reaction']}")
+        ax1.plot(obj_fluxes, target_fluxes, "b-o", markersize=4, linewidth=1.5)
+        ax1.set_xlabel(f"Objective: {data['objective_reaction']}")
+        ax1.set_ylabel(f"Target: {data['target_reaction']}")
         ax1.set_title("Production Envelope")
         ax1.grid(True, alpha=0.3)
 
         # Add reference lines
-        ax1.axhline(
-            y=data["min_objective"],
+        ax1.axvline(
+            x=data["min_objective"],
             color="orange",
             linestyle="--",
             alpha=0.7,
@@ -661,6 +667,7 @@ class FSEOFDialog(QDialog):
 
         self.figure.tight_layout()
         self.canvas.draw()
+        self.customize_btn.setEnabled(True)
 
     @Slot(str)
     def _on_error(self, error: str):
@@ -828,6 +835,12 @@ class FSEOFDialog(QDialog):
             QMessageBox.information(self, "Exported", f"Results exported to {filename}")
         except Exception as e:
             QMessageBox.warning(self, "Export Error", f"Failed to export: {str(e)}")
+
+    @Slot()
+    def _customize_plot(self):
+        """Open the plot customization dialog."""
+        dialog = PlotCustomizationDialog(self, self.figure, self.canvas)
+        dialog.exec()
 
     @Slot()
     def _export_plot(self):
