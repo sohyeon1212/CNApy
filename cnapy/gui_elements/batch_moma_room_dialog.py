@@ -36,6 +36,7 @@ from qtpy.QtWidgets import (
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.filterable_combobox import FilterableComboBox
+from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
 from cnapy.moma import has_milp_solver, linear_moma, room
 
 # Check for openpyxl availability for XLSX export
@@ -506,10 +507,15 @@ class BatchMomaRoomDialog(QDialog):
             self.canvas = FigureCanvas(self.figure)
             plot_layout.addWidget(self.canvas)
 
-            # Export plot button
+            plot_btn_row = QHBoxLayout()
+            self.customize_btn = QPushButton("Customize Plot")
+            self.customize_btn.setEnabled(False)
+            self.customize_btn.clicked.connect(self._customize_plot)
+            plot_btn_row.addWidget(self.customize_btn)
             export_plot_btn = QPushButton("Export Plot...")
             export_plot_btn.clicked.connect(self._export_plot)
-            plot_layout.addWidget(export_plot_btn)
+            plot_btn_row.addWidget(export_plot_btn)
+            plot_layout.addLayout(plot_btn_row)
 
             plot_widget.setLayout(plot_layout)
             splitter.addWidget(plot_widget)
@@ -871,7 +877,7 @@ class BatchMomaRoomDialog(QDialog):
 
             ax.set_xlabel("KO Biomass")
             ax.set_ylabel("KO Target Production")
-            ax.set_title("MOMA/ROOM: Biomass vs Target Production")
+            ax.set_title(f"{data['analysis_type'].upper()}: Biomass vs Target Production")
 
             # Set axis limits
             max_x = max(wt_biomass, max(r["ko_biomass"] for r in results) if results else 0) * 1.1
@@ -919,12 +925,13 @@ class BatchMomaRoomDialog(QDialog):
 
             ax.set_xlabel("Wild-type Biomass")
             ax.set_ylabel("Knockout Biomass")
-            ax.set_title("MOMA/ROOM Knockout Analysis")
+            ax.set_title(f"{data['analysis_type'].upper()} Knockout Analysis")
             ax.set_xlim(0, max_val)
             ax.set_ylim(0, max_val)
 
         ax.legend(loc="best", fontsize=8)
         self.canvas.draw()
+        self.customize_btn.setEnabled(True)
 
     @Slot(str)
     def _on_error(self, error: str):
@@ -1101,6 +1108,12 @@ class BatchMomaRoomDialog(QDialog):
             QMessageBox.information(self, "Exported", f"Results exported to {filename}")
         except Exception as e:
             QMessageBox.warning(self, "Export Error", f"Failed to export: {str(e)}")
+
+    @Slot()
+    def _customize_plot(self):
+        """Open the plot customization dialog."""
+        dialog = PlotCustomizationDialog(self, self.figure, self.canvas)
+        dialog.exec()
 
     @Slot()
     def _export_plot(self):

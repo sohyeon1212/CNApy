@@ -56,6 +56,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
 
 # Check for openpyxl availability for XLSX export
 try:
@@ -417,9 +418,15 @@ class FluxResponseDialog(QDialog):
             self.canvas = FigureCanvas(self.figure)
             plot_layout.addWidget(self.canvas)
 
+            plot_btn_row = QHBoxLayout()
+            self.customize_btn = QPushButton("Customize Plot")
+            self.customize_btn.setEnabled(False)
+            self.customize_btn.clicked.connect(self._customize_plot)
+            plot_btn_row.addWidget(self.customize_btn)
             export_plot_btn = QPushButton("Export Plot...")
             export_plot_btn.clicked.connect(self._export_plot)
-            plot_layout.addWidget(export_plot_btn)
+            plot_btn_row.addWidget(export_plot_btn)
+            plot_layout.addLayout(plot_btn_row)
 
             plot_widget.setLayout(plot_layout)
             splitter.addWidget(plot_widget)
@@ -765,6 +772,17 @@ class FluxResponseDialog(QDialog):
             markeredgecolor="#6B4C6E",
         )
 
+        # Horizontal reference line at WT product flux
+        wt_product = data["wt_product"]
+        ax.axhline(
+            y=wt_product,
+            color="steelblue",
+            linestyle="--",
+            linewidth=1.2,
+            alpha=0.6,
+            label=f"WT ({wt_product:.2f})",
+        )
+
         # Mark optimal point with a star
         if optimal:
             ax.plot(
@@ -778,7 +796,7 @@ class FluxResponseDialog(QDialog):
                 label=f"Optimal ({optimal['product_flux']:.2f})",
                 zorder=5,
             )
-            ax.legend(fontsize=9, loc="best")
+        ax.legend(fontsize=9, loc="best")
 
         # Labels with units (mmol/gDCW/h)
         ax.set_xlabel(f"{data['target_reaction']} flux (mmol/gDCW/h)", fontsize=11)
@@ -795,6 +813,7 @@ class FluxResponseDialog(QDialog):
 
         self.figure.tight_layout()
         self.canvas.draw()
+        self.customize_btn.setEnabled(True)
 
     @Slot(str)
     def _on_error(self, error: str):
@@ -945,6 +964,12 @@ class FluxResponseDialog(QDialog):
             QMessageBox.information(self, "Exported", f"Results exported to {filename}")
         except Exception as e:
             QMessageBox.warning(self, "Export Error", f"Failed to export: {str(e)}")
+
+    @Slot()
+    def _customize_plot(self):
+        """Open the plot customization dialog."""
+        dialog = PlotCustomizationDialog(self, self.figure, self.canvas)
+        dialog.exec()
 
     @Slot()
     def _export_plot(self):
