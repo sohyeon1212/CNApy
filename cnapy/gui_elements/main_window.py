@@ -2104,27 +2104,50 @@ class MainWindow(QMainWindow):
             self.appdata.project.solution = model_optimization_with_exceptions(model)
         self.process_fba_solution()
 
-    def perform_linear_moma(self, silent=False):
-        if self.appdata.project.solution is None:
+    def _get_moma_room_reference(self, method_name: str, silent: bool):
+        """Return reference flux dict for MOMA/ROOM, or None to abort.
+
+        Shows a reference-selection dialog when omics results are available
+        and the call is not in silent (auto-analysis) mode.
+        """
+        from qtpy.QtWidgets import QDialog as _QDialog
+
+        from cnapy.gui_elements.moma_room_reference_dialog import MomaRoomReferenceDialog
+
+        project = self.appdata.project
+
+        if not silent and project.omics_results:
+            dialog = MomaRoomReferenceDialog(self.appdata, method_name, self)
+            if dialog.exec() != _QDialog.Accepted:
+                return None
+            ref_type, condition = dialog.get_reference()
+            if ref_type == "omics":
+                return dict(project.omics_results[condition])
+
+        # Fall through to previous solution
+        if project.solution is None:
             if not silent:
                 QMessageBox.warning(
                     self,
                     "No reference solution",
                     "No reference solution found. Please run FBA on the reference state first.",
                 )
+            return None
+        return dict(project.solution.fluxes)
+
+    def perform_linear_moma(self, silent=False):
+        reference_fluxes = self._get_moma_room_reference("Linear MOMA", silent)
+        if reference_fluxes is None:
             return
 
         with self.appdata.project.cobra_py_model as model:
             self.appdata.project.load_scenario_into_model(model)
-            # Use previous solution as reference
-            reference_fluxes = self.appdata.project.solution.fluxes
             self.appdata.project.solution = linear_moma(model, reference_fluxes)
 
         self.process_fba_solution()
 
     def perform_room(self, silent=False):
         """Perform ROOM (Regulatory On/Off Minimization) analysis."""
-        # Check for MILP solver
         has_milp, solver_msg = has_milp_solver()
         if not has_milp:
             QMessageBox.warning(
@@ -2134,20 +2157,13 @@ class MainWindow(QMainWindow):
             )
             return
 
-        if self.appdata.project.solution is None:
-            if not silent:
-                QMessageBox.warning(
-                    self,
-                    "No reference solution",
-                    "No reference solution found. Please run FBA on the reference state first.",
-                )
+        reference_fluxes = self._get_moma_room_reference("ROOM", silent)
+        if reference_fluxes is None:
             return
 
         try:
             with self.appdata.project.cobra_py_model as model:
                 self.appdata.project.load_scenario_into_model(model)
-                # Use previous solution as reference
-                reference_fluxes = self.appdata.project.solution.fluxes
                 self.appdata.project.solution = room(model, reference_fluxes)
 
             self.process_fba_solution()
