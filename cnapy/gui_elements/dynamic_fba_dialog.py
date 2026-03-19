@@ -48,6 +48,9 @@ from qtpy.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -371,7 +374,7 @@ class DynamicFBADialog(QDialog):
     def __init__(self, appdata: AppData, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Dynamic FBA (dFBA) Simulation")
-        self.setMinimumSize(1100, 800)
+        self.setMinimumSize(1200, 900)
         self.appdata = appdata
 
         self.simulation_thread: DFBASimulationThread | None = None
@@ -454,11 +457,31 @@ class DynamicFBADialog(QDialog):
         self.substrates_table = QTableWidget()
         self.substrates_table.setColumnCount(5)
         self.substrates_table.setHorizontalHeaderLabels(
-            ["Include", "Exchange Reaction", "Initial (mM)", "Km (mM)", "Vmax (mmol/gDW/h)"]
+            ["Use", "EX Reaction", "Initial (mM)", "Km (mM)", "Vmax (mmol/gDW/h)"]
         )
-        self.substrates_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.substrates_table.setMaximumHeight(150)
+        hdr_s = self.substrates_table.horizontalHeader()
+        hdr_s.setSectionResizeMode(0, QHeaderView.Fixed)
+        self.substrates_table.setColumnWidth(0, 36)
+        hdr_s.setSectionResizeMode(1, QHeaderView.Stretch)
+        hdr_s.setSectionResizeMode(2, QHeaderView.Fixed)
+        self.substrates_table.setColumnWidth(2, 80)
+        hdr_s.setSectionResizeMode(3, QHeaderView.Fixed)
+        self.substrates_table.setColumnWidth(3, 65)
+        hdr_s.setSectionResizeMode(4, QHeaderView.Fixed)
+        self.substrates_table.setColumnWidth(4, 130)
+        self.substrates_table.setMaximumHeight(220)
+        self.substrates_table.horizontalHeader().sectionClicked.connect(self._on_substrates_header_clicked)
         substrates_layout.addWidget(self.substrates_table)
+
+        substrates_btn_layout = QHBoxLayout()
+        add_substrate_btn = QPushButton("Add")
+        add_substrate_btn.clicked.connect(self._add_substrate_row)
+        substrates_btn_layout.addWidget(add_substrate_btn)
+        remove_substrate_btn = QPushButton("Remove")
+        remove_substrate_btn.clicked.connect(self._remove_substrate_row)
+        substrates_btn_layout.addWidget(remove_substrate_btn)
+        substrates_btn_layout.addStretch()
+        substrates_layout.addLayout(substrates_btn_layout)
 
         substrates_group.setLayout(substrates_layout)
         left_layout.addWidget(substrates_group)
@@ -469,10 +492,26 @@ class DynamicFBADialog(QDialog):
 
         self.products_table = QTableWidget()
         self.products_table.setColumnCount(3)
-        self.products_table.setHorizontalHeaderLabels(["Include", "Exchange Reaction", "Initial (mM)"])
-        self.products_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.products_table.setMaximumHeight(120)
+        self.products_table.setHorizontalHeaderLabels(["Use", "EX Reaction", "Initial (mM)"])
+        hdr_p = self.products_table.horizontalHeader()
+        hdr_p.setSectionResizeMode(0, QHeaderView.Fixed)
+        self.products_table.setColumnWidth(0, 36)
+        hdr_p.setSectionResizeMode(1, QHeaderView.Stretch)
+        hdr_p.setSectionResizeMode(2, QHeaderView.Fixed)
+        self.products_table.setColumnWidth(2, 90)
+        self.products_table.setMaximumHeight(200)
+        self.products_table.horizontalHeader().sectionClicked.connect(self._on_products_header_clicked)
         products_layout.addWidget(self.products_table)
+
+        products_btn_layout = QHBoxLayout()
+        add_product_btn = QPushButton("Add")
+        add_product_btn.clicked.connect(self._add_product_row)
+        products_btn_layout.addWidget(add_product_btn)
+        remove_product_btn = QPushButton("Remove")
+        remove_product_btn.clicked.connect(self._remove_product_row)
+        products_btn_layout.addWidget(remove_product_btn)
+        products_btn_layout.addStretch()
+        products_layout.addLayout(products_btn_layout)
 
         products_group.setLayout(products_layout)
         left_layout.addWidget(products_group)
@@ -588,7 +627,7 @@ class DynamicFBADialog(QDialog):
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left_widget)
         splitter.addWidget(right_widget)
-        splitter.setSizes([400, 700])
+        splitter.setSizes([500, 700])
 
         main_layout.addWidget(splitter)
         self.setLayout(main_layout)
@@ -625,29 +664,19 @@ class DynamicFBADialog(QDialog):
             self.biomass_combo.addItem(rid)
 
         # Find exchange reactions for substrates and products
-        exchange_rxns = [rxn for rxn in model.reactions if rxn.id.startswith("EX_")]
-
-        # Common substrates
-        common_substrates = ["EX_glc__D_e", "EX_glc_D_e", "EX_o2_e", "EX_nh4_e"]
+        # Default substrates: only these 3
+        default_substrates = ["EX_glc__D_e", "EX_o2_e", "EX_nh4_e"]
         # Common products
         common_products = ["EX_ac_e", "EX_etoh_e", "EX_lac__D_e", "EX_co2_e", "EX_for_e"]
 
-        # Populate substrates table
-        substrate_rxns = []
-        for rid in common_substrates:
-            if rid in model.reactions:
-                substrate_rxns.append(rid)
-
-        # Add other exchange reactions
-        for rxn in exchange_rxns[:20]:  # Limit for performance
-            if rxn.id not in substrate_rxns and rxn.id not in common_products:
-                substrate_rxns.append(rxn.id)
+        # Populate substrates table with only the 3 default substrates (if present in model)
+        substrate_rxns = [rid for rid in default_substrates if rid in model.reactions]
 
         self.substrates_table.setRowCount(len(substrate_rxns))
         for row, rid in enumerate(substrate_rxns):
             # Checkbox
             cb = QCheckBox()
-            cb.setChecked(rid in common_substrates[:2])  # Check glucose and o2 by default
+            cb.setChecked(True)  # All 3 defaults checked
             self.substrates_table.setCellWidget(row, 0, cb)
 
             # Reaction ID
@@ -906,3 +935,163 @@ class DynamicFBADialog(QDialog):
 
             self._log(f"Data exported to {filename}")
             QMessageBox.information(self, "Exported", f"Data exported to {filename}")
+
+    def _pick_reaction(self, title: str) -> str | None:
+        """Open a searchable dialog to pick a reaction from the model. Returns reaction ID or None."""
+        model = self.appdata.project.cobra_py_model
+        all_reaction_ids = [rxn.id for rxn in model.reactions]
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setMinimumSize(400, 500)
+        layout = QVBoxLayout()
+
+        search_box = QLineEdit()
+        search_box.setPlaceholderText("Search reactions...")
+        layout.addWidget(search_box)
+
+        list_widget = QListWidget()
+        for rid in all_reaction_ids:
+            rxn = model.reactions.get_by_id(rid)
+            label = f"{rid}  —  {rxn.name}" if rxn.name else rid
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, rid)
+            list_widget.addItem(item)
+        layout.addWidget(list_widget)
+
+        def _filter(text):
+            text_lower = text.lower()
+            for i in range(list_widget.count()):
+                item = list_widget.item(i)
+                item.setHidden(text_lower not in item.text().lower())
+
+        search_box.textChanged.connect(_filter)
+
+        btn_layout = QHBoxLayout()
+        ok_btn = QPushButton("OK")
+        ok_btn.clicked.connect(dialog.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(dialog.reject)
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+
+        list_widget.itemDoubleClicked.connect(lambda _: dialog.accept())
+
+        dialog.setLayout(layout)
+
+        if dialog.exec() == QDialog.Accepted:
+            selected = list_widget.currentItem()
+            if selected:
+                return selected.data(Qt.UserRole)
+        return None
+
+    @Slot()
+    def _add_substrate_row(self):
+        """Add a reaction to the substrates table."""
+        rid = self._pick_reaction("Add Substrate Reaction")
+        if not rid:
+            return
+
+        # Check for duplicates
+        for row in range(self.substrates_table.rowCount()):
+            item = self.substrates_table.item(row, 1)
+            if item and item.text() == rid:
+                QMessageBox.information(self, "Already Added", f"{rid} is already in the substrates list.")
+                return
+
+        row = self.substrates_table.rowCount()
+        self.substrates_table.setRowCount(row + 1)
+
+        cb = QCheckBox()
+        cb.setChecked(True)
+        self.substrates_table.setCellWidget(row, 0, cb)
+        self.substrates_table.setItem(row, 1, QTableWidgetItem(rid))
+
+        init_spin = QDoubleSpinBox()
+        init_spin.setRange(0, 10000)
+        init_spin.setValue(10.0 if "glc" in rid else 1.0)
+        self.substrates_table.setCellWidget(row, 2, init_spin)
+
+        km_spin = QDoubleSpinBox()
+        km_spin.setRange(0.001, 1000)
+        km_spin.setValue(0.5 if "glc" in rid else 0.1)
+        self.substrates_table.setCellWidget(row, 3, km_spin)
+
+        vmax_spin = QDoubleSpinBox()
+        vmax_spin.setRange(0.1, 100)
+        vmax_spin.setValue(10.0 if "glc" in rid else 20.0)
+        self.substrates_table.setCellWidget(row, 4, vmax_spin)
+
+    @Slot()
+    def _remove_substrate_row(self):
+        """Remove the selected row from the substrates table."""
+        selected_rows = sorted(set(idx.row() for idx in self.substrates_table.selectedIndexes()), reverse=True)
+        for row in selected_rows:
+            self.substrates_table.removeRow(row)
+
+    @Slot()
+    def _add_product_row(self):
+        """Add a reaction to the products table."""
+        rid = self._pick_reaction("Add Product Reaction")
+        if not rid:
+            return
+
+        # Check for duplicates
+        for row in range(self.products_table.rowCount()):
+            item = self.products_table.item(row, 1)
+            if item and item.text() == rid:
+                QMessageBox.information(self, "Already Added", f"{rid} is already in the products list.")
+                return
+
+        row = self.products_table.rowCount()
+        self.products_table.setRowCount(row + 1)
+
+        cb = QCheckBox()
+        cb.setChecked(True)
+        self.products_table.setCellWidget(row, 0, cb)
+        self.products_table.setItem(row, 1, QTableWidgetItem(rid))
+
+        init_spin = QDoubleSpinBox()
+        init_spin.setRange(0, 10000)
+        init_spin.setValue(0.0)
+        self.products_table.setCellWidget(row, 2, init_spin)
+
+    @Slot()
+    def _remove_product_row(self):
+        """Remove the selected row from the products table."""
+        selected_rows = sorted(set(idx.row() for idx in self.products_table.selectedIndexes()), reverse=True)
+        for row in selected_rows:
+            self.products_table.removeRow(row)
+
+    @Slot(int)
+    def _on_substrates_header_clicked(self, col: int):
+        """Toggle all checkboxes in the substrates table when the Use header is clicked."""
+        if col != 0:
+            return
+        all_checked = all(
+            self.substrates_table.cellWidget(row, 0).isChecked()
+            for row in range(self.substrates_table.rowCount())
+            if self.substrates_table.cellWidget(row, 0)
+        )
+        new_state = not all_checked
+        for row in range(self.substrates_table.rowCount()):
+            cb = self.substrates_table.cellWidget(row, 0)
+            if cb:
+                cb.setChecked(new_state)
+
+    @Slot(int)
+    def _on_products_header_clicked(self, col: int):
+        """Toggle all checkboxes in the products table when the Use header is clicked."""
+        if col != 0:
+            return
+        all_checked = all(
+            self.products_table.cellWidget(row, 0).isChecked()
+            for row in range(self.products_table.rowCount())
+            if self.products_table.cellWidget(row, 0)
+        )
+        new_state = not all_checked
+        for row in range(self.products_table.rowCount()):
+            cb = self.products_table.cellWidget(row, 0)
+            if cb:
+                cb.setChecked(new_state)
