@@ -374,7 +374,7 @@ class DynamicFBADialog(QDialog):
     def __init__(self, appdata: AppData, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Dynamic FBA (dFBA) Simulation")
-        self.setMinimumSize(1100, 800)
+        self.setMinimumSize(1200, 900)
         self.appdata = appdata
 
         self.simulation_thread: DFBASimulationThread | None = None
@@ -457,10 +457,20 @@ class DynamicFBADialog(QDialog):
         self.substrates_table = QTableWidget()
         self.substrates_table.setColumnCount(5)
         self.substrates_table.setHorizontalHeaderLabels(
-            ["Include", "Exchange Reaction", "Initial (mM)", "Km (mM)", "Vmax (mmol/gDW/h)"]
+            ["Use", "EX Reaction", "Initial (mM)", "Km (mM)", "Vmax (mmol/gDW/h)"]
         )
-        self.substrates_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.substrates_table.setMaximumHeight(150)
+        hdr_s = self.substrates_table.horizontalHeader()
+        hdr_s.setSectionResizeMode(0, QHeaderView.Fixed)
+        self.substrates_table.setColumnWidth(0, 36)
+        hdr_s.setSectionResizeMode(1, QHeaderView.Stretch)
+        hdr_s.setSectionResizeMode(2, QHeaderView.Fixed)
+        self.substrates_table.setColumnWidth(2, 80)
+        hdr_s.setSectionResizeMode(3, QHeaderView.Fixed)
+        self.substrates_table.setColumnWidth(3, 65)
+        hdr_s.setSectionResizeMode(4, QHeaderView.Fixed)
+        self.substrates_table.setColumnWidth(4, 130)
+        self.substrates_table.setMaximumHeight(220)
+        self.substrates_table.horizontalHeader().sectionClicked.connect(self._on_substrates_header_clicked)
         substrates_layout.addWidget(self.substrates_table)
 
         substrates_btn_layout = QHBoxLayout()
@@ -482,9 +492,15 @@ class DynamicFBADialog(QDialog):
 
         self.products_table = QTableWidget()
         self.products_table.setColumnCount(3)
-        self.products_table.setHorizontalHeaderLabels(["Include", "Exchange Reaction", "Initial (mM)"])
-        self.products_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.products_table.setMaximumHeight(120)
+        self.products_table.setHorizontalHeaderLabels(["Use", "EX Reaction", "Initial (mM)"])
+        hdr_p = self.products_table.horizontalHeader()
+        hdr_p.setSectionResizeMode(0, QHeaderView.Fixed)
+        self.products_table.setColumnWidth(0, 36)
+        hdr_p.setSectionResizeMode(1, QHeaderView.Stretch)
+        hdr_p.setSectionResizeMode(2, QHeaderView.Fixed)
+        self.products_table.setColumnWidth(2, 90)
+        self.products_table.setMaximumHeight(200)
+        self.products_table.horizontalHeader().sectionClicked.connect(self._on_products_header_clicked)
         products_layout.addWidget(self.products_table)
 
         products_btn_layout = QHBoxLayout()
@@ -611,7 +627,7 @@ class DynamicFBADialog(QDialog):
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left_widget)
         splitter.addWidget(right_widget)
-        splitter.setSizes([400, 700])
+        splitter.setSizes([500, 700])
 
         main_layout.addWidget(splitter)
         self.setLayout(main_layout)
@@ -1047,3 +1063,35 @@ class DynamicFBADialog(QDialog):
         selected_rows = sorted(set(idx.row() for idx in self.products_table.selectedIndexes()), reverse=True)
         for row in selected_rows:
             self.products_table.removeRow(row)
+
+    @Slot(int)
+    def _on_substrates_header_clicked(self, col: int):
+        """Toggle all checkboxes in the substrates table when the Use header is clicked."""
+        if col != 0:
+            return
+        all_checked = all(
+            self.substrates_table.cellWidget(row, 0).isChecked()
+            for row in range(self.substrates_table.rowCount())
+            if self.substrates_table.cellWidget(row, 0)
+        )
+        new_state = not all_checked
+        for row in range(self.substrates_table.rowCount()):
+            cb = self.substrates_table.cellWidget(row, 0)
+            if cb:
+                cb.setChecked(new_state)
+
+    @Slot(int)
+    def _on_products_header_clicked(self, col: int):
+        """Toggle all checkboxes in the products table when the Use header is clicked."""
+        if col != 0:
+            return
+        all_checked = all(
+            self.products_table.cellWidget(row, 0).isChecked()
+            for row in range(self.products_table.rowCount())
+            if self.products_table.cellWidget(row, 0)
+        )
+        new_state = not all_checked
+        for row in range(self.products_table.rowCount()):
+            cb = self.products_table.cellWidget(row, 0)
+            if cb:
+                cb.setChecked(new_state)
