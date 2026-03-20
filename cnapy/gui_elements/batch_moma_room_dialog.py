@@ -38,6 +38,7 @@ from cnapy.appdata import AppData
 from cnapy.gui_elements.filterable_combobox import FilterableComboBox
 from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
 from cnapy.moma import has_milp_solver, linear_moma, room
+from cnapy.utils import no_scroll
 
 # Check for openpyxl availability for XLSX export
 try:
@@ -410,7 +411,7 @@ class BatchMomaRoomDialog(QDialog):
         # Template flux selection
         template_layout = QHBoxLayout()
         template_layout.addWidget(QLabel("Template Flux:"))
-        self.template_selector = QComboBox()
+        self.template_selector = no_scroll(QComboBox())
         self.template_selector.addItem("Current Map (if available)", "map")
         self.template_selector.addItem("FBA", "fba")
         self.template_selector.addItem("pFBA (parsimonious)", "pfba")
@@ -439,7 +440,7 @@ class BatchMomaRoomDialog(QDialog):
         # Threshold setting
         threshold_layout = QHBoxLayout()
         threshold_layout.addWidget(QLabel("Essentiality threshold:"))
-        self.threshold_spin = QDoubleSpinBox()
+        self.threshold_spin = no_scroll(QDoubleSpinBox())
         self.threshold_spin.setRange(0.0001, 1.0)
         self.threshold_spin.setValue(0.01)
         self.threshold_spin.setDecimals(4)

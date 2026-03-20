@@ -13,6 +13,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.utils import no_scroll
 
 
 class ClipboardCalculator(QDialog):
@@ -43,7 +44,7 @@ class ClipboardCalculator(QDialog):
         self.left.addWidget(self.l2)
         self.left.addItem(h1)
         op = QVBoxLayout()
-        self.op = QComboBox()
+        self.op = no_scroll(QComboBox())
         self.op.insertItem(1, "+")
         self.op.insertItem(2, "-")
         self.op.insertItem(3, "*")

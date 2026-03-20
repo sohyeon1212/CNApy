@@ -66,6 +66,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.utils import no_scroll
 
 
 class NumericTableWidgetItem(QTableWidgetItem):
@@ -675,7 +676,7 @@ class OmicsIntegrationDialog(QDialog):
 
         method_row = QHBoxLayout()
         method_row.addWidget(QLabel("Method:"))
-        self.method_combo = QComboBox()
+        self.method_combo = no_scroll(QComboBox())
         self.method_combo.addItems(["LAD (Least Absolute Deviation)", "E-Flux2 (Expression-based FBA)"])
         self.method_combo.setToolTip(
             "LAD: Minimizes absolute deviation between fluxes and expression targets.\n"
@@ -713,7 +714,7 @@ class OmicsIntegrationDialog(QDialog):
 
         threshold_row = QHBoxLayout()
         threshold_row.addWidget(QLabel("Weight threshold:"))
-        self.threshold_spin = QDoubleSpinBox()
+        self.threshold_spin = no_scroll(QDoubleSpinBox())
         self.threshold_spin.setDecimals(4)
         self.threshold_spin.setRange(0, 1000)
         self.threshold_spin.setValue(0.01)
@@ -722,7 +723,7 @@ class OmicsIntegrationDialog(QDialog):
 
         scale_row = QHBoxLayout()
         scale_row.addWidget(QLabel("Scaling factor:"))
-        self.scale_spin = QDoubleSpinBox()
+        self.scale_spin = no_scroll(QDoubleSpinBox())
         self.scale_spin.setDecimals(4)
         self.scale_spin.setRange(0.0001, 10000)
         self.scale_spin.setValue(1.0)
@@ -739,7 +740,7 @@ class OmicsIntegrationDialog(QDialog):
 
         min_scale_row = QHBoxLayout()
         min_scale_row.addWidget(QLabel("Minimum scale:"))
-        self.min_scale_spin = QDoubleSpinBox()
+        self.min_scale_spin = no_scroll(QDoubleSpinBox())
         self.min_scale_spin.setDecimals(4)
         self.min_scale_spin.setRange(0.0001, 1.0)
         self.min_scale_spin.setValue(0.001)
@@ -752,7 +753,7 @@ class OmicsIntegrationDialog(QDialog):
 
         obj_frac_row = QHBoxLayout()
         obj_frac_row.addWidget(QLabel("Objective fraction:"))
-        self.obj_fraction_spin = QDoubleSpinBox()
+        self.obj_fraction_spin = no_scroll(QDoubleSpinBox())
         self.obj_fraction_spin.setDecimals(2)
         self.obj_fraction_spin.setRange(0.0, 1.0)
         self.obj_fraction_spin.setValue(0.99)
@@ -784,7 +785,7 @@ class OmicsIntegrationDialog(QDialog):
         # FC (Fold Change) reference condition selector
         fc_row = QHBoxLayout()
         fc_row.addWidget(QLabel("FC Reference:"))
-        self.fc_reference_combo = QComboBox()
+        self.fc_reference_combo = no_scroll(QComboBox())
         self.fc_reference_combo.setToolTip(
             "Select reference condition for Fold Change calculation.\n"
             "FC = log2(condition / reference)"

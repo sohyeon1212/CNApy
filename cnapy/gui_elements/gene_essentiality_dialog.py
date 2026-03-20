@@ -30,6 +30,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.utils import no_scroll
 
 # Check for openpyxl availability for XLSX export
 try:
@@ -195,7 +196,7 @@ class GeneEssentialityDialog(QDialog):
         # Threshold
         threshold_layout = QHBoxLayout()
         threshold_layout.addWidget(QLabel("Essentiality threshold:"))
-        self.threshold_spin = QDoubleSpinBox()
+        self.threshold_spin = no_scroll(QDoubleSpinBox())
         self.threshold_spin.setRange(0.0001, 1.0)
         self.threshold_spin.setValue(0.01)
         self.threshold_spin.setDecimals(4)

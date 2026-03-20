@@ -35,6 +35,7 @@ from qtpy.QtWidgets import (
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
+from cnapy.utils import no_scroll
 
 # Check for matplotlib availability
 try:
@@ -250,7 +251,7 @@ class RobustnessAnalysisDialog(QDialog):
         rxn_group = QGroupBox("Target Reaction")
         rxn_layout = QVBoxLayout()
 
-        self.rxn_combo = QComboBox()
+        self.rxn_combo = no_scroll(QComboBox())
         self.rxn_combo.setEditable(True)
         self.rxn_combo.setInsertPolicy(QComboBox.NoInsert)
         self.rxn_combo.setToolTip(
@@ -276,7 +277,7 @@ class RobustnessAnalysisDialog(QDialog):
 
         min_row = QHBoxLayout()
         min_row.addWidget(QLabel("Min flux:"))
-        self.min_spin = QDoubleSpinBox()
+        self.min_spin = no_scroll(QDoubleSpinBox())
         self.min_spin.setRange(-1000, 1000)
         self.min_spin.setValue(-10)
         self.min_spin.setDecimals(3)
@@ -291,7 +292,7 @@ class RobustnessAnalysisDialog(QDialog):
 
         max_row = QHBoxLayout()
         max_row.addWidget(QLabel("Max flux:"))
-        self.max_spin = QDoubleSpinBox()
+        self.max_spin = no_scroll(QDoubleSpinBox())
         self.max_spin.setRange(-1000, 1000)
         self.max_spin.setValue(0)
         self.max_spin.setDecimals(3)
@@ -301,7 +302,7 @@ class RobustnessAnalysisDialog(QDialog):
 
         steps_row = QHBoxLayout()
         steps_row.addWidget(QLabel("Steps:"))
-        self.steps_spin = QSpinBox()
+        self.steps_spin = no_scroll(QSpinBox())
         self.steps_spin.setRange(5, 500)
         self.steps_spin.setValue(31)
         self.steps_spin.setToolTip(

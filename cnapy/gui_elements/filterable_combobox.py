@@ -28,6 +28,7 @@ class FilterableComboBox(QComboBox):
         super().__init__(parent)
         self.setEditable(True)
         self.setInsertPolicy(QComboBox.NoInsert)
+        self.setFocusPolicy(Qt.StrongFocus)
 
         # Setup completer for contains-matching
         self._completer = QCompleter(self)
@@ -44,6 +45,13 @@ class FilterableComboBox(QComboBox):
     def _update_completer(self):
         """Update completer model to match combo box model."""
         self._completer.setModel(self.model())
+
+    def wheelEvent(self, event):
+        """Ignore scroll wheel when not focused to prevent accidental value changes."""
+        if not self.hasFocus():
+            event.ignore()
+        else:
+            super().wheelEvent(event)
 
     def showPopup(self):
         """Show popup and ensure completer model is synchronized."""

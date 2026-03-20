@@ -19,6 +19,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.utils import no_scroll
 
 
 class ConfigDialog(QDialog):
@@ -148,7 +149,7 @@ class ConfigDialog(QDialog):
 
         h_method = QHBoxLayout()
         h_method.addWidget(QLabel("Auto Analysis Method:"))
-        self.analysis_method = QComboBox()
+        self.analysis_method = no_scroll(QComboBox())
         self.analysis_method.addItems(["fba", "moma"])
         self.analysis_method.setCurrentText(self.appdata.auto_analysis_method)
         h_method.addWidget(self.analysis_method)

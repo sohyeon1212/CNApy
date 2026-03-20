@@ -12,6 +12,7 @@ from qtpy.QtGui import QDoubleValidator, QIntValidator
 from qtpy.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout
 
 from cnapy.appdata import AppData
+from cnapy.utils import no_scroll
 
 
 class ConfigCobrapyDialog(QDialog):
@@ -31,7 +32,7 @@ class ConfigCobrapyDialog(QDialog):
         h2 = QHBoxLayout()
         label = QLabel("Default solver:\n(set when loading a model)")
         h2.addWidget(label)
-        self.default_solver = QComboBox()
+        self.default_solver = no_scroll(QComboBox())
         self.default_solver.addItems(avail_solvers)
         self.default_solver.setCurrentIndex(avail_solvers.index(interface_to_str(cobra.Configuration().solver)))
         h2.addWidget(self.default_solver)
@@ -40,7 +41,7 @@ class ConfigCobrapyDialog(QDialog):
         h9 = QHBoxLayout()
         label = QLabel("Solver for current model:")
         h9.addWidget(label)
-        self.current_solver = QComboBox()
+        self.current_solver = no_scroll(QComboBox())
         self.current_solver.addItems(avail_solvers)
         self.current_solver.setCurrentIndex(
             avail_solvers.index(interface_to_str(appdata.project.cobra_py_model.problem))

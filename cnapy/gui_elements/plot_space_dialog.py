@@ -18,7 +18,7 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
 )
 
-from cnapy.utils import QComplReceivLineEdit, QHSeperationLine
+from cnapy.utils import no_scroll, QComplReceivLineEdit, QHSeperationLine
 
 try:
     from straindesign import plot_flux_space
@@ -79,7 +79,7 @@ class PlotSpaceDialog(QDialog):
         # Define for horizontal axis
         x_groupbox = QGroupBox("x-axis")
         x_num_den_layout = QVBoxLayout()
-        self.x_combobox = QComboBox()
+        self.x_combobox = no_scroll(QComboBox())
         self.x_combobox.insertItem(0, "rate")
         self.x_combobox.insertItem(1, "yield")
         self.x_combobox.currentTextChanged.connect(self.x_combo_changed)
@@ -103,7 +103,7 @@ class PlotSpaceDialog(QDialog):
         # Define for vertical axis
         y_groupbox = QGroupBox("y-axis")
         y_num_den_layout = QVBoxLayout()
-        self.y_combobox = QComboBox()
+        self.y_combobox = no_scroll(QComboBox())
         self.y_combobox.insertItem(0, "rate")
         self.y_combobox.insertItem(1, "yield")
         self.y_combobox.currentTextChanged.connect(self.y_combo_changed)
@@ -127,7 +127,7 @@ class PlotSpaceDialog(QDialog):
         # Define for longitudinal axis
         self.z_groupbox = QGroupBox("z-axis")
         z_num_den_layout = QVBoxLayout()
-        self.z_combobox = QComboBox()
+        self.z_combobox = no_scroll(QComboBox())
         self.z_combobox.insertItem(0, "rate")
         self.z_combobox.insertItem(1, "yield")
         self.z_combobox.currentTextChanged.connect(self.z_combo_changed)

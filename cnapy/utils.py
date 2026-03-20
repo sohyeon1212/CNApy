@@ -1,6 +1,6 @@
 """CNApy utilities"""
 
-from qtpy.QtCore import QObject, QStringListModel, Qt, QTimer, Signal, Slot
+from qtpy.QtCore import QEvent, QObject, QStringListModel, Qt, QTimer, Signal, Slot
 from qtpy.QtWidgets import (
     QApplication,
     QCompleter,
@@ -13,6 +13,24 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import IDList
+
+
+class _ScrollGuard(QObject):
+    """Prevents scroll wheel from changing widget values when not focused."""
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Wheel and not obj.hasFocus():
+            event.ignore()
+            return True
+        return super().eventFilter(obj, event)
+
+_scroll_guard = _ScrollGuard()
+
+
+def no_scroll(widget):
+    """Apply to QComboBox/QSpinBox/QDoubleSpinBox to prevent accidental scroll changes."""
+    widget.setFocusPolicy(Qt.StrongFocus)
+    widget.installEventFilter(_scroll_guard)
+    return widget
 
 try:
     from straindesign import lineq2list, linexpr2dict, linexprdict2str

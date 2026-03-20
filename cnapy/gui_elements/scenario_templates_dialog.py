@@ -37,6 +37,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.utils import no_scroll
 
 # ============================================================================
 # Scenario Template Definitions
@@ -367,7 +368,7 @@ class ScenarioTemplatesDialog(QDialog):
         # Category filter
         cat_layout = QHBoxLayout()
         cat_layout.addWidget(QLabel("Category:"))
-        self.category_combo = QComboBox()
+        self.category_combo = no_scroll(QComboBox())
         self.category_combo.addItem("All Categories")
         self.category_combo.currentTextChanged.connect(self._filter_templates)
         cat_layout.addWidget(self.category_combo)
@@ -638,18 +639,18 @@ class ScenarioTemplatesDialog(QDialog):
 
         # Add reaction row
         add_row_layout = QHBoxLayout()
-        self.custom_reaction_combo = QComboBox()
+        self.custom_reaction_combo = no_scroll(QComboBox())
         self.custom_reaction_combo.setEditable(True)
         self.custom_reaction_combo.setPlaceholderText("Select or type reaction ID...")
         add_row_layout.addWidget(self.custom_reaction_combo)
 
-        self.custom_lb_spin = QDoubleSpinBox()
+        self.custom_lb_spin = no_scroll(QDoubleSpinBox())
         self.custom_lb_spin.setRange(-1000, 1000)
         self.custom_lb_spin.setValue(0)
         self.custom_lb_spin.setPrefix("LB: ")
         add_row_layout.addWidget(self.custom_lb_spin)
 
-        self.custom_ub_spin = QDoubleSpinBox()
+        self.custom_ub_spin = no_scroll(QDoubleSpinBox())
         self.custom_ub_spin.setRange(-1000, 1000)
         self.custom_ub_spin.setValue(0)
         self.custom_ub_spin.setPrefix("UB: ")

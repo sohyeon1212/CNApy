@@ -66,6 +66,7 @@ from qtpy.QtWidgets import (
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
+from cnapy.utils import no_scroll
 
 # Check for scipy availability
 try:
@@ -395,7 +396,7 @@ class DynamicFBADialog(QDialog):
         biomass_group = QGroupBox("Biomass Reaction")
         biomass_layout = QVBoxLayout()
 
-        self.biomass_combo = QComboBox()
+        self.biomass_combo = no_scroll(QComboBox())
         self.biomass_combo.setEditable(True)
         biomass_layout.addWidget(QLabel("Select biomass/growth reaction:"))
         biomass_layout.addWidget(self.biomass_combo)
@@ -409,7 +410,7 @@ class DynamicFBADialog(QDialog):
 
         biomass_row = QHBoxLayout()
         biomass_row.addWidget(QLabel("Initial biomass (g/L):"))
-        self.initial_biomass_spin = QDoubleSpinBox()
+        self.initial_biomass_spin = no_scroll(QDoubleSpinBox())
         self.initial_biomass_spin.setRange(0.001, 100)
         self.initial_biomass_spin.setValue(0.1)
         self.initial_biomass_spin.setDecimals(4)
@@ -425,7 +426,7 @@ class DynamicFBADialog(QDialog):
 
         start_row = QHBoxLayout()
         start_row.addWidget(QLabel("Start time (h):"))
-        self.time_start_spin = QDoubleSpinBox()
+        self.time_start_spin = no_scroll(QDoubleSpinBox())
         self.time_start_spin.setRange(0, 1000)
         self.time_start_spin.setValue(0)
         start_row.addWidget(self.time_start_spin)
@@ -433,7 +434,7 @@ class DynamicFBADialog(QDialog):
 
         end_row = QHBoxLayout()
         end_row.addWidget(QLabel("End time (h):"))
-        self.time_end_spin = QDoubleSpinBox()
+        self.time_end_spin = no_scroll(QDoubleSpinBox())
         self.time_end_spin.setRange(0.1, 1000)
         self.time_end_spin.setValue(10)
         end_row.addWidget(self.time_end_spin)
@@ -441,7 +442,7 @@ class DynamicFBADialog(QDialog):
 
         steps_row = QHBoxLayout()
         steps_row.addWidget(QLabel("Time steps:"))
-        self.time_steps_spin = QSpinBox()
+        self.time_steps_spin = no_scroll(QSpinBox())
         self.time_steps_spin.setRange(10, 10000)
         self.time_steps_spin.setValue(100)
         steps_row.addWidget(self.time_steps_spin)
@@ -522,7 +523,7 @@ class DynamicFBADialog(QDialog):
 
         method_row = QHBoxLayout()
         method_row.addWidget(QLabel("ODE Method:"))
-        self.method_combo = QComboBox()
+        self.method_combo = no_scroll(QComboBox())
         self.method_combo.addItems(["RK45", "RK23", "DOP853", "Radau", "BDF", "LSODA"])
         self.method_combo.setCurrentText("RK45")
         method_row.addWidget(self.method_combo)
@@ -530,7 +531,7 @@ class DynamicFBADialog(QDialog):
 
         maxstep_row = QHBoxLayout()
         maxstep_row.addWidget(QLabel("Max step size (h):"))
-        self.max_step_spin = QDoubleSpinBox()
+        self.max_step_spin = no_scroll(QDoubleSpinBox())
         self.max_step_spin.setRange(0.001, 10)
         self.max_step_spin.setValue(0.1)
         self.max_step_spin.setDecimals(4)
@@ -683,19 +684,19 @@ class DynamicFBADialog(QDialog):
             self.substrates_table.setItem(row, 1, QTableWidgetItem(rid))
 
             # Initial concentration (mM)
-            init_spin = QDoubleSpinBox()
+            init_spin = no_scroll(QDoubleSpinBox())
             init_spin.setRange(0, 10000)
             init_spin.setValue(10.0 if "glc" in rid else 1000.0)
             self.substrates_table.setCellWidget(row, 2, init_spin)
 
             # Km (mM)
-            km_spin = QDoubleSpinBox()
+            km_spin = no_scroll(QDoubleSpinBox())
             km_spin.setRange(0.001, 1000)
             km_spin.setValue(0.5 if "glc" in rid else 0.1)
             self.substrates_table.setCellWidget(row, 3, km_spin)
 
             # Vmax (mmol/gDW/h)
-            vmax_spin = QDoubleSpinBox()
+            vmax_spin = no_scroll(QDoubleSpinBox())
             vmax_spin.setRange(0.1, 100)
             vmax_spin.setValue(10.0 if "glc" in rid else 20.0)
             self.substrates_table.setCellWidget(row, 4, vmax_spin)
@@ -717,7 +718,7 @@ class DynamicFBADialog(QDialog):
             self.products_table.setItem(row, 1, QTableWidgetItem(rid))
 
             # Initial concentration (mM)
-            init_spin = QDoubleSpinBox()
+            init_spin = no_scroll(QDoubleSpinBox())
             init_spin.setRange(0, 10000)
             init_spin.setValue(0.0)
             self.products_table.setCellWidget(row, 2, init_spin)
@@ -1008,17 +1009,17 @@ class DynamicFBADialog(QDialog):
         self.substrates_table.setCellWidget(row, 0, cb)
         self.substrates_table.setItem(row, 1, QTableWidgetItem(rid))
 
-        init_spin = QDoubleSpinBox()
+        init_spin = no_scroll(QDoubleSpinBox())
         init_spin.setRange(0, 10000)
         init_spin.setValue(10.0 if "glc" in rid else 1.0)
         self.substrates_table.setCellWidget(row, 2, init_spin)
 
-        km_spin = QDoubleSpinBox()
+        km_spin = no_scroll(QDoubleSpinBox())
         km_spin.setRange(0.001, 1000)
         km_spin.setValue(0.5 if "glc" in rid else 0.1)
         self.substrates_table.setCellWidget(row, 3, km_spin)
 
-        vmax_spin = QDoubleSpinBox()
+        vmax_spin = no_scroll(QDoubleSpinBox())
         vmax_spin.setRange(0.1, 100)
         vmax_spin.setValue(10.0 if "glc" in rid else 20.0)
         self.substrates_table.setCellWidget(row, 4, vmax_spin)
@@ -1052,7 +1053,7 @@ class DynamicFBADialog(QDialog):
         self.products_table.setCellWidget(row, 0, cb)
         self.products_table.setItem(row, 1, QTableWidgetItem(rid))
 
-        init_spin = QDoubleSpinBox()
+        init_spin = no_scroll(QDoubleSpinBox())
         init_spin.setRange(0, 10000)
         init_spin.setValue(0.0)
         self.products_table.setCellWidget(row, 2, init_spin)

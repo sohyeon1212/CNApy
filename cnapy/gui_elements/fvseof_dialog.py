@@ -47,6 +47,7 @@ from scipy import stats
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.filterable_combobox import FilterableComboBox
+from cnapy.utils import no_scroll
 from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
 
 # Check for openpyxl availability for XLSX export
@@ -436,7 +437,7 @@ class FVSEOFDialog(QDialog):
         # Steps and biomass fraction
         config_layout = QHBoxLayout()
         config_layout.addWidget(QLabel("Number of Steps:"))
-        self.nsteps_spin = QSpinBox()
+        self.nsteps_spin = no_scroll(QSpinBox())
         self.nsteps_spin.setRange(5, 30)
         self.nsteps_spin.setValue(10)
         self.nsteps_spin.setToolTip(
@@ -448,7 +449,7 @@ class FVSEOFDialog(QDialog):
         config_layout.addSpacing(30)
 
         config_layout.addWidget(QLabel("Biomass Fraction:"))
-        self.fraction_spin = QDoubleSpinBox()
+        self.fraction_spin = no_scroll(QDoubleSpinBox())
         self.fraction_spin.setRange(0.5, 1.0)
         self.fraction_spin.setValue(0.95)
         self.fraction_spin.setDecimals(2)
@@ -462,7 +463,7 @@ class FVSEOFDialog(QDialog):
         # Cutoff parameters
         cutoff_layout = QHBoxLayout()
         cutoff_layout.addWidget(QLabel("R Cutoff (|R| >):"))
-        self.r_cutoff_spin = QDoubleSpinBox()
+        self.r_cutoff_spin = no_scroll(QDoubleSpinBox())
         self.r_cutoff_spin.setRange(0.5, 0.99)
         self.r_cutoff_spin.setValue(0.9)
         self.r_cutoff_spin.setDecimals(2)
@@ -474,7 +475,7 @@ class FVSEOFDialog(QDialog):
         cutoff_layout.addSpacing(30)
 
         cutoff_layout.addWidget(QLabel("P-value Cutoff (<):"))
-        self.p_cutoff_spin = QDoubleSpinBox()
+        self.p_cutoff_spin = no_scroll(QDoubleSpinBox())
         self.p_cutoff_spin.setRange(0.001, 0.1)
         self.p_cutoff_spin.setValue(0.05)
         self.p_cutoff_spin.setDecimals(3)

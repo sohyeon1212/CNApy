@@ -36,7 +36,7 @@ from cnapy.gui_elements.mode_navigator import ModeNavigator
 from cnapy.gui_elements.model_info import ModelInfo
 from cnapy.gui_elements.reactions_list import ReactionList, ReactionListColumn
 from cnapy.gui_elements.scenario_tab import ScenarioTab
-from cnapy.utils import SignalThrottler
+from cnapy.utils import no_scroll, SignalThrottler
 
 
 class ModelTabIndex(IntEnum):
@@ -78,7 +78,7 @@ class CentralWidget(QWidget):
         self.omics_label.setVisible(False)
         searchbar_layout.addWidget(self.omics_label)
 
-        self.omics_condition_combo = QComboBox()
+        self.omics_condition_combo = no_scroll(QComboBox())
         self.omics_condition_combo.setToolTip("Select which omics condition's flux values to display")
         self.omics_condition_combo.setMinimumContentsLength(12)
         self.omics_condition_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
@@ -98,7 +98,7 @@ class CentralWidget(QWidget):
         line.setFrameShadow(QFrame.Sunken)
         searchbar_layout.addWidget(line)
         searchbar_layout.addSpacing(10)
-        self.model_item_history = QComboBox()
+        self.model_item_history = no_scroll(QComboBox())
         self.model_item_history.setToolTip("Recently viewed model items")
         self.model_item_history.activated.connect(self.select_item_from_history)
         self.model_item_history.setMaxCount(30)

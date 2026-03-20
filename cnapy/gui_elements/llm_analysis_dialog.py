@@ -51,6 +51,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.utils import no_scroll
 
 
 class LLMConfig:
@@ -586,7 +587,7 @@ class LLMAnalysisDialog(QDialog):
         openai_layout.addWidget(self.openai_show_key, 0, 2)
 
         openai_layout.addWidget(QLabel("Model:"), 1, 0)
-        self.openai_model_combo = QComboBox()
+        self.openai_model_combo = no_scroll(QComboBox())
         self.openai_model_combo.addItems(
             [
                 "gpt-5.2",  # 최신 (2025.12)
@@ -629,7 +630,7 @@ class LLMAnalysisDialog(QDialog):
         gemini_layout.addWidget(self.gemini_show_key, 0, 2)
 
         gemini_layout.addWidget(QLabel("Model:"), 1, 0)
-        self.gemini_model_combo = QComboBox()
+        self.gemini_model_combo = no_scroll(QComboBox())
         self.gemini_model_combo.addItems(
             [
                 "gemini-3-flash",  # 최신 (2025.12)
@@ -669,7 +670,7 @@ class LLMAnalysisDialog(QDialog):
         anthropic_layout.addWidget(self.anthropic_show_key, 0, 2)
 
         anthropic_layout.addWidget(QLabel("Model:"), 1, 0)
-        self.anthropic_model_combo = QComboBox()
+        self.anthropic_model_combo = no_scroll(QComboBox())
         self.anthropic_model_combo.addItems(
             [
                 "claude-sonnet-4-20250514",
@@ -724,7 +725,7 @@ class LLMAnalysisDialog(QDialog):
         cache_layout.addWidget(self.use_cache_checkbox, 0, 0, 1, 2)
 
         cache_layout.addWidget(QLabel("Cache expiry (days):"), 1, 0)
-        self.cache_expiry_spin = QSpinBox()
+        self.cache_expiry_spin = no_scroll(QSpinBox())
         self.cache_expiry_spin.setRange(1, 365)
         self.cache_expiry_spin.setValue(self.config.cache_expiry_days)
         cache_layout.addWidget(self.cache_expiry_spin, 1, 1)
