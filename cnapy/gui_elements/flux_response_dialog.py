@@ -57,6 +57,7 @@ from qtpy.QtWidgets import (
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
+from cnapy.gui_elements.filterable_combobox import FilterableComboBox
 from cnapy.utils import no_scroll
 
 # Check for openpyxl availability for XLSX export
@@ -279,9 +280,8 @@ class FluxResponseDialog(QDialog):
         # Target reaction
         target_layout = QHBoxLayout()
         target_layout.addWidget(QLabel("Target Reaction (x-axis):"))
-        self.target_selector = no_scroll(QComboBox())
+        self.target_selector = FilterableComboBox()
         self.target_selector.setMinimumWidth(350)
-        self.target_selector.setEditable(True)
         self.target_selector.setToolTip("Reaction to scan from min to max. Its flux will be fixed at each scan point.")
         self._populate_reaction_selector(self.target_selector)
         target_layout.addWidget(self.target_selector)
@@ -296,9 +296,8 @@ class FluxResponseDialog(QDialog):
         # Product reaction
         product_layout = QHBoxLayout()
         product_layout.addWidget(QLabel("Product Reaction (y-axis):"))
-        self.product_selector = no_scroll(QComboBox())
+        self.product_selector = FilterableComboBox()
         self.product_selector.setMinimumWidth(350)
-        self.product_selector.setEditable(True)
         self.product_selector.setToolTip(
             "Reaction to maximize at each scan point. Typically an exchange reaction for product secretion."
         )
@@ -310,7 +309,7 @@ class FluxResponseDialog(QDialog):
         # Biomass reaction
         biomass_layout = QHBoxLayout()
         biomass_layout.addWidget(QLabel("Biomass Reaction:"))
-        self.biomass_selector = no_scroll(QComboBox())
+        self.biomass_selector = FilterableComboBox()
         self.biomass_selector.setMinimumWidth(350)
         self.biomass_selector.setToolTip(
             "Biomass/objective reaction to track during analysis (not constrained by default)"
