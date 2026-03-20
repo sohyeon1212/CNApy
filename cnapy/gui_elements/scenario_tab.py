@@ -23,7 +23,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData, Scenario
-from cnapy.utils import BACKGROUND_COLOR, QComplReceivLineEdit, format_scenario_constraint, turn_red, turn_white
+from cnapy.utils import BACKGROUND_COLOR, no_scroll, QComplReceivLineEdit, format_scenario_constraint, turn_red, turn_white
 
 try:
     from straindesign.parse_constr import lineq2list, linexpr2dict, linexprdict2str
@@ -83,7 +83,7 @@ class ScenarioTab(QWidget):
         self.optimization_direction_layout = QHBoxLayout()
         label = QLabel("Optimization direction:")
         self.optimization_direction_layout.addWidget(label)
-        self.scenario_opt_direction = QComboBox()
+        self.scenario_opt_direction = no_scroll(QComboBox())
         self.scenario_opt_direction.insertItems(0, ["minimize", "maximize"])
         self.optimization_direction_layout.addWidget(self.scenario_opt_direction)
         self.objective_group_layout.addLayout(self.optimization_direction_layout)

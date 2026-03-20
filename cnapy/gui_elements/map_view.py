@@ -35,6 +35,7 @@ from qtpy.QtWidgets import (
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.box_position_dialog import BoxPositionDialog
+from cnapy.utils import no_scroll
 
 INCREASE_FACTOR = 1.1
 DECREASE_FACTOR = 1 / INCREASE_FACTOR
@@ -530,7 +531,7 @@ class FluxConstraintSlider(QWidget):
         self.layout().addLayout(percent_row)
 
         control_row = QHBoxLayout()
-        self.spin = QDoubleSpinBox()
+        self.spin = no_scroll(QDoubleSpinBox())
         self.spin.setDecimals(self.map_view.appdata.rounding)
         self.spin.valueChanged.connect(self._handle_spin_change)
         control_row.addWidget(self.spin)

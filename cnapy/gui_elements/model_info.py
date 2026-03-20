@@ -13,7 +13,7 @@ except ImportError:
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.scenario_tab import OptimizationDirection
-from cnapy.utils import QComplReceivLineEdit
+from cnapy.utils import no_scroll, QComplReceivLineEdit
 
 
 class ModelInfo(QWidget):
@@ -30,7 +30,7 @@ class ModelInfo(QWidget):
         self.objective_group_layout.addWidget(self.global_objective)
         label = QLabel("Optimization direction")
         self.objective_group_layout.addWidget(label)
-        self.opt_direction = QComboBox()
+        self.opt_direction = no_scroll(QComboBox())
         self.opt_direction.insertItems(0, ["minimize", "maximize"])
         self.objective_group_layout.addWidget(self.opt_direction)
         group.setLayout(self.objective_group_layout)

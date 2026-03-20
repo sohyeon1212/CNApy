@@ -39,6 +39,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.utils import no_scroll
 
 
 class FluxSamplingDialog(QDialog):
@@ -93,7 +94,7 @@ class FluxSamplingDialog(QDialog):
         # Constraint mode
         constraint_row = QHBoxLayout()
         constraint_row.addWidget(QLabel("Constraint mode:"))
-        self.constraint_combo = QComboBox()
+        self.constraint_combo = no_scroll(QComboBox())
         self.constraint_combo.addItems(
             ["Bounds (sample within range around reference)", "Free (use reference as starting point only)"]
         )
@@ -107,7 +108,7 @@ class FluxSamplingDialog(QDialog):
         # Range parameters
         range_row = QHBoxLayout()
         range_row.addWidget(QLabel("Min fraction:"))
-        self.min_fraction_spin = QDoubleSpinBox()
+        self.min_fraction_spin = no_scroll(QDoubleSpinBox())
         self.min_fraction_spin.setRange(0.0, 1.0)
         self.min_fraction_spin.setValue(0.8)
         self.min_fraction_spin.setSingleStep(0.1)
@@ -115,7 +116,7 @@ class FluxSamplingDialog(QDialog):
         range_row.addWidget(self.min_fraction_spin)
 
         range_row.addWidget(QLabel("Max fraction:"))
-        self.max_fraction_spin = QDoubleSpinBox()
+        self.max_fraction_spin = no_scroll(QDoubleSpinBox())
         self.max_fraction_spin.setRange(1.0, 10.0)
         self.max_fraction_spin.setValue(1.2)
         self.max_fraction_spin.setSingleStep(0.1)
@@ -132,7 +133,7 @@ class FluxSamplingDialog(QDialog):
 
         noise_row = QHBoxLayout()
         noise_row.addWidget(QLabel("Noise std (fraction of flux):"))
-        self.noise_std_spin = QDoubleSpinBox()
+        self.noise_std_spin = no_scroll(QDoubleSpinBox())
         self.noise_std_spin.setRange(0.01, 1.0)
         self.noise_std_spin.setValue(0.1)
         self.noise_std_spin.setSingleStep(0.05)
@@ -154,7 +155,7 @@ class FluxSamplingDialog(QDialog):
         # Number of samples
         l1 = QHBoxLayout()
         l1.addWidget(QLabel("Number of samples:"))
-        self.n_samples = QSpinBox()
+        self.n_samples = no_scroll(QSpinBox())
         self.n_samples.setRange(1, 1000000)
         self.n_samples.setValue(5000)
         l1.addWidget(self.n_samples)
@@ -163,7 +164,7 @@ class FluxSamplingDialog(QDialog):
         # Thinning
         l2 = QHBoxLayout()
         l2.addWidget(QLabel("Thinning factor:"))
-        self.thinning = QSpinBox()
+        self.thinning = no_scroll(QSpinBox())
         self.thinning.setRange(1, 10000)
         self.thinning.setValue(100)
         self.thinning.setToolTip("Keep every nth sample to reduce autocorrelation")
@@ -173,7 +174,7 @@ class FluxSamplingDialog(QDialog):
         # Processes
         l3 = QHBoxLayout()
         l3.addWidget(QLabel("Processes (1 for single core):"))
-        self.processes = QSpinBox()
+        self.processes = no_scroll(QSpinBox())
         self.processes.setRange(1, 64)
         self.processes.setValue(4)
         l3.addWidget(self.processes)

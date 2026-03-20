@@ -3,6 +3,7 @@
 from qtpy.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 from cnapy.appdata import AppData
+from cnapy.utils import no_scroll
 
 
 class InOutFluxDialog(QDialog):
@@ -18,7 +19,7 @@ class InOutFluxDialog(QDialog):
 
         t1 = QLabel("Choose metabolite")
         self.layout.addWidget(t1)
-        self.metabolite_chooser = QComboBox()
+        self.metabolite_chooser = no_scroll(QComboBox())
         self.layout.addWidget(self.metabolite_chooser)
         l = QHBoxLayout()
         self.button = QPushButton("Plot")

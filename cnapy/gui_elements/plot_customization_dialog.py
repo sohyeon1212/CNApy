@@ -18,6 +18,8 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
+from cnapy.utils import no_scroll
+
 
 class PlotCustomizationDialog(QDialog):
     """Dialog for customizing matplotlib plot properties.
@@ -94,7 +96,7 @@ class PlotCustomizationDialog(QDialog):
         ylabel_edit = QLineEdit()
         form.addRow("Y Label:", ylabel_edit)
 
-        xscale_combo = QComboBox()
+        xscale_combo = no_scroll(QComboBox())
         xscale_combo.addItems(["linear", "log", "symlog", "logit"])
         xscale_combo.setToolTip(
             "linear: standard scale\n"
@@ -104,7 +106,7 @@ class PlotCustomizationDialog(QDialog):
         )
         form.addRow("X Scale:", xscale_combo)
 
-        yscale_combo = QComboBox()
+        yscale_combo = no_scroll(QComboBox())
         yscale_combo.addItems(["linear", "log", "symlog", "logit"])
         yscale_combo.setToolTip(
             "linear: standard scale\n"

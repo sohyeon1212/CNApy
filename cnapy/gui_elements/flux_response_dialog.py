@@ -57,6 +57,8 @@ from qtpy.QtWidgets import (
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
+from cnapy.gui_elements.filterable_combobox import FilterableComboBox
+from cnapy.utils import no_scroll
 
 # Check for openpyxl availability for XLSX export
 try:
@@ -278,9 +280,8 @@ class FluxResponseDialog(QDialog):
         # Target reaction
         target_layout = QHBoxLayout()
         target_layout.addWidget(QLabel("Target Reaction (x-axis):"))
-        self.target_selector = QComboBox()
+        self.target_selector = FilterableComboBox()
         self.target_selector.setMinimumWidth(350)
-        self.target_selector.setEditable(True)
         self.target_selector.setToolTip("Reaction to scan from min to max. Its flux will be fixed at each scan point.")
         self._populate_reaction_selector(self.target_selector)
         target_layout.addWidget(self.target_selector)
@@ -295,9 +296,8 @@ class FluxResponseDialog(QDialog):
         # Product reaction
         product_layout = QHBoxLayout()
         product_layout.addWidget(QLabel("Product Reaction (y-axis):"))
-        self.product_selector = QComboBox()
+        self.product_selector = FilterableComboBox()
         self.product_selector.setMinimumWidth(350)
-        self.product_selector.setEditable(True)
         self.product_selector.setToolTip(
             "Reaction to maximize at each scan point. Typically an exchange reaction for product secretion."
         )
@@ -309,7 +309,7 @@ class FluxResponseDialog(QDialog):
         # Biomass reaction
         biomass_layout = QHBoxLayout()
         biomass_layout.addWidget(QLabel("Biomass Reaction:"))
-        self.biomass_selector = QComboBox()
+        self.biomass_selector = FilterableComboBox()
         self.biomass_selector.setMinimumWidth(350)
         self.biomass_selector.setToolTip(
             "Biomass/objective reaction to track during analysis (not constrained by default)"
@@ -322,7 +322,7 @@ class FluxResponseDialog(QDialog):
         # Range and steps
         range_layout = QHBoxLayout()
         range_layout.addWidget(QLabel("Min x:"))
-        self.min_spin = QDoubleSpinBox()
+        self.min_spin = no_scroll(QDoubleSpinBox())
         self.min_spin.setDecimals(4)
         self.min_spin.setRange(-1e9, 1e9)
         self.min_spin.setValue(-10.0)
@@ -330,7 +330,7 @@ class FluxResponseDialog(QDialog):
         range_layout.addWidget(self.min_spin)
 
         range_layout.addWidget(QLabel("Max x:"))
-        self.max_spin = QDoubleSpinBox()
+        self.max_spin = no_scroll(QDoubleSpinBox())
         self.max_spin.setDecimals(4)
         self.max_spin.setRange(-1e9, 1e9)
         self.max_spin.setValue(10.0)
@@ -340,7 +340,7 @@ class FluxResponseDialog(QDialog):
         range_layout.addSpacing(20)
 
         range_layout.addWidget(QLabel("Steps:"))
-        self.steps_spin = QSpinBox()
+        self.steps_spin = no_scroll(QSpinBox())
         self.steps_spin.setRange(5, 500)
         self.steps_spin.setValue(20)
         self.steps_spin.setToolTip("Number of scan points between min and max")

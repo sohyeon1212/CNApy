@@ -9,7 +9,7 @@ from qtpy.QtWidgets import QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QMes
 
 from cnapy.appdata import AppData
 from cnapy.gui_elements.central_widget import CentralWidget
-from cnapy.utils import QComplReceivLineEdit, QHSeperationLine
+from cnapy.utils import no_scroll, QComplReceivLineEdit, QHSeperationLine
 
 try:
     from straindesign import avail_solvers, linexpr2dict, linexprdict2str, yopt
@@ -52,7 +52,7 @@ class YieldOptimizationDialog(QDialog):
         )
         self.layout.addWidget(l)
         editor_layout = QHBoxLayout()
-        self.sense_combo = QComboBox()
+        self.sense_combo = no_scroll(QComboBox())
         self.sense_combo.insertItems(0, ["maximize", "minimize"])
         self.sense_combo.setMinimumWidth(120)
         editor_layout.addWidget(self.sense_combo)

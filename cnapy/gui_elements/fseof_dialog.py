@@ -43,6 +43,7 @@ from qtpy.QtWidgets import (
 from cnapy.appdata import AppData
 from cnapy.gui_elements.filterable_combobox import FilterableComboBox
 from cnapy.gui_elements.plot_customization_dialog import PlotCustomizationDialog
+from cnapy.utils import no_scroll
 
 # Check for openpyxl availability for XLSX export
 try:
@@ -311,7 +312,7 @@ class FSEOFDialog(QDialog):
         # Objective fraction and n_points
         fraction_layout = QHBoxLayout()
         fraction_layout.addWidget(QLabel("Objective Fraction:"))
-        self.fraction_spin = QDoubleSpinBox()
+        self.fraction_spin = no_scroll(QDoubleSpinBox())
         self.fraction_spin.setRange(0.0, 1.0)
         self.fraction_spin.setValue(0.9)
         self.fraction_spin.setDecimals(2)
@@ -324,7 +325,7 @@ class FSEOFDialog(QDialog):
         fraction_layout.addSpacing(30)
 
         fraction_layout.addWidget(QLabel("Number of Points:"))
-        self.npoints_spin = QSpinBox()
+        self.npoints_spin = no_scroll(QSpinBox())
         self.npoints_spin.setRange(5, 100)
         self.npoints_spin.setValue(20)
         self.npoints_spin.setToolTip("Number of scanning points between min and max target flux")

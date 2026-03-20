@@ -39,6 +39,7 @@ from qtpy.QtWidgets import (
 )
 
 from cnapy.appdata import AppData
+from cnapy.utils import no_scroll
 
 
 class FluxDataCondition:
@@ -148,20 +149,20 @@ class FluxDataDialog(QDialog):
         format_layout = QGridLayout()
 
         format_layout.addWidget(QLabel("Delimiter:"), 0, 0)
-        self.delimiter_combo = QComboBox()
+        self.delimiter_combo = no_scroll(QComboBox())
         self.delimiter_combo.addItem("Comma (,)", ",")
         self.delimiter_combo.addItem("Tab (\\t)", "\t")
         self.delimiter_combo.addItem("Semicolon (;)", ";")
         format_layout.addWidget(self.delimiter_combo, 0, 1)
 
         format_layout.addWidget(QLabel("Reaction ID column:"), 0, 2)
-        self.rxn_col_spin = QSpinBox()
+        self.rxn_col_spin = no_scroll(QSpinBox())
         self.rxn_col_spin.setRange(0, 100)
         self.rxn_col_spin.setValue(0)
         format_layout.addWidget(self.rxn_col_spin, 0, 3)
 
         format_layout.addWidget(QLabel("Flux value column:"), 1, 0)
-        self.flux_col_spin = QSpinBox()
+        self.flux_col_spin = no_scroll(QSpinBox())
         self.flux_col_spin.setRange(0, 100)
         self.flux_col_spin.setValue(1)
         format_layout.addWidget(self.flux_col_spin, 1, 1)
@@ -231,7 +232,7 @@ class FluxDataDialog(QDialog):
         single_layout = QHBoxLayout()
         single_layout.setContentsMargins(0, 0, 0, 0)
         single_layout.addWidget(QLabel("Select condition:"))
-        self.single_condition_combo = QComboBox()
+        self.single_condition_combo = no_scroll(QComboBox())
         single_layout.addWidget(self.single_condition_combo)
         single_layout.addStretch()
         self.single_widget.setLayout(single_layout)
@@ -243,15 +244,15 @@ class FluxDataDialog(QDialog):
         log2fc_layout.setContentsMargins(0, 0, 0, 0)
 
         log2fc_layout.addWidget(QLabel("Reference (denominator):"), 0, 0)
-        self.ref_condition_combo = QComboBox()
+        self.ref_condition_combo = no_scroll(QComboBox())
         log2fc_layout.addWidget(self.ref_condition_combo, 0, 1)
 
         log2fc_layout.addWidget(QLabel("Target (numerator):"), 0, 2)
-        self.target_condition_combo = QComboBox()
+        self.target_condition_combo = no_scroll(QComboBox())
         log2fc_layout.addWidget(self.target_condition_combo, 0, 3)
 
         log2fc_layout.addWidget(QLabel("Pseudocount:"), 1, 0)
-        self.pseudocount_spin = QDoubleSpinBox()
+        self.pseudocount_spin = no_scroll(QDoubleSpinBox())
         self.pseudocount_spin.setDecimals(10)
         self.pseudocount_spin.setRange(0, 1)
         self.pseudocount_spin.setValue(1e-6)
@@ -270,7 +271,7 @@ class FluxDataDialog(QDialog):
         color_layout.setContentsMargins(0, 0, 0, 0)
 
         color_layout.addWidget(QLabel("Color scale range (symmetric):"))
-        self.color_range_spin = QDoubleSpinBox()
+        self.color_range_spin = no_scroll(QDoubleSpinBox())
         self.color_range_spin.setRange(0.1, 10)
         self.color_range_spin.setValue(2.0)
         self.color_range_spin.setSingleStep(0.5)
