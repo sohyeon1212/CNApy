@@ -575,6 +575,8 @@ class OmicsIntegrationDialog(QDialog):
         self.conditions: list[str] = []
         self.multi_expression_data: dict[str, dict[str, float]] = {}
         self.multi_results: dict[str, dict[str, float]] = {}
+        # condition -> {reaction_id: GPR-derived weight}; surfaced alongside fluxes in the comparison table
+        self.multi_weights: dict[str, dict[str, float]] = {}
         self.is_multi_condition = False
 
         self._build_ui()
@@ -1014,6 +1016,7 @@ class OmicsIntegrationDialog(QDialog):
                 flux_constraints[rid] = (lb, ub)
 
         self.multi_results.clear()
+        self.multi_weights.clear()
         failed_conditions = []
         successful_conditions = []
         pfba_fallback_conditions: list[str] = []  # conditions where pFBA was used instead of QP
@@ -1066,6 +1069,7 @@ class OmicsIntegrationDialog(QDialog):
 
                 if status == "optimal" and flux_dist:
                     self.multi_results[condition] = flux_dist
+                    self.multi_weights[condition] = reaction_weights
                     successful_conditions.append(condition)
                 else:
                     failed_conditions.append((condition, f"Optimization status: {status}"))
@@ -1160,12 +1164,16 @@ class OmicsIntegrationDialog(QDialog):
         show_fc = fc_ref and fc_ref != "(None)" and fc_ref in self.multi_results
         other_conditions = [c for c in conditions if c != fc_ref] if show_fc else []
 
-        # Calculate column count: Reaction + conditions + FC columns
+        # Calculate column count: Reaction + (flux,weight) per condition + FC columns
         num_fc_cols = len(other_conditions) if show_fc else 0
-        total_cols = 1 + len(conditions) + num_fc_cols
+        total_cols = 1 + 2 * len(conditions) + num_fc_cols
 
-        # Build header labels
-        headers = ["Reaction"] + conditions
+        # Build header labels: each condition gets a flux and a weight column,
+        # paired so users can read flux/weight side-by-side per condition.
+        headers = ["Reaction"]
+        for cond in conditions:
+            headers.append(f"{cond}_flux")
+            headers.append(f"{cond}_weight")
         if show_fc:
             headers += [f"FC({c}/{fc_ref})" for c in other_conditions]
 
@@ -1177,6 +1185,8 @@ class OmicsIntegrationDialog(QDialog):
         self.comparison_table.setColumnCount(total_cols)
         self.comparison_table.setHorizontalHeaderLabels(headers)
 
+        fc_start_col = 1 + 2 * len(conditions)
+
         # Fill table
         for row, rxn_id in enumerate(reactions):
             # Reaction ID
@@ -1184,13 +1194,27 @@ class OmicsIntegrationDialog(QDialog):
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             self.comparison_table.setItem(row, 0, item)
 
-            # Flux values for each condition
-            for col, cond in enumerate(conditions, 1):
+            # Flux + Weight for each condition (paired columns)
+            for cond_idx, cond in enumerate(conditions):
+                col_flux = 1 + 2 * cond_idx
+                col_weight = col_flux + 1
+
                 flux = self.multi_results[cond].get(rxn_id, 0.0)
-                item = NumericTableWidgetItem(f"{flux:.4f}", flux)
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self.comparison_table.setItem(row, col, item)
+                flux_item = NumericTableWidgetItem(f"{flux:.4f}", flux)
+                flux_item.setFlags(flux_item.flags() & ~Qt.ItemIsEditable)
+                flux_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.comparison_table.setItem(row, col_flux, flux_item)
+
+                weights = self.multi_weights.get(cond, {})
+                if rxn_id in weights:
+                    w = weights[rxn_id]
+                    weight_item = NumericTableWidgetItem(f"{w:.4f}", w)
+                else:
+                    # No GPR or no matching gene expression for this reaction/condition
+                    weight_item = NumericTableWidgetItem("N/A", float("nan"))
+                weight_item.setFlags(weight_item.flags() & ~Qt.ItemIsEditable)
+                weight_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.comparison_table.setItem(row, col_weight, weight_item)
 
             # FC columns
             if show_fc:
@@ -1198,7 +1222,7 @@ class OmicsIntegrationDialog(QDialog):
                 for fc_col, cond in enumerate(other_conditions):
                     cond_flux = self.multi_results[cond].get(rxn_id, 0.0)
                     fc_value = self._calculate_fc(cond_flux, ref_flux)
-                    col_idx = 1 + len(conditions) + fc_col
+                    col_idx = fc_start_col + fc_col
 
                     if fc_value is not None and not np.isinf(fc_value):
                         item = NumericTableWidgetItem(f"{fc_value:.3f}", fc_value)
@@ -1314,10 +1338,15 @@ class OmicsIntegrationDialog(QDialog):
                 all_reactions.update(flux_dist.keys())
             reactions = sorted(all_reactions)
 
-            # Create DataFrame
+            # Create DataFrame — mirror the comparison table by pairing
+            # flux and weight columns per condition.
             data = {"Reaction": reactions}
             for cond in conditions:
-                data[cond] = [self.multi_results[cond].get(rxn, 0.0) for rxn in reactions]
+                weights = self.multi_weights.get(cond, {})
+                data[f"{cond}_flux"] = [self.multi_results[cond].get(rxn, 0.0) for rxn in reactions]
+                data[f"{cond}_weight"] = [
+                    weights[rxn] if rxn in weights else float("nan") for rxn in reactions
+                ]
 
             df = pd.DataFrame(data)
             df.to_csv(filename, index=False)
